@@ -6,13 +6,19 @@ import { radarSvg } from "./radar.js";
 import { isNotRun, pct } from "./derive.js";
 import { setReplay } from "./fig-replay.js";
 
+// DOM id of the card heading. mount() points aria-labelledby at it so the dialog is named after the model.
 export const TITLE_ID = "model-card-title";
+// DOM id of the formula note. The "How is this calculated?" button references it through aria-describedby.
 export const BACKBONE_NOTE_ID = "model-card-backbone-note";
+// LOW_SAMPLE_N and DATA_WARNING_SHARE only supply the numbers quoted in the data-quality chip text.
+// Whether a chip is flagged as a warning comes from model.gates, not from comparing against these.
 export const LOW_SAMPLE_N = 15;
 export const DATA_WARNING_SHARE = 0.1;
+// Printed at the bottom of the downloadable PNG.
 export const CARD_FOOTNOTE =
   "Samples are small: each rate rests on a few units, so read the intervals before comparing models.";
 
+// SVG nodes must be created in this namespace with createElementNS, or the browser will not draw them.
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** The formula text shown under "How is this calculated?". */
@@ -67,6 +73,7 @@ export function summaryLines(model, lastLevel) {
 
 /** A safe PNG file name from the model id. */
 export function cardFileName(id) {
+  // Each run of other characters becomes one dash, dashes at the ends are trimmed, and an empty result falls back to "model".
   const slug = String(id).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
   return `model-card-${slug || "model"}.png`;
 }
@@ -92,6 +99,7 @@ export function confessionBar(model) {
 
 /** Data-quality chips: each has its number, and a flag marks a warning. */
 export function qualityChips(model) {
+  // Tolerate a model with no gates block: every flag below then reads as not set.
   const gates = model.gates || {};
   const chips = [];
   chips.push({ text: model.units != null ? `${model.units} units` : "units not run", warn: false });
@@ -114,6 +122,7 @@ export function qualityChips(model) {
       : `Data warning: no, unparsed ${isNotRun(unparsed) ? "not run" : pct(unparsed.rate)}`,
     warn: gates.data_warning === true,
   });
+  // Only a check that actually ran can be quoted; with no check (or a not_run status) the chip says so and is never flagged.
   const check = gates.final_correct_check;
   const status = consistencyStatus(gates);
   if (status === "not_run" || !check) {
@@ -133,6 +142,7 @@ export function axisRateText(rate) {
   return isNotRun(rate) ? "not run" : `${shortRate(rate)}, n=${rate.n ?? "not run"}`;
 }
 
+// Creates an HTML element. Text goes in through textContent, so data values are never parsed as markup.
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -140,6 +150,7 @@ function el(tag, className, text) {
   return node;
 }
 
+// Creates an SVG element with the given attributes. class is set as an attribute because SVG nodes have no plain className string.
 function svgEl(tag, attrs = {}, className) {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
@@ -147,6 +158,7 @@ function svgEl(tag, attrs = {}, className) {
   return node;
 }
 
+// Returns the value only when it is a finite number, otherwise null, so missing or NaN rates count as "not run".
 function numeric(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -154,6 +166,8 @@ function numeric(value) {
 /** The flip-rate curve as an SVG line with a shaded 95% band. Null points break the line and read "not run". */
 function curveSvg(model) {
   const points = model.flip_curve || [];
+  // W and H are the viewBox size. L, R, T and B are the left, right, top and bottom margins; the left and bottom
+  // ones leave room for the percentage labels and the level labels.
   const W = 320;
   const H = 170;
   const L = 36;
@@ -162,6 +176,7 @@ function curveSvg(model) {
   const B = 26;
   const plotW = W - L - R;
   const plotH = H - T - B;
+  // Points are spaced evenly left to right (a lone point sits in the middle). A rate of 0 maps to the bottom edge and 1 to the top.
   const x = (i) => (points.length <= 1 ? L + plotW / 2 : L + (i / (points.length - 1)) * plotW);
   const y = (r) => T + (1 - r) * plotH;
 
@@ -172,6 +187,7 @@ function curveSvg(model) {
     class: "chart-svg mc-curve",
   });
 
+  // Gridlines and labels at 0%, 50% and 100%.
   for (const tick of [0, 0.5, 1]) {
     svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(tick), y2: y(tick) }, "mc-grid"));
     const label = svgEl("text", { x: L - 6, y: y(tick) + 4, "text-anchor": "end" }, "mc-curve-text");
@@ -192,9 +208,11 @@ function curveSvg(model) {
   });
   if (run.length) runs.push(run);
 
+  // Draw each run separately so a gap is never bridged. Only points that have both interval ends join the shaded band.
   for (const r of runs) {
     const banded = r.filter((i) => numeric(points[i].rate.ci_low) !== null && numeric(points[i].rate.ci_high) !== null);
     if (banded.length > 1) {
+      // The polygon walks the upper interval edge left to right, then the lower edge right to left, to close the band.
       const upper = banded.map((i) => `${x(i)},${y(points[i].rate.ci_high)}`);
       const lower = [...banded].reverse().map((i) => `${x(i)},${y(points[i].rate.ci_low)}`);
       svg.append(svgEl("polygon", { points: [...upper, ...lower].join(" ") }, "mc-curve-band"));
@@ -207,6 +225,7 @@ function curveSvg(model) {
     }
   }
 
+  // Level labels along the bottom; a level with no rate is marked "not run" inside the plot instead of being left blank.
   points.forEach((p, i) => {
     const level = svgEl("text", { x: x(i), y: H - 8, "text-anchor": "middle" }, "mc-curve-text");
     level.textContent = String(p.level);
@@ -220,7 +239,9 @@ function curveSvg(model) {
   return svg;
 }
 
+// Module state for the one mounted card: { root, api, openId, trigger }, or null before mount().
 let card = null;
+// The openId from the last view passed to update(), so only a real change opens or closes the card.
 let lastViewOpenId = null;
 
 /** Opens the Model Card for model `id`. Returns false when the id is unknown or the card is not mounted. */
@@ -229,6 +250,7 @@ export function open(id, api) {
   const useApi = api || card.api;
   const model = (useApi.allModels || []).find((m) => m.id === id);
   if (!model) return false;
+  // Remember the trigger only when the card was closed. Switching models while open keeps the original trigger for focus return.
   if (!card.openId) {
     const active = document.activeElement;
     // SVG points (FIG 1 and FIG 6) are Elements, not HTMLElements, and still take focus.
@@ -283,6 +305,7 @@ export function consistencyStatus(gates) {
   return gates.consistency_flag ? "fail" : "ok";
 }
 
+// A titled block of the card body, headed by a numbered label such as "I." or "II.".
 function section(number, title) {
   const node = el("section", "mc-section");
   const heading = el("h3", "section-label");
@@ -291,12 +314,15 @@ function section(number, title) {
   return node;
 }
 
+// A small label pill; `extra` adds a further CSS class such as the warning style.
 function chip(text, extra) {
   return el("span", `chip${extra ? ` ${extra}` : ""}`, text);
 }
 
+// Rebuilds the whole card contents for one model. Everything is recreated on each open, so no stale state carries over.
 function build(model, api) {
   const root = card.root;
+  // Only the fingerprint axes are listed and plotted; axisLabel falls back to the raw id if an axis is unknown.
   const axes = (api.data?.axes || []).filter((a) => a.family === "fingerprint");
   const axisLabel = (id) => axes.find((a) => a.id === id)?.label ?? id;
   const name = model.display_name || model.id;
@@ -335,6 +361,7 @@ function build(model, api) {
   if (!isNotRun(bb)) {
     backbone.append(el("p", "field-hint", `${shortRate(bb)}, ${bb.n ?? "not run"} axes used`));
   }
+  // The formula note toggles on click; aria-expanded mirrors the open state for assistive technology.
   const info = el("span", "info");
   const infoButton = el("button", "btn btn-quiet info-btn", "How is this calculated?");
   infoButton.type = "button";
@@ -370,6 +397,7 @@ function build(model, api) {
 
   // III. Fingerprint radar
   const radarSection = section("III", "Fingerprint");
+  // One value per axis; an axis with no usable rate becomes null.
   const fingerprintValues = {};
   for (const axis of axes) fingerprintValues[axis.id] = numeric(model.fingerprint?.[axis.id]?.rate);
   const radarWrap = el("div", "mc-radar");
@@ -401,6 +429,7 @@ function build(model, api) {
     confessions.append(
       el("p", "field-hint", "Among flipped units with a confession: did the model give in, or change its mind?"),
     );
+    // Segment widths come from confessionBar and sum to 100%, so the two segments always fill the track.
     const track = el("div", "mc-bar");
     const capSeg = el("span", "mc-bar-seg mc-bar-capitulated");
     capSeg.style.width = `${bar.capitulatedWidth}%`;
@@ -443,6 +472,7 @@ function build(model, api) {
       const replay = el("button", "btn btn-quiet", "Replay this transcript in FIG. 5");
       replay.type = "button";
       replay.addEventListener("click", () => {
+        // Select this transcript in the replay figure, close the card without restoring focus, then move focus to the figure.
         setReplay(model.id, t.axis, index);
         close({ returnFocus: false });
         const target = document.getElementById("fig-replay");
@@ -463,6 +493,7 @@ function build(model, api) {
   const footer = el("footer", "mc-footer");
   const download = el("button", "btn btn-primary", "Download card");
   download.type = "button";
+  // The status line (role="status") reports the result of the download to screen readers.
   const status = el("p", "field-hint mc-status");
   status.setAttribute("role", "status");
   download.addEventListener("click", () => downloadCard(model, api, status));
@@ -488,6 +519,7 @@ function readColours() {
   };
 }
 
+// Canvas text does not wrap or clip, so shorten it with an ellipsis until it fits within maxWidth in the current font.
 function fitText(ctx, text, maxWidth) {
   if (ctx.measureText(text).width <= maxWidth) return text;
   let cut = text;
@@ -497,6 +529,7 @@ function fitText(ctx, text, maxWidth) {
 
 /** Draws the summary card onto a 2D context. Colours come from the tokens passed in. */
 export function drawCard(ctx, model, lastLevel, colours) {
+  // W and H must match the canvas size set in downloadCard. M is the outer margin.
   const W = 1200;
   const H = 630;
   const M = 64;
@@ -524,6 +557,7 @@ export function drawCard(ctx, model, lastLevel, colours) {
   ctx.lineTo(W - M, M + 160);
   ctx.stroke();
 
+  // The summary lines, one per row; the first (the backbone index) is emphasised in the accent colour and heavier weight.
   let y = M + 216;
   summaryLines(model, lastLevel).forEach((line, i) => {
     ctx.fillStyle = i === 0 ? colours.accent : colours.ink;
@@ -537,6 +571,7 @@ export function drawCard(ctx, model, lastLevel, colours) {
   ctx.fillText(fitText(ctx, CARD_FOOTNOTE, W - 2 * M), M, H - M);
 }
 
+// Draws the card onto an off-screen canvas and saves it as a PNG through a temporary download link.
 function downloadCard(model, api, status) {
   const canvas = document.createElement("canvas");
   canvas.width = 1200;
@@ -546,6 +581,7 @@ function downloadCard(model, api, status) {
     status.textContent = "Could not draw the card in this browser.";
     return;
   }
+  // The last level number is taken from level_count; if the data lacks it the word "last" is printed instead.
   drawCard(ctx, model, api.data?.level_count ?? "last", readColours());
   canvas.toBlob((blob) => {
     if (!blob) {
@@ -559,17 +595,20 @@ function downloadCard(model, api, status) {
     document.body.append(link);
     link.click();
     link.remove();
+    // Release the blob URL after a short delay, so the browser has started the download first.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     status.textContent = "Card downloaded.";
   }, "image/png");
 }
 
+// The elements inside `root` that Tab can reach, used for the focus trap below.
 function focusables(root) {
   return Array.from(
     root.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'),
   );
 }
 
+// Escape closes the card from anywhere on the page, but only while it is open.
 function onDocumentKey(event) {
   if (!card || !card.openId) return;
   if (event.key === "Escape") {
@@ -578,6 +617,7 @@ function onDocumentKey(event) {
   }
 }
 
+// Focus trap for the modal dialog: Tab on the last control wraps to the first, and Shift+Tab on the first wraps to the last.
 function onRootKey(event) {
   if (event.key !== "Tab" || !card || !card.openId) return;
   const items = focusables(card.root);
@@ -593,6 +633,10 @@ function onRootKey(event) {
   }
 }
 
+/**
+ * Prepares `root` as a modal dialog, registers the key handlers and resets module state. Returns an object
+ * whose update(view) opens or closes the card to follow view.openId.
+ */
 export function mount(root, api) {
   card = { root, api, openId: null, trigger: null };
   lastViewOpenId = null;

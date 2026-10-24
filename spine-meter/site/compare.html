@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/compare-figs-b.css">
 </head>
 <body>
+  <!-- Page content: masthead, reading notes, filters, seven figures and a glossary. -->
   <main class="page compare-page">
     <header class="masthead" id="masthead">
       <p class="section-label"><span class="section-number">I.</span> Comparison</p>
@@ -19,6 +20,7 @@
       <p class="standfirst" id="takeaway">Loading the results.</p>
     </header>
 
+    <!-- Caveats for reading the results. -->
     <section class="card how-to-read" id="how-to-read" aria-labelledby="how-to-read-title">
       <p class="card-label" id="how-to-read-title">How to read this page</p>
       <ul class="how-list">
@@ -30,6 +32,7 @@
       </ul>
     </section>
 
+    <!-- Filter controls: model family, size, reasoning, weights, condition, low-sample and name search. The family chip row starts empty and the size range has no bounds in the markup. -->
     <div class="filter-bar" id="filter-bar" role="region" aria-label="Filters">
       <fieldset class="filter-group filter-family">
         <legend class="label">Families</legend>
@@ -97,45 +100,53 @@
       </div>
     </div>
 
+    <!-- FIG. 1: scatter of models. The figure root holds a loading message until it is replaced. -->
     <section class="card figure" id="fig-scatter" aria-labelledby="fig-scatter-title">
       <p class="card-label" id="fig-scatter-title">FIG. 1 · SMART VS SPINELESS</p>
       <div class="figure-root" id="fig-scatter-root"><p class="figure-message">Loading the figure.</p></div>
       <p class="field-hint figure-caption">Each circle is a model: left to right is how often it answers right at the start, and up the page is how often pressure makes it give up that answer.</p>
     </section>
 
+    <!-- FIG. 2: fingerprint, the flip rate per kind of pressure. -->
     <section class="card figure" id="fig-fingerprint" aria-labelledby="fig-fingerprint-title">
       <p class="card-label" id="fig-fingerprint-title">FIG. 2 · THE FINGERPRINT</p>
       <div class="figure-root" id="fig-fingerprint-root"><p class="figure-message">Loading the figure.</p></div>
     </section>
 
+    <!-- FIG. 3: survivors. -->
     <section class="card figure" id="fig-survivors" aria-labelledby="fig-survivors-title">
       <p class="card-label" id="fig-survivors-title">FIG. 3 · SURVIVORS</p>
       <div class="figure-root" id="fig-survivors-root"><p class="figure-message">Loading the figure.</p></div>
     </section>
 
+    <!-- FIG. 4: head to head comparison of two models. -->
     <section class="card figure" id="fig-h2h" aria-labelledby="fig-h2h-title">
       <p class="card-label" id="fig-h2h-title">FIG. 4 · HEAD TO HEAD</p>
       <div class="figure-root" id="fig-h2h-root"><p class="figure-message">Loading the figure.</p></div>
       <p class="field-hint figure-caption">Two models side by side, with their numbers for each kind of pressure.</p>
     </section>
 
+    <!-- FIG. 5: transcript replay of one exchange. -->
     <section class="card figure" id="fig-replay" aria-labelledby="fig-replay-title">
       <p class="card-label" id="fig-replay-title">FIG. 5 · TRANSCRIPT REPLAY</p>
       <div class="figure-root" id="fig-replay-root"><p class="figure-message">Loading the figure.</p></div>
       <p class="field-hint figure-caption">A real exchange from the run, replayed turn by turn, ending in a held or a folded answer.</p>
     </section>
 
+    <!-- FIG. 6: map of spineless against stubborn models. -->
     <section class="card figure" id="fig-map" aria-labelledby="fig-map-title">
       <p class="card-label" id="fig-map-title">FIG. 6 · SPINELESS VS STUBBORN</p>
       <div class="figure-root" id="fig-map-root"><p class="figure-message">Loading the figure.</p></div>
       <p class="field-hint figure-caption">Left is how rarely a model accepts a false twin claim; up is how well it accepts a correction. Top left is firm and open.</p>
     </section>
 
+    <!-- FIG. 7: mitigation and control conditions. -->
     <section class="card figure" id="fig-mitigation" aria-labelledby="fig-mitigation-title">
       <p class="card-label" id="fig-mitigation-title">FIG. 7 · MITIGATION AND CONTROL</p>
       <div class="figure-root" id="fig-mitigation-root"><p class="figure-message">Loading the figure.</p></div>
     </section>
 
+    <!-- Collapsible glossary of the terms used on this page. -->
     <details class="card glossary" id="glossary">
       <summary>What do these terms mean?</summary>
       <dl class="glossary-list">
@@ -165,16 +176,20 @@
     </details>
   </main>
 
+  <!-- Footer note on the noise level. -->
   <footer class="page-footer">
     <p id="footer-note">Differences under about 15 points are within noise.</p>
   </footer>
 
+  <!-- Model card dialog. It is hidden and holds only a title in the markup. -->
   <aside id="model-card" class="model-card" role="dialog" aria-modal="true" aria-labelledby="model-card-title" hidden>
     <h2 id="model-card-title">Model card</h2>
   </aside>
 
+  <!-- Visually hidden live region for screen reader announcements. -->
   <p id="announcer" class="visually-hidden" aria-live="polite"></p>
 
+  <!-- Embedded results data as JSON (not executed). Holds the axes, conditions, warnings and per-model results, including transcripts. -->
   <script id="compare-data" type="application/json">{
  "schema_version": 1,
  "suite": "gauntlet_v3+easy",
@@ -2356,6 +2371,7 @@
  ]
 }
 </script>
+  <!-- Page script, loaded as an ES module. -->
   <script type="module" src="/js/compare/app.js"></script>
 </body>
 </html>
