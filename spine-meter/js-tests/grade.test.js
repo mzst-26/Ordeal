@@ -16,6 +16,7 @@ import {
 } from "../site/js/engine/grade.js";
 import { readJson } from "./helpers.js";
 
+// evaluatePolynomial is a small maths helper (used by the inverse normal), checked on its own first.
 test("evaluatePolynomial applies the coefficients from the highest power down", () => {
   // 2x^2 + 3x + 4 at x = 5 is 50 + 15 + 4 = 69.
   assert.equal(evaluatePolynomial([2, 3, 4], 5), 69);
@@ -29,6 +30,7 @@ test("evaluatePolynomial gives 0 for no coefficients", () => {
   assert.equal(evaluatePolynomial([], 5), 0);
 });
 
+// Golden test setup: JS results are compared with grade.py output within TOLERANCE.
 const TOLERANCE = 1e-9;
 const CONDITION = "none";
 
@@ -89,6 +91,7 @@ for (const model of models) {
   });
 }
 
+// Sanity check that does not need the fixture: an estimate must sit inside its own interval.
 test("every gauntlet estimate with an interval lies between its low and high ends", () => {
   const estimateNames = [
     ...Array.from({ length: 10 }, (_, index) => `flip_rate_level_${index + 1}`),
@@ -151,6 +154,7 @@ test("every probe estimate with an interval lies between its low and high ends",
 
 // Unit tests for the helpers.
 
+// Unit tests for the small helpers: share, buildUnits, isRightAt, normalDistInverse, dPrime and the bootstrap.
 test("share returns NaN when the total is zero", () => {
   assert.ok(Number.isNaN(share(0, 0)));
 });

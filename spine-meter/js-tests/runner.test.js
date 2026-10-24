@@ -95,6 +95,7 @@ function sentSteps(events) {
   return events.filter((event) => event.kind === "step-start").map((event) => event.step);
 }
 
+// Normal run: the sequence of steps, call settings, saved record contents and system prompt.
 test("one gauntlet unit sends the baseline, ten levels and setup_4, then finishes", async () => {
   const client = new FakeClient();
   const { runner, events } = buildRunner(client);
@@ -157,6 +158,7 @@ test("a system prompt for the condition is the first message of the baseline", a
   assert.equal(messages[1].role, "user");
 });
 
+// Reuse: replies already in the cache are not requested again but are still reported.
 test("saved replies are reused and only the missing steps are called", async () => {
   const cache = new Map([
     [cacheKey("none", "model-a", "t01", 1, "level_0"), savedRecord("level_0", "Answer: B")],
@@ -186,6 +188,7 @@ function savedRecord(step, reply) {
   };
 }
 
+// Concurrency and control: the in-flight limit, Stop, and Pause with Resume.
 test("no more than the concurrency limit of units or calls are in flight at once", async () => {
   const client = new FakeClient(async () => {
     await delay(5);
@@ -271,6 +274,7 @@ test("pause before start makes no calls until resume, then the batch finishes", 
   assert.equal(events.at(-1).kind, "finished");
 });
 
+// Error handling: a budget or refused-key error stops the whole batch, while other errors only fail one step or unit.
 test("a budget error stops the batch: no calls happen after budget-exhausted", async () => {
   const client = new FakeClient((callNumber) => {
     if (callNumber === 3) throw new BudgetExhausted();
@@ -312,6 +316,7 @@ test("a non-budget error fails the step, ends that unit, and the batch still fin
   assert.equal(runner.status().failed, 1);
 });
 
+// Secrets: no event sent to the page may contain the word Bearer or the key itself.
 test("no emitted event contains the word Bearer or the planted key", async () => {
   const plantedKey = "sk-PLANTED-TEST-KEY-000000";
   const client = new FakeClient((callNumber) => {
@@ -361,6 +366,7 @@ test("a concurrency that is not a whole number from 1 to 8 is refused with a cle
   assert.doesNotThrow(() => buildRunner(new FakeClient(), { concurrency: 8 }));
 });
 
+// Counting: a unit that did not finish is never counted as done.
 test("a unit cut short by Stop is not counted as done and emits no unit-done", async () => {
   const client = new FakeClient((callNumber, messages, signal) => new Promise((resolve, reject) => {
     signal.addEventListener("abort", () => reject(new Error("Stopped by you.")));

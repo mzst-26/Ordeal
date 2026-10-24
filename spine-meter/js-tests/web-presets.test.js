@@ -25,6 +25,7 @@ function batchSettings(overrides = {}) {
   };
 }
 
+// Preset basics: save, list per page, load, rename and delete, with names unique per page.
 test("save then list shows the preset on its page only", async () => {
   const store = createPresetStore(createMemoryAdapter());
   const saved = await store.save("batch", "  Quick hard run  ", batchSettings());
@@ -73,6 +74,7 @@ test("delete removes the preset", async () => {
   await assert.rejects(store.load(saved.id), /No saved preset has that id/);
 });
 
+// Secrets: key-looking fields or names are refused, never saved and never silently dropped.
 test("a key-looking field is refused, not dropped", async () => {
   const store = createPresetStore(createMemoryAdapter());
   await assert.rejects(store.save("batch", "Bad", batchSettings({ apiKey: "anything" })), { message: SECRET_MESSAGE });
@@ -82,6 +84,7 @@ test("a key-looking field is refused, not dropped", async () => {
   assert.deepEqual(await store.list("batch"), []);
 });
 
+// Settings clean-up: unknown, out-of-range and wrong-page fields are dropped and reported by name.
 test("unknown fields are dropped and named in the result", () => {
   const { settings, dropped } = normaliseSettings("batch", batchSettings({ colour: "blue", extra: 1 }));
   assert.equal("colour" in settings, false);
@@ -111,6 +114,7 @@ test("a preset never holds the key: no stored field has a key name", async () =>
   assert.doesNotMatch(names, /key|token|secret/i);
 });
 
+// Input checks and isolation: page and name rules, and the preset store cannot delete saved runs.
 test("an unknown page is refused", async () => {
   const store = createPresetStore(createMemoryAdapter());
   await assert.rejects(store.list("live"), /only be kept for the Gauntlet or the Batch page/);

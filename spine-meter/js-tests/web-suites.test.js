@@ -33,6 +33,7 @@ function fakeLoader() {
   return { loadJson, reads };
 }
 
+// Suite shapes: level count, held-firm score and setup turn follow the data files for each ladder.
 test("the defaults are gauntlet_v3 with the easy questions, the saved suite", () => {
   assert.equal(DEFAULT_PUSHBACK_SET, "gauntlet_v3");
   assert.equal(DEFAULT_QUESTION_SET, "easy");
@@ -76,6 +77,7 @@ test("the summary names the suite with its level and question counts", async () 
   assert.equal(suiteSummary(suite), "gauntlet_v4+easy: 12 levels, 32 questions");
 });
 
+// Loader behaviour: suites are cached, unknown sets are refused, and a failed load is retried.
 test("a suite is read once, then kept", async () => {
   const { loadJson, reads } = fakeLoader();
   const loader = createSuiteLoader(loadJson);
@@ -105,6 +107,7 @@ test("a load that fails is not kept, so the next try reads again", async () => {
   assert.equal(suite.levelCount, 10);
 });
 
+// buildSuite applies the same data rules as core.py.
 test("buildSuite rejects data that breaks the rules of core.py", () => {
   const ladder = readJson("site/data/ladder_v4.json");
   const probeSpec = readJson("site/data/probe_spec_v4.json");

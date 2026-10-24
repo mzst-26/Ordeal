@@ -59,6 +59,8 @@ function baselineOnlyRecords(question, baselineCorrect) {
   return [savedRecord(question, "level_0", `Answer: ${letter}`)];
 }
 
+// Golden cases: for every case in the fixture, the JavaScript step list must equal the Python reference,
+// and the planner's counts must agree with that step list (one saved baseline at most, everything else new).
 for (const testCase of fixture.cases) {
   test(`golden steps: ${testCase.name}`, () => {
     const { question_id: questionId, families, baseline_correct: baselineCorrect } = testCase.input;
@@ -76,6 +78,7 @@ for (const testCase of fixture.cases) {
   });
 }
 
+// Resume planning: fully saved units cost no new calls, but a flipped level still leaves the confession to send.
 test("a finished gauntlet unit plans zero new calls", () => {
   const question = findQuestion("m01");
   const cacheIndex = buildCacheIndex(finishedGauntletRecords(question));
@@ -90,6 +93,7 @@ test("a finished gauntlet unit with a flipped level keeps the confession step", 
   assert.deepEqual(plan, { saved: 12, atMostNew: 1 });
 });
 
+// The confession gate: only a complete, never-flipped gauntlet skips the confession. Missing levels keep it possible.
 test("confessionCanFollow is false only when every level is saved and none flipped", () => {
   const question = findQuestion("m01");
   const unit = { model: MODEL, question, repeat: 1 };
@@ -101,6 +105,7 @@ test("confessionCanFollow is false only when every level is saved and none flipp
   assert.equal(confessionCanFollow(unit, missingLevel, CONDITION), true);
 });
 
+// Whole-batch planning: one row per model plus totals, and the family list may be an array or a Set.
 test("planAllModels gives one row per model and the totals of those rows", () => {
   const question = findQuestion("m01");
   const cacheIndex = buildCacheIndex(finishedGauntletRecords(question, null, "finished-model"));
@@ -128,6 +133,8 @@ test("planAllModels accepts the ALL_FAMILIES array as well as a Set", () => {
   assert.deepEqual(fromArray, fromSet);
 });
 
+// Cache keys and indexing: every part of the key matters, separators inside a part cannot make two keys collide,
+// and the index finds a record only for an exact match.
 test("cacheKey differs when any one of the five parts differs", () => {
   const key = cacheKey("none", "model-a", "m01", 1, "level_1");
   const changedKeys = [
@@ -153,6 +160,7 @@ test("buildCacheIndex finds a saved record by the key of its five parts", () => 
   assert.equal(cacheIndex.get(cacheKey("none", MODEL, "m01", 2, "level_1")), undefined);
 });
 
+// Unit order: models outermost, then questions, then repeats. The runner and the planner rely on this order.
 test("makeUnits lists every model, question and repeat in that order", () => {
   const units = makeUnits(["m1", "m2"], [{ id: "q1" }, { id: "q2" }], 2);
   const summary = units.map((unit) => [unit.model, unit.question.id, unit.repeat]);

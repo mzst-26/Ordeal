@@ -15,6 +15,7 @@ import {
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);
 const BAD_KEY_MESSAGE = 'That does not look like an API key. Check it and try again.';
 
+// Plausibility check: a quick format check on what a user pasted, not proof that the key works.
 test('the length limits are 20 to 512 characters', () => {
   assert.equal(MIN_KEY_LENGTH, 20);
   assert.equal(MAX_KEY_LENGTH, 512);
@@ -75,6 +76,7 @@ test('characters outside letters, digits and - _ . + / = are rejected', () => {
   assert.equal(isPlausibleToken('abc#def' + 'a'.repeat(20)), false);
 });
 
+// Masking: only the ends of a long value are shown, and short values show dots only so little of the key leaks.
 test('maskToken shows the first 3 and last 4 characters of a long value', () => {
   assert.equal(maskToken('abcdefghijklmnop'), 'abc…mnop');
 });
@@ -88,6 +90,7 @@ test('maskToken shows only dots for a value shorter than 12 characters', () => {
   assert.equal(maskToken('short'), '••••••');
 });
 
+// The vault keeps the key in memory only: set, get, clear, and masked display.
 test('a new vault has no key', () => {
   const keyVault = createTokenVault();
   assert.equal(keyVault.has(), false);
@@ -111,6 +114,7 @@ test('clear forgets the key', () => {
   assert.equal(keyVault.masked(), '');
 });
 
+// Safety: a bad value is refused with a fixed message that never echoes the value, and masked() never reveals the middle.
 test('setting an implausible value throws a plain message and stores nothing', () => {
   const keyVault = createTokenVault();
   assert.throws(() => keyVault.set('not a key'), { name: 'Error', message: BAD_KEY_MESSAGE });

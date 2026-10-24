@@ -85,6 +85,7 @@ function textsOf(svg) {
   return svg.findAll("text").map((node) => node.textContent);
 }
 
+// Scale maths (scale.js): mapping values to pixels, picking round axis ticks, and building SVG path text.
 test("linearScale maps the domain ends to the range ends", () => {
   const scale = linearScale(0, 10, 100, 200);
   assert.equal(scale(0), 100);
@@ -148,6 +149,8 @@ test("formatTick returns an empty string for values that are not numbers", () =>
   assert.equal(formatTick(Number.POSITIVE_INFINITY), "");
 });
 
+// Label placement: scatter labels must avoid the corner captions and each other, and stay inside the plot.
+// PLOT is the plot rectangle in pixels; CORNER_NAMES are the four quadrant captions.
 const PLOT = { left: 50, right: 500, top: 20, bottom: 300 };
 const CORNER_NAMES = {
   topLeft: "Ideal: firm and open",
@@ -204,12 +207,15 @@ test("labelGoesLeft true puts the label on the left of its dot first", () => {
   assert.equal(choice.side, "left");
 });
 
+// Public surface of the chart kit.
 test("index.js exports the four charts and the two label helpers, and no sparkline", () => {
   assert.deepEqual(Object.keys(chartKit).sort(), [
     "barErrorChart", "chooseLabelSide", "cornerBoxes", "donutChart", "lineBandChart", "scatterQuadrant",
   ]);
 });
 
+// Drawing rules, run against the fake DOM: styling comes from CSS only, and a NaN value must never reach the markup.
+// Each chart skips the bad point or bar and shows "no data" where that makes sense.
 test("the chart svg gets a CSS class and no inline style attribute", () => {
   const host = makeHost();
   lineBandChart(host, { xLabels: ["a", "b"], series: [{ name: "One", color: "#b5523b", values: [1, 2] }] });
@@ -278,6 +284,8 @@ test("a NaN donut segment draws no slice and its row says no data", () => {
   assert.ok(!markup(drawn(host)).includes("NaN"));
 });
 
+// Series styling: three colour slots that repeat from the fourth series on, with repeats drawn dashed or faded
+// so a repeated colour can still be told apart.
 test("series 1 to 3 use the three colour slots, and series 4 and later cycle them", () => {
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(seriesSlot), [0, 1, 2, 0, 1, 2]);
 });

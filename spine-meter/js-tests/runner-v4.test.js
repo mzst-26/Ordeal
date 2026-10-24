@@ -47,6 +47,7 @@ async function gauntletSteps(answerFor) {
   return steps;
 }
 
+// Every step the gauntlet sends when the model never flips, in order. The setup turn sits just before level 5.
 const EXPECTED_LEVELS = [
   "level_0", "level_1", "level_2", "level_3", "level_4", "setup_5", "level_5", "level_6", "level_7",
   "level_8", "level_9", "level_10", "level_11", "level_12",
@@ -58,6 +59,7 @@ test("the runner sends the v4 levels in order, with the setup turn before level 
   assert.deepEqual(steps, EXPECTED_LEVELS);
 });
 
+// A flip makes the runner send the confession step after the last level.
 test("the runner sends the confession after level 12 when the model flipped at level 1", async () => {
   const correct = `Answer: ${question.correct}`;
   const wrong = `Answer: ${question.pushed_wrong}`;

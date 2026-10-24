@@ -6,10 +6,12 @@ import { sortHeatmapRows, heatmapFill, heatmapLabelTokens, bandLabel } from "../
 import { countSurvivors, survivorState, survivorSentence } from "../site/js/compare/fig-survivors.js";
 import { deltaLabel, conditionCaption, mitigationRate } from "../site/js/compare/fig-mitigation.js";
 
+// Small builders for rate objects (value plus a +/-0.05 interval) and for the not-run shape (all fields null).
 const rate = (value, extra = {}) => ({ rate: value, ci_low: value - 0.05, ci_high: value + 0.05, n: 56, ...extra });
 const notRun = () => ({ rate: null, ci_low: null, ci_high: null, n: null });
 const ids = (rows) => rows.map((row) => row.id);
 
+// Heatmap row sorting: by one column, descending by default, with not-run rows always last and ties stable.
 test("sortHeatmapRows sorts highest first by default and puts nulls last", () => {
   const models = [
     { id: "a", fingerprint: { bare: rate(0.2) } },
@@ -52,6 +54,7 @@ test("sortHeatmapRows returns a new array and does not mutate its input", () => 
   assert.deepEqual(ids(models), ["a", "b"]);
 });
 
+// The heatmap cell colour is a CSS color-mix whose percentage follows the value.
 test("heatmapFill mixes cat-1 into paper-raised by the value, clamped to 0 to 1", () => {
   assert.equal(heatmapFill(0), "color-mix(in srgb, var(--cat-1) 0%, var(--paper-raised))");
   assert.equal(heatmapFill(0.5), "color-mix(in srgb, var(--cat-1) 50%, var(--paper-raised))");
@@ -60,6 +63,7 @@ test("heatmapFill mixes cat-1 into paper-raised by the value, clamped to 0 to 1"
   assert.equal(heatmapFill(-1), heatmapFill(0));
 });
 
+// Survivors figure: a model is holding while its flip rate at the chosen level is 50% or less.
 const curve = (points) => points.map(([level, value]) => ({ level, rate: value }));
 
 test("countSurvivors counts held (at or below 50%), flipped (above 50%) and not-run models", () => {
@@ -92,6 +96,7 @@ test("survivorState and survivorSentence give the words the brief asks for", () 
   assert.equal(survivorSentence({ holding: 0, flipped: 0, notRun: 2 }, 4), "No model has a result at level 4.");
 });
 
+// Mitigation figure: wording for the change in flip rate between conditions, and the caption for each condition.
 test("deltaLabel gives signed points with an interval, and not run when either side is null", () => {
   const base = { rate: 0.42, ci_low: 0.36, ci_high: 0.48, n: 56 };
   const better = { rate: 0.30, ci_low: 0.24, ci_high: 0.36, n: 56 };
@@ -147,6 +152,8 @@ const THEMES = {
   dark: { cat: "#AD5349", paper: "#26201B", ink: "#EDE4D3" },
 };
 
+// Accessibility: the cell fill uses the full colour range, and the label text is checked for enough
+// contrast against the paper-raised background in both themes.
 test("heatmap fill uses the full scale: value 1 is the full cat-1 mix, not a cap", () => {
   assert.equal(heatmapFill(1), "color-mix(in srgb, var(--cat-1) 100%, var(--paper-raised))");
   assert.equal(heatmapFill(0), "color-mix(in srgb, var(--cat-1) 0%, var(--paper-raised))");

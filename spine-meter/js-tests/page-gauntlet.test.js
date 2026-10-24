@@ -4,6 +4,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+// Replace fetch with a function that fails, so any network call made while importing the module is caught.
+// The original fetch is put back afterwards so other tests are not affected.
 test("importing the Gauntlet page does not fetch or build the page, and exports mountGauntlet", async () => {
   const realFetch = globalThis.fetch;
   let fetchCalls = 0;

@@ -23,6 +23,7 @@ function okResponse(value) {
   return { ok: true, status: 200, json: async () => value };
 }
 
+// The cache stores one promise per path, so repeat loads share a single request.
 test("two loads of one path make one fetch call and return the same value", async () => {
   const { fetchFn, calls } = fakeFetch(okResponse({ models: 29 }));
   const cache = createDataCache(fetchFn);
@@ -57,6 +58,7 @@ test("two different paths make two fetch calls", async () => {
   assert.deepEqual(calls, ["/data/config.json", "/data/questions.json"]);
 });
 
+// Failure handling: errors are not cached, and error messages leak no response body.
 test("a failed fetch is not kept, so the next load fetches again", async () => {
   const { fetchFn, calls } = fakeFetch(new Error("network down"), okResponse({ models: 29 }));
   const cache = createDataCache(fetchFn);

@@ -32,6 +32,7 @@ const EMPTY_ENTRY = {
   rank_basis: null,
 };
 
+// formatContext: token counts as short text; a missing or non-positive count reads "unknown", never "0K".
 test("formatContext shows 128000 tokens as 128K", () => {
   assert.equal(formatContext(128000), "128K");
 });
@@ -57,6 +58,7 @@ test("formatContext shows a zero or negative count as unknown", () => {
   assert.equal(formatContext(-5), "unknown");
 });
 
+// reasoningText: only "yes" and "no" are known values; anything else, including null, reads "unknown".
 test("reasoningText maps yes to Reasoning", () => {
   assert.equal(reasoningText("yes"), "Reasoning");
 });
@@ -73,6 +75,7 @@ test("reasoningText maps any other word to unknown", () => {
   assert.equal(reasoningText("maybe"), "unknown");
 });
 
+// sortByRank: lowest rank first, unranked last, ties broken by name, and the input is not changed.
 test("sortByRank puts the lowest rank first", () => {
   const entries = [
     { id: "c", industry_rank: 3 },
@@ -116,6 +119,8 @@ test("sortByRank returns a new array and leaves the input in its order", () => {
   assert.deepEqual(entries.map((entry) => entry.id), before);
 });
 
+// modelRowText and modelOptionLabel: the text shown in the model table and dropdown,
+// including entries from older catalogs that lack the newer fields.
 test("modelRowText gives #N, the id, and the formatted fields for a full entry", () => {
   assert.deepEqual(modelRowText(FULL_ENTRY), {
     rank: "#2",

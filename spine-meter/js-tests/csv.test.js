@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { csvCell, neutraliseFormula } from '../site/js/engine/csv.js';
 
+// Spreadsheet formula injection: text a spreadsheet would run as a formula gets a leading single quote.
 test('a cell that starts with =, +, - or @ gets a single quote in front', () => {
   assert.equal(csvCell('=HYPERLINK("http://x.example")'), '"\'=HYPERLINK(""http://x.example"")"');
   assert.equal(csvCell('+1+1'), "'+1+1");
@@ -25,6 +26,7 @@ test('a cell that starts with a formula character and also has a comma is quoted
   assert.equal(csvCell('=A1,B1'), '"\'=A1,B1"');
 });
 
+// Normal quoting rules (RFC 4180 style) and cases that must not be altered.
 test('ordinary text and model names are written unchanged', () => {
   assert.equal(csvCell('Qwen/Qwen3-30B-A3B-Instruct-2507'), 'Qwen/Qwen3-30B-A3B-Instruct-2507');
   assert.equal(csvCell('gauntlet_v3'), 'gauntlet_v3');
@@ -37,6 +39,7 @@ test('text with a comma, a quote or a line break is quoted, with quotes doubled'
   assert.equal(csvCell('line one\nline two'), '"line one\nline two"');
 });
 
+// Numbers and missing values are not text, so they skip formula neutralising.
 test('numbers are never neutralised, so a negative number is written as it is', () => {
   assert.equal(csvCell(-2), '-2');
   assert.equal(csvCell(0.25), '0.25');
@@ -48,6 +51,7 @@ test('null, undefined and NaN give an empty cell', () => {
   assert.equal(csvCell(Number.NaN), '');
 });
 
+// neutraliseFormula on its own, including formula characters hidden behind leading whitespace.
 test('neutraliseFormula leaves text that does not start with a formula character alone', () => {
   assert.equal(neutraliseFormula('plain'), 'plain');
   assert.equal(neutraliseFormula('a =not at the start'), 'a =not at the start');

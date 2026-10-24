@@ -38,6 +38,7 @@ function filtersFor(models, overrides = {}) {
   return { ...defaultFilters(models), ...overrides };
 }
 
+// Formatting helpers. A missing result reads "not run" rather than 0 or NaN.
 test("isNotRun is true for null, undefined and a null rate, and false for a number", () => {
   assert.equal(isNotRun(null), true);
   assert.equal(isNotRun(undefined), true);
@@ -68,6 +69,7 @@ test("rateText gives the value, the interval and n, and reads not run for null",
   assert.equal(rateText(rate(0.5, null, null, 12)), "50% (n=12)");
 });
 
+// Filtering: sizeBounds and defaultFilters set the starting state, visibleModels applies each filter in turn.
 test("sizeBounds takes the smallest and largest known size, and 0 when none is known", () => {
   assert.deepEqual(sizeBounds([model("a", { params_b: 3 }), model("b", { params_b: 120 }), model("c", { params_b: null })]), { min: 3, max: 120 });
   assert.deepEqual(sizeBounds([model("a", { params_b: null })]), { min: 0, max: 0 });
@@ -137,6 +139,7 @@ test("visibleModels applies the search to the name and the id, ignoring case and
   assert.deepEqual(visibleModels(models, filtersFor(models, { search: "nothing here" })), []);
 });
 
+// Family ordering, labels and colours for the legend and charts.
 test("familyOrder keeps first-seen order and puts a null family last", () => {
   const models = [model("a", { family: "Gemma" }), model("b", { family: null }), model("c", { family: "Qwen" }), model("d", { family: "Gemma" })];
   assert.deepEqual(familyOrder(models), ["Gemma", "Qwen", null]);
@@ -154,6 +157,8 @@ test("familyColour uses the palette by position, and the muted ink token for an 
   assert.equal(FAMILY_PALETTE[0], "var(--cat-1)");
 });
 
+// rankBands groups models whose backbone-index confidence intervals overlap; Band 1 is the highest rate.
+// A model with no backbone index gets no band.
 test("rankBands puts overlapping intervals in one band, following chains of overlap", () => {
   const models = [
     model("a", { backbone_index: rate(0.60, 0.50, 0.70) }),
@@ -190,6 +195,8 @@ test("rankBands treats touching intervals as overlapping and gives no band to a 
   assert.equal(bands.get("none"), null);
 });
 
+// takeaway builds the one-sentence summary. Its count is always of all loaded models;
+// the optional second argument is the filtered list shown on screen.
 test("takeaway reads for no models, one model and several models", () => {
   assert.equal(takeaway([]), "No models to compare yet.");
   assert.equal(

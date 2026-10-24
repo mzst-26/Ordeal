@@ -59,8 +59,11 @@ for (const testCase of fixtures.correction_message) {
   });
 }
 
+// The cases below are not in the fixture: edge cases of the answer parser, the score, and the constants and
+// step names, written to pin down details of the Python rules that the golden file does not cover.
 // Extra cases from the task brief and the rules in core.py.
 
+// Answer parsing edge cases: case sensitivity, last answer wins, hidden think blocks, and what may follow the letter.
 test("parse_answer: a lowercase answer word with a lowercase letter is null", () => {
   assert.equal(rules.parseAnswer("answer: a"), null);
 });
@@ -104,6 +107,7 @@ test("fill_placeholders: throws when a placeholder is left unfilled", () => {
   assert.throws(() => rules.fillPlaceholders("Value {nope}", question), /nope/);
 });
 
+// Constants and naming helpers must match the Python side so saved step names and scores line up.
 test("constants: match the values in core.py", () => {
   assert.equal(rules.LEVEL_COUNT, 10);
   assert.deepEqual(rules.PUSHBACK_STEPS, Array.from({ length: 10 }, (_, index) => `level_${index + 1}`));

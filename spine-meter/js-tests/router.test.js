@@ -53,6 +53,7 @@ function noMounts() {
   return { gauntlet: () => {}, batch: () => {}, live: () => {} };
 }
 
+// Reading the view from the URL: the hash wins over the path, and anything unknown falls back to the gauntlet.
 test("routeFromLocation opens batch for the #batch hash", () => {
   assert.equal(routeFromLocation("#batch", "/"), "batch");
 });
@@ -73,6 +74,7 @@ test("routeFromLocation lets the hash win over the path", () => {
   assert.equal(routeFromLocation("#batch", "/live"), "batch");
 });
 
+// Router behaviour: mount once, show one section at a time, set the nav state and page title, and keep history tidy.
 test("createRouter mounts a view once even when it is shown twice", () => {
   const { views, document, window } = makeDom();
   const mountedRoots = [];

@@ -71,6 +71,7 @@ function failingIndexedDb(calls) {
   };
 }
 
+// Creating runs: ids, timestamps, input checks, and saving results (one copy per unit, only for units in the plan).
 test('a new run is planned, has an id and timestamps, and is saved', async () => {
   const adapter = createMemoryAdapter();
   const run = await makeRun(adapter);
@@ -126,6 +127,7 @@ test('saving a result for a unit that is not in the run is refused', async () =>
   await assert.rejects(saveResult(adapter, run.id, 'not-a-unit', { reply: 'x' }), { message: UNKNOWN_UNIT_MESSAGE });
 });
 
+// Resume: which units are still pending after a reload.
 test('pending units after a reload are the planned units with no saved result, in order', async () => {
   const adapter = createMemoryAdapter();
   const run = await runAt(adapter, 'running');
@@ -138,6 +140,7 @@ test('pending units after a reload are the planned units with no saved result, i
   assert.deepEqual(pendingUnits(await getRun(adapter, run.id)), []);
 });
 
+// Status rules: allowed changes work, other changes are refused with a fixed message, and a done run is locked.
 test('the status changes that are allowed all work', async () => {
   const allowed = [
     ['planned', 'running'],
@@ -181,6 +184,7 @@ test('a done run cannot change: no status change and no new result', async () =>
   assert.deepEqual((await getRun(adapter, run.id)).results, {});
 });
 
+// Lookup, interrupted-run detection and resume, listing order and deletion.
 test('an unknown run id gives a fixed not-found message, and getRun returns null', async () => {
   const adapter = createMemoryAdapter();
   assert.equal(await getRun(adapter, 'missing'), null);
@@ -236,6 +240,7 @@ test('listRuns returns runs newest first', async () => {
   assert.deepEqual((await listRuns(adapter)).map((run) => run.id), [third.id, second.id, first.id]);
 });
 
+// Export: only visible fields leave the store, and the key check runs again on the output.
 test('exportRun gives a JSON string with only the visible fields', async () => {
   const adapter = createMemoryAdapter();
   const run = await runAt(adapter, 'running');
@@ -256,6 +261,7 @@ test('exportRun runs the key check again and refuses output that holds a token',
   assert.throws(() => exportRun({ ...run, label: FAKE_BEARER }), { message: SECRET_MESSAGE });
 });
 
+// Secret guard: key-like field names and values (Bearer, v1.) are refused at any depth, while normal text passes.
 test('the key check refuses a key field at any depth', () => {
   assert.throws(() => assertNoSecrets({ a: { b: [{ c: { apiKey: 'x' } }] } }), { message: SECRET_MESSAGE });
   for (const name of ['key', 'apiKey', 'api_key', 'token', 'authorization', 'secret', 'Token']) {
@@ -310,6 +316,7 @@ test('saveResult refuses a record that holds a token, and the run gets no result
   assert.deepEqual((await getRun(adapter, run.id)).results, {});
 });
 
+// Size limits: 200 KB per record and 10,000 results per run.
 test('a record over 200 KB is refused and a record just under it is saved', async () => {
   const adapter = createMemoryAdapter();
   const run = await runAt(adapter, 'running');
@@ -336,6 +343,7 @@ test('a run refuses a result once it holds 10,000 saved results', async () => {
     { message: RUN_SIZE_MESSAGE });
 });
 
+// Storage adapters: IndexedDB details, fall back to memory when it is missing or fails, and the memory adapter copies data.
 test('the IndexedDB adapter is named for the sycophancy-meter database, version 1, store runs', () => {
   assert.equal(IDB_NAME, 'sycophancy-meter');
   assert.equal(IDB_VERSION, 1);

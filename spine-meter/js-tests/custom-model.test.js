@@ -15,6 +15,8 @@ import { readJson } from "./helpers.js";
 const fixture = readJson("js-tests/fixtures/custom_model.json");
 const VALID_ENTRY = { name: "my-model", base_url: "https://example.com/v1/", model: "org/model" };
 
+// Golden cases: the JS validator must accept and reject the same entries as the Python rules.
+// Only the ok flag is compared; for a rejection the reason just has to be one of the known fixed strings.
 for (const item of fixture.cases) {
   test(`validateCustomModel agrees with model_client.py: ${item.name}`, () => {
     const result = validateCustomModel(item.input.entry, item.input.taken_names);
@@ -25,6 +27,7 @@ for (const item of fixture.cases) {
   });
 }
 
+// Each test below checks one rejection rule and the fixed reason it returns.
 test("a valid custom model gives exactly { ok: true }", () => {
   assert.deepEqual(validateCustomModel(VALID_ENTRY), { ok: true });
 });
@@ -84,6 +87,7 @@ test("a base URL with a trailing newline or another control character gives the 
   assert.equal(hostOfCustomUrl("https://llm.example.org/v1\n"), null);
 });
 
+// modelNameProblem guards the free-text model name: a length limit and a ban on strings that look like API keys.
 test("a typed model name over 200 characters, or shaped like a key, gets a fixed reason", () => {
   assert.equal(modelNameProblem("a".repeat(200)), null);
   assert.equal(modelNameProblem("a".repeat(201)), MODEL_NAME_REASONS.tooLong);
@@ -93,6 +97,7 @@ test("a typed model name over 200 characters, or shaped like a key, gets a fixed
   assert.equal(modelNameProblem("org/model-name"), null);
 });
 
+// Privacy: reasons are fixed strings and must never echo what the user typed, which may contain a secret.
 test("a reason never repeats the name or the URL the user typed", () => {
   const typed = "https://secret-host.example/?token=zzz";
   const result = validateCustomModel({ ...VALID_ENTRY, name: "my-secret-name", base_url: typed });
@@ -109,6 +114,7 @@ test("the reasons are fixed strings, frozen so that nothing can change them", ()
   }
 });
 
+// The URL helpers on their own: isSafeCustomUrl is the yes/no check, hostOfCustomUrl gives the display host.
 test("isSafeCustomUrl accepts an https host with a path and rejects everything else", () => {
   assert.equal(isSafeCustomUrl("https://api.example.com/v1"), true);
   assert.equal(isSafeCustomUrl("https://127.0.0.1:8443/v1"), true);

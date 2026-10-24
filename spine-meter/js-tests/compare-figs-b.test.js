@@ -23,6 +23,7 @@ import {
 
 const rate = (value, low = null, high = null, n = 10) => ({ rate: value, ci_low: low, ci_high: high, n });
 
+// FIG 4, head to head: which side to bold, and which axis shows the widest gap between two models.
 test("betterSide: higher is better, lower is better, ties and nulls are not bold", () => {
   assert.equal(betterSide(rate(0.6), rate(0.4), true), "a");
   assert.equal(betterSide(rate(0.6), rate(0.4), false), "b");
@@ -67,6 +68,8 @@ test("biggestGapAxis: a tie in the gap keeps the earlier axis, and a tie in valu
   assert.equal(biggestGapAxis(["bare"], { bare: rate(0.2) }, { bare: rate(0.5) }).higher, "b");
 });
 
+// FIG 5, transcript replay: pure timing maths (how many characters are shown at a given time),
+// the HELD/FOLDED stamp, and the confession line.
 test("replay timing: visible characters grow with time and speed", () => {
   assert.equal(visibleCharCount("Hello", 10, 0), 0);
   assert.equal(visibleCharCount("Hello", 10, 300), 3);
@@ -112,6 +115,7 @@ test("confession sentence: names the letter and text, or says none was saved", (
   assert.equal(confessionSentence({ letter: "", text: "" }), "No confession was saved for this question.");
 });
 
+// Model Card: the text, file name and chart data it shows, kept pure so they can be tested without a page.
 test("backbone formula text states the mean of the 12 fingerprint rates", () => {
   const text = backboneFormulaText();
   assert.match(text, /1 minus the mean of the 12 fingerprint flip rates/);
@@ -165,6 +169,7 @@ test("quality chips carry their numbers and flag warnings", () => {
   assert.equal(chips[5].warn, false);
 });
 
+// Open/close behaviour of the card. A model counts as newly opened when the previous view had none open.
 test("view change: the same model opens again after it was closed", () => {
   assert.equal(viewChange(null, "m1", null), "open", "first open");
   assert.equal(viewChange("m1", "m1", "m1"), null, "no change while it stays open");

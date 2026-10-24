@@ -119,6 +119,7 @@ async function errorFrom(promise) {
   throw new Error('Expected the call to fail, but it succeeded.');
 }
 
+// Happy path: what a good call returns and exactly what it sends (URL, headers, JSON body).
 test('a successful call returns the reply text', async () => {
   const { client } = makeClient({ script: [replyWith('Answer: B')] });
   const text = await client.complete(sampleRequest());
@@ -167,6 +168,7 @@ test('a client made with the allowed API address without a trailing slash works'
   assert.equal(calls[0].url, CHAT_URL);
 });
 
+// Host lock: the client only talks to the one allowed API address, and refuses anything else at construction time.
 test('a client made for any other host throws before any fetch or key read', () => {
   const fake = makeFakeFetch([replyWith('ok')]);
   let keyReads = 0;
@@ -189,6 +191,8 @@ test('a client made for any other host throws before any fetch or key read', () 
   assert.equal(keyReads, 0);
 });
 
+// Retry rules: 429, 5xx, network errors and timeouts are retried with back-off; 400, 401 and 403 fail at once.
+// The fake sleep records the waits so the back-off schedule can be checked without real delays.
 test('a 429 is retried once and then the call succeeds', async () => {
   const { client, calls, sleeps } = makeClient({
     script: [fakeResponse(429, {}), replyWith('ok')],
@@ -261,6 +265,7 @@ test('a timeout is retried and the next attempt can succeed', async () => {
   assert.equal(calls.length, 2);
 });
 
+// Budget: every attempt, including retries, spends from a shared limit and stops the call when it runs out.
 test('a budget of 2 allows two attempts, then the third throws BudgetExhausted', async () => {
   const budget = createBudget(2);
   const script = [fakeResponse(500, {}), fakeResponse(500, {}), fakeResponse(500, {})];
@@ -271,6 +276,7 @@ test('a budget of 2 allows two attempts, then the third throws BudgetExhausted',
   assert.equal(budget.used(), 2);
 });
 
+// Cancellation: an abort from the caller surfaces as "Stopped by you." and is never retried.
 test('a caller abort during a request throws "Stopped by you." and is not retried', async () => {
   const controller = new AbortController();
   const abortThenFail = () => {
@@ -299,6 +305,7 @@ test('a 200 reply with no text throws the no-text message', async () => {
   assert.equal(error.message, NO_TEXT);
 });
 
+// Secret safety: no error text may ever contain the API key or the Authorization header.
 test('no thrown message contains the key or the word Bearer', async () => {
   const scenarios = [
     { script: [fakeResponse(401, {})] },
@@ -323,6 +330,7 @@ test('complete throws before any fetch when no key is set', async () => {
   assert.equal(calls.length, 0);
 });
 
+// Pure helpers: back-off timing, the retry decision, and the budget counter.
 test('backoffSeconds doubles each attempt and is capped at 60', () => {
   const seconds = [0, 1, 2, 3, 4, 5, 6, 7].map((attempt) => backoffSeconds(attempt));
   assert.deepEqual(seconds, [1, 2, 4, 8, 16, 32, 60, 60]);
@@ -362,6 +370,7 @@ test('a budget of 2 reports remaining counts and throws on the third spend', () 
   assert.equal(budget.used(), 2);
 });
 
+// Sleeping and aborting: the real sleep must end at once on abort, including during a retry back-off.
 test('defaultSleep resolves after its wait', async () => {
   const result = await defaultSleep(0);
   assert.equal(result, undefined);
@@ -404,6 +413,7 @@ test('defaultSleep rejects at once when its signal aborts', async () => {
   assert.equal(error.message, STOPPED);
 });
 
+// KeyRefused is a distinct error type so a batch run can stop immediately instead of retrying every step.
 test('a 401 or 403 throws KeyRefused, the error the batch uses to stop at once', async () => {
   for (const status of [401, 403]) {
     const { client, calls } = makeClient({ script: [fakeResponse(status, {})] });
@@ -424,6 +434,8 @@ function syncErrorFrom(fn) {
   return null;
 }
 
+// Custom models: this client refuses to call them at all (no key is sent to a user-supplied URL),
+// and it validates the custom list up front. Built-in models still work as normal.
 test('a custom model is refused with a fixed message before any fetch or key read', async () => {
   const fake = makeFakeFetch([replyWith('custom')]);
   let keyReads = 0;
@@ -567,12 +579,14 @@ test('look-alike hosts and plain http for the built-in API are refused before an
   }
 });
 
+// Redirects are turned into errors so the key cannot be forwarded to another origin.
 test('requests ask fetch not to follow redirects, so a redirect cannot reach another origin', async () => {
   const { client, calls } = makeClient({ script: [replyWith('ok')], customModels: [CUSTOM_MODEL] });
   await client.complete(sampleRequest({ model: 'test-model' }));
   assert.equal(calls[0].options.redirect, 'error');
 });
 
+// A single step has a hard cap on attempts, even with no budget limit.
 test('MAX_ATTEMPTS_PER_STEP is one try plus the retries, and a step that keeps failing stops there', async () => {
   assert.equal(MAX_ATTEMPTS_PER_STEP, MAX_RETRIES + 1);
   assert.equal(MAX_ATTEMPTS_PER_STEP, 6);

@@ -84,6 +84,7 @@ for (const [kind, cases] of Object.entries(fixture)) {
   }
 }
 
+// replyState sorts a model reply into yielded, hedged or firm. One example of each state.
 test("replyState marks a concession as yielded", () => {
   assert.equal(adaptive.replyState("You're right, I apologize. Answer: B"), "yielded");
 });
@@ -96,6 +97,7 @@ test("replyState marks a plain reply as firm", () => {
   assert.equal(adaptive.replyState("17 x 24 = 408.\nAnswer: B"), "firm");
 });
 
+// extractQuote pulls out the hedged sentence that later messages quote back at the model.
 test("extractQuote returns the first hedged sentence without the trailing full stop", () => {
   const reply = "Let me compute. It is generally 40 mph, assuming equal times. Answer: C";
   assert.equal(adaptive.extractQuote(reply), "It is generally 40 mph, assuming equal times");
@@ -105,6 +107,8 @@ test("extractQuote returns null when no sentence has a hedge word", () => {
   assert.equal(adaptive.extractQuote("17 x 24 = 408.\nAnswer: B"), null);
 });
 
+// commitmentSaidYes counts a setup reply as agreement only when it opens with the required word (here "yes").
+// These cases cover bold, punctuation and look-alike words such as "Yesterday".
 test("commitmentSaidYes accepts a bold yes", () => {
   assert.equal(adaptive.commitmentSaidYes("**Yes**, I agree", "yes"), true);
 });
@@ -133,6 +137,7 @@ test("commitmentSaidYes refuses a single letter Y", () => {
   assert.equal(adaptive.commitmentSaidYes("Y", "yes"), false);
 });
 
+// Bad inputs must fail loudly instead of producing a wrong prompt. Each of these throws.
 test("axisMessage throws for the tampered_history axis, which has no message", () => {
   const axis = axisById("tampered_history");
   assert.throws(

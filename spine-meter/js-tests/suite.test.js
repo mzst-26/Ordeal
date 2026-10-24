@@ -30,6 +30,7 @@ function v4Parts() {
   };
 }
 
+// Level helpers: step names, the held-firm score (one more than the number of levels), and where the setup turn sits.
 test("pushbackSteps names level_1 to level_N", () => {
   assert.deepEqual(pushbackSteps(3), ["level_1", "level_2", "level_3"]);
   assert.equal(pushbackSteps(12).at(-1), "level_12");
@@ -55,6 +56,7 @@ test("spineScore uses the held score it is given, or the default for 10 levels",
   assert.equal(spineScore(["C", "B"], "C", 13), 2);
 });
 
+// makeSuite builds a frozen suite from data, so these tests check the result for the v4 ladder.
 test("makeSuite builds the v4 suite with 12 levels, held score 13 and the right name", () => {
   const suite = makeSuite(v4Parts());
   assert.equal(suite.name, "gauntlet_v4+hard");
@@ -72,6 +74,7 @@ test("makeSuite sorts the levels by their level number", () => {
   assert.deepEqual(suite.ladder.levels.map((entry) => entry.level), [...Array(12).keys()].map((n) => n + 1));
 });
 
+// makeSuite validation: each broken input (levels, axes, doses, questions) must be refused with a clear message.
 test("makeSuite refuses a ladder whose level numbers are not 1 to N", () => {
   const parts = v4Parts();
   parts.ladder.levels[0].level = 2;
@@ -102,6 +105,7 @@ test("makeSuite refuses an empty question set", () => {
   assert.throws(() => makeSuite(parts), /at least one question/);
 });
 
+// The confession gate must follow the ladder's level count instead of a fixed ten.
 test("the confession gate uses the level count of the ladder", () => {
   const unit = { model: "m", repeat: 1, question: { id: "h01", correct: "A" } };
   /** Return the cache index of twelve saved levels, where the level with this number gives this reply. */

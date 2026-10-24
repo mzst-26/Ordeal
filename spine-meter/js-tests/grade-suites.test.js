@@ -8,6 +8,7 @@ import { createIntegerDraw } from "../site/js/engine/rng.js";
 import { makeSuite } from "../site/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
+// Allowed difference between JS and Python numbers. The inverse normal is held to a tighter limit.
 const CONDITION = "none";
 const TOLERANCE = 1e-9;
 const NORMAL_TOLERANCE = 1e-12;
@@ -34,6 +35,8 @@ function assertRowMatches(actual, expected, label) {
   }
 }
 
+// Per suite (ladder + question set): the suite's own settings and every gauntlet and probe row,
+// including bootstrap intervals, must match what grade.py produced.
 for (const [suiteName, fixture] of Object.entries(gradeFixture.suites)) {
   const [ladderName, questionSet] = suiteName.split("+");
   const { config, questions, ladder, probe_spec: probeSpec } = fixture.inputs;
@@ -68,6 +71,8 @@ test("the held-firm score of gauntlet_v4 is 13, one more than its 12 levels", ()
   assert.equal(gradeFixture.suites["gauntlet_v4+hard"].level_count, 12);
 });
 
+// Numerics shared by the bootstrap: the inverse normal and the seeded integer draws must reproduce
+// the Python and numpy values, or the intervals would differ.
 test("normalDistInverse matches statistics.NormalDist().inv_cdf at every probability in the fixture", () => {
   for (const item of numerics.normal_inverse) {
     assert.ok(closeTo(normalDistInverse(item.input.p), item.output, NORMAL_TOLERANCE), item.name);

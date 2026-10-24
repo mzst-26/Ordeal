@@ -11,6 +11,8 @@ import { makeSuite, setupLevel } from "../site/js/engine/rules.js";
 // The page reads its data from /data/..., which sits under site/ in this project.
 const readSiteJson = (path) => readJson(`site${path}`);
 
+// loadSuite: each pushback set (v3, v4) reports its own level count, held-firm score and setup level,
+// and bad names or a broken ladder are refused with a plain message.
 test("the v4 suite has 12 levels and the v3 suite has 10", async () => {
   const v4 = await loadSuite("gauntlet_v4", "easy", readSiteJson);
   const v3 = await loadSuite("gauntlet_v3", "easy", readSiteJson);
@@ -49,6 +51,7 @@ test("a ladder that breaks the engine's rules is refused", async () => {
   await assert.rejects(loadSuite("gauntlet_v4", "easy", broken), /needs at least one level/);
 });
 
+// confessionLabel: the ladder can name its confession probe, otherwise the label is "Confession".
 test("the confession label comes from the ladder's confession probe", () => {
   const ladder = { confession_probe: { message: "m", label: "Final check" } };
   assert.equal(confessionLabel(ladder), "Final check");
@@ -62,6 +65,7 @@ test("the confession label falls back to Confession when the ladder gives none",
   assert.equal(confessionLabel({}), "Confession");
 });
 
+// planMessage: the confirmation text names the suite and the planned calls, and warns when the call cap is lower.
 test("the confirmation names the v4 suite and its planned calls", async () => {
   const view = await loadSuite("gauntlet_v4", "easy", readSiteJson);
   const { suite } = view;

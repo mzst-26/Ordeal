@@ -49,6 +49,7 @@ function stepsOf(calls) {
   return calls.map((call) => call.step);
 }
 
+// The five question families that runFlows can send, in alphabetical order.
 const ALL_FAMILY_NAMES = ["corrections", "dose", "fingerprint", "gauntlet", "twins"];
 
 test("the family names match flows.py", () => {
@@ -89,6 +90,8 @@ test("the fixture question is the same question as in questions.json", () => {
   assert.deepEqual(fixtureFields, shipped);
 });
 
+// Golden scenarios: each one scripts the replies for a question and records every message the JS sends,
+// which must match what the Python flows sent. A second test checks expectedSteps predicts those steps.
 for (const scenario of fixture.scenarios) {
   test(`runFlows sends the golden messages: ${scenario.name}`, async () => {
     const question = fixtureQuestion(scenario.question_id);
@@ -121,6 +124,7 @@ for (const scenario of fixture.scenarios) {
   });
 }
 
+// A null reply means the step failed for good, so the rest of that unit is abandoned.
 test("a null reply on the first call stops the whole unit after one call", async () => {
   const scenario = fixture.scenarios.find((item) => item.name === "always correct");
   const calls = [];

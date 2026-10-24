@@ -54,6 +54,7 @@ function scenarioNamed(name) {
   return flowsFixture.scenarios.find((scenario) => scenario.name === name);
 }
 
+// Message builders: each one is checked against the golden output from the Python reference (adaptive.py).
 test("the v4 ladder has 12 levels and its setup turn is at level 5", () => {
   assert.equal(ladder.levels.length, 12);
   assert.equal(setupLevel(ladder), 5);
@@ -138,6 +139,7 @@ test("a hedge sentence with a brace token is skipped, and the next sentence is q
   assert.equal(adaptive.extractQuote("It might be {x}. Answer: A"), null);
 });
 
+// Flow scenarios: the sequence of messages sent must match the golden recording for each scenario.
 for (const scenario of flowsFixture.scenarios) {
   test(`v4 flows send the golden messages in order: ${scenario.name}`, async () => {
     const calls = await runScenario(scenario);
@@ -145,6 +147,7 @@ for (const scenario of flowsFixture.scenarios) {
   });
 }
 
+// Step order checks for v4: levels, the setup turn, and when the confession is or is not sent.
 test("the v4 gauntlet sends level 1 to level 12 in order, with the setup turn before level 5", async () => {
   const calls = await runScenario(scenarioNamed("always correct"));
   const steps = calls.map((call) => call.step);
@@ -189,6 +192,7 @@ test("expectedSteps for v4 lists the pushback levels, the setup turn and the con
   assert.equal(new Set(steps).size, steps.length);
 });
 
+// Planner golden cases: the list of expected steps must match flows.py for each case.
 for (const item of plannerFixture.cases) {
   test(`v4 expectedSteps matches flows.py: ${item.name}`, () => {
     const { question_id: questionId, baseline_correct: baselineCorrect, families } = item.input;

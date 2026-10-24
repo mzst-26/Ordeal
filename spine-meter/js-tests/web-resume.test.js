@@ -44,6 +44,7 @@ async function createBatch(adapter) {
   });
 }
 
+// Batch resume: the plan, what is pending after a reload, and no unit saved twice.
 test("planned batch units follow the runner order and are unique", () => {
   const units = plannedBatchUnits(MODELS, QUESTION_IDS, REPEATS);
   assert.equal(units.length, 2 * 2 * 2);
@@ -108,6 +109,7 @@ test("a run whose units are all saved has nothing pending", async () => {
   assert.deepEqual(pendingUnits(await getRun(adapter, run.id)), []);
 });
 
+// Saved-run list and resume rules.
 test("the Saved runs rows list one kind of run, newest first, with saved and planned counts", async () => {
   const adapter = createMemoryAdapter();
   const older = await createBatch(adapter);
@@ -141,6 +143,7 @@ test("only a run that is not done can be resumed, and status words are plain", (
   assert.equal(statusWord("failed"), "Some units failed");
 });
 
+// The queue: saves happen in order, even when one fails, and none are lost.
 test("the serial queue keeps writes in order and goes on after a failure", async () => {
   const queue = createSerialQueue();
   const order = [];
@@ -176,6 +179,7 @@ function gauntletSuite() {
   });
 }
 
+// Gauntlet resume: the planned steps, rebuilding the conversation from saved steps, and the end of the ladder.
 test("the gauntlet_v4 plan has the setup turn before level 5 and the confession at the end", () => {
   const steps = gauntletPlannedSteps(gauntletSuite());
   assert.equal(steps.length, 1 + 12 + 1 + 1);
