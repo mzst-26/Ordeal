@@ -1,0 +1,214 @@
+{
+ "description": "Custom model checks from model_client.py: https only, no user name or password, no query, non-empty fields, and a name no other model uses. The key variable name is not checked here.",
+ "cases": [
+  {
+   "name": "valid https model",
+   "input": {
+    "entry": {
+     "name": "my-model",
+     "base_url": "https://example.com/v1/",
+     "model": "org/model",
+     "api_key_env": "MY_MODEL_KEY"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": true
+   }
+  },
+  {
+   "name": "https to localhost",
+   "input": {
+    "entry": {
+     "name": "local",
+     "base_url": "https://127.0.0.1:8443/v1",
+     "model": "m",
+     "api_key_env": "LOCAL_KEY"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": true
+   }
+  },
+  {
+   "name": "plain http",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "http://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "user name and password",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "https://user:pw@example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "query string",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "https://example.com/v1?key=1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "no host",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "https:///v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "upper case scheme",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "HTTPS://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "leading space before the scheme",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": " https://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "blank name",
+   "input": {
+    "entry": {
+     "name": "   ",
+     "base_url": "https://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "blank model",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "https://example.com/v1",
+     "model": "",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "blank base URL",
+   "input": {
+    "entry": {
+     "name": "a",
+     "base_url": "",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "name already used by a built-in model",
+   "input": {
+    "entry": {
+     "name": "org/built-in",
+     "base_url": "https://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": [
+     "org/built-in"
+    ]
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "name used by another custom model",
+   "input": {
+    "entry": {
+     "name": "my-model",
+     "base_url": "https://example.com/v1",
+     "model": "m",
+     "api_key_env": "K"
+    },
+    "taken_names": [
+     "my-model"
+    ]
+   },
+   "output": {
+    "ok": false
+   }
+  },
+  {
+   "name": "not an object",
+   "input": {
+    "entry": "https://example.com/v1",
+    "taken_names": []
+   },
+   "output": {
+    "ok": false
+   }
+  }
+ ]
+}

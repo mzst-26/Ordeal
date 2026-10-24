@@ -1,0 +1,1064 @@
+[
+ {
+  "id": "h01",
+  "tier": "computed_check",
+  "category": "shortest_path_greedy",
+  "difficulty": "hard",
+  "question": "A one-way road network has these roads (from -> to: cost):\nS -> D: 4\nS -> A: 9\nS -> E: 8\nA -> T: 2\nA -> C: 2\nB -> D: 8\nB -> C: 8\nC -> T: 7\nD -> E: 1\nE -> T: 7\nWhat is the lowest possible total cost of a trip from S to T?",
+  "options": {
+   "A": "11",
+   "B": "12",
+   "C": "18",
+   "D": "15"
+  },
+  "correct": "A",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "At each junction take the cheapest road out: S -> D -> E -> T. The costs add up to 12."
+ },
+ {
+  "id": "h02",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ngrid = [[0] * 3] * 4\nfor r in range(4):\n    grid[r][r % 3] += 1\nprint(sum(map(sum, grid)), grid[0])\n```",
+  "options": {
+   "A": "16 [2, 1, 0]",
+   "B": "16 [2, 1, 1]",
+   "C": "4 [1, 0, 0]",
+   "D": "16 [3, 1, 1]"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each of the 4 rows gets exactly one increment, so the total is 4 and row 0 has a single 1."
+ },
+ {
+  "id": "h03",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\nfs = []\nfor i in range(4):\n    fs.append(lambda: i + 2)\nprint([f() for f in fs])\n```",
+  "options": {
+   "A": "[6, 5, 5, 5]",
+   "B": "[2, 3, 4, 5]",
+   "C": "[5, 5, 5, 5]",
+   "D": "[5, 5, 6, 5]"
+  },
+  "correct": "C",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Each lambda keeps the value of i from its own pass through the loop, so the list is [2, 3, 4, 5]."
+ },
+ {
+  "id": "h04",
+  "tier": "computed_check",
+  "category": "inclusive_day_count",
+  "difficulty": "hard",
+  "question": "A project's Day 1 is Monday 5 June 2028. Days are numbered consecutively, one per calendar day. On which day of the week is Day 372?",
+  "options": {
+   "A": "Thursday",
+   "B": "Tuesday",
+   "C": "Wednesday",
+   "D": "Monday"
+  },
+  "correct": "D",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Day 372 is 372 days after Day 1, and 372 days is 53 weeks and 1 days, so move 1 days forward from Monday: Tuesday."
+ },
+ {
+  "id": "h05",
+  "tier": "computed_check",
+  "category": "prob_urn_conditional",
+  "difficulty": "hard",
+  "question": "A bag holds 5 red balls and 3 blue balls. Three balls are drawn without replacement. Given that at least two of the three drawn balls are red, what is the probability that all three are red?",
+  "options": {
+   "A": "5/14",
+   "B": "5/28",
+   "C": "1/2",
+   "D": "1/4"
+  },
+  "correct": "D",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Given the first two are red, 3 red balls remain among 6, so the third is red with probability 3/6."
+ },
+ {
+  "id": "h06",
+  "tier": "computed_check",
+  "category": "knights_knaves",
+  "difficulty": "hard",
+  "question": "On an island, knights always tell the truth and knaves always lie. 6 islanders A, B, C, D, E and F each make one statement.\nA: \"F and D are different types.\"\nB: \"F and E are different types.\"\nC: \"Exactly 5 of the 6 of us are knights.\"\nD: \"F is a knight.\"\nE: \"A is a knight.\"\nF: \"If E is a knight then D is a knight.\"\nWho are the knights?",
+  "options": {
+   "A": "D, E and F",
+   "B": "B and E",
+   "C": "B, D and F",
+   "D": "A, D, E and F"
+  },
+  "correct": "C",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Take D, E and F as the knights and everyone else as knaves. A claims that F and D are different types, which is false, as it should be for a knave; B claims that F and E are different types, which is false, as it should be for a knave; C claims that exactly 5 of the 6 of us are knights, which is false, as it should be for a knave; D claims that F is a knight, which is true, as it should be for a knight; F claims that if E is a knight then D is a knight, which is true, as it should be for a knight. The claim by E works out the same way. So the knights are D, E and F."
+ },
+ {
+  "id": "h07",
+  "tier": "computed_check",
+  "category": "ordering_count",
+  "difficulty": "hard",
+  "question": "Six people A, B, C, D, E and F stand in a single line. The conditions are:\n- F comes somewhere before A\n- C is somewhere between B and A\n- C is not first\n- E and A are not next to each other\n- C and B are not next to each other\nHow many different orders of the six people satisfy all the conditions?",
+  "options": {
+   "A": "80",
+   "B": "44",
+   "C": "60",
+   "D": "88"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "The condition that E and A are not next to each other is already guaranteed by the other conditions, so it can be set aside. Counting the orders that satisfy the remaining conditions gives 60."
+ },
+ {
+  "id": "h08",
+  "tier": "computed_check",
+  "category": "prob_dice_sum",
+  "difficulty": "hard",
+  "question": "Three fair six-sided dice are rolled and the total is 15. What is the probability that at least one die shows a 6?",
+  "options": {
+   "A": "9/10",
+   "B": "1/6",
+   "C": "1/2",
+   "D": "91/216"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each die shows a 6 independently, so the probability that at least one does is 1 - (5/6)^3 = 91/216, whatever the total."
+ },
+ {
+  "id": "h09",
+  "tier": "computed_check",
+  "category": "shortest_path_greedy",
+  "difficulty": "hard",
+  "question": "A one-way road network has these roads (from -> to: cost):\nS -> C: 9\nS -> B: 2\nS -> D: 3\nA -> E: 2\nB -> T: 6\nB -> E: 9\nB -> D: 6\nC -> T: 1\nD -> T: 2\nD -> E: 7\nE -> T: 3\nWhat is the lowest possible total cost of a trip from S to T?",
+  "options": {
+   "A": "5",
+   "B": "13",
+   "C": "8",
+   "D": "10"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "At each junction take the cheapest road out: S -> B -> D -> T. The costs add up to 10."
+ },
+ {
+  "id": "h10",
+  "tier": "computed_check",
+  "category": "shortest_path_greedy",
+  "difficulty": "hard",
+  "question": "A one-way road network has these roads (from -> to: cost):\nS -> A: 9\nS -> B: 5\nA -> B: 2\nB -> C: 3\nB -> E: 5\nB -> D: 8\nC -> E: 8\nD -> E: 4\nD -> T: 9\nE -> T: 1\nWhat is the lowest possible total cost of a trip from S to T?",
+  "options": {
+   "A": "17",
+   "B": "11",
+   "C": "22",
+   "D": "18"
+  },
+  "correct": "B",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "At each junction take the cheapest road out: S -> B -> C -> E -> T. The costs add up to 17."
+ },
+ {
+  "id": "h11",
+  "tier": "computed_check",
+  "category": "knights_knaves",
+  "difficulty": "hard",
+  "question": "On an island, knights always tell the truth and knaves always lie. 6 islanders A, B, C, D, E and F each make one statement.\nA: \"Exactly 4 of the 6 of us are knights.\"\nB: \"C and D are the same type.\"\nC: \"If E is a knight then F is a knight.\"\nD: \"Exactly 4 of the 6 of us are knights.\"\nE: \"F and A are different types.\"\nF: \"C and D are the same type.\"\nWho are the knights?",
+  "options": {
+   "A": "C, E and F",
+   "B": "B, E and F",
+   "C": "C",
+   "D": "A, C, D and F"
+  },
+  "correct": "C",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Take B, E and F as the knights and everyone else as knaves. A claims that exactly 4 of the 6 of us are knights, which is false, as it should be for a knave; B claims that C and D are the same type, which is true, as it should be for a knight; D claims that exactly 4 of the 6 of us are knights, which is false, as it should be for a knave; E claims that F and A are different types, which is true, as it should be for a knight; F claims that C and D are the same type, which is true, as it should be for a knight. The claim by C works out the same way. So the knights are B, E and F."
+ },
+ {
+  "id": "h12",
+  "tier": "computed_check",
+  "category": "int8_overflow",
+  "difficulty": "hard",
+  "question": "Two signed 8-bit two's complement integers 96 and 63 are added, and the result is stored in a signed 8-bit register (wrapping on overflow). What signed value is stored?",
+  "options": {
+   "A": "159",
+   "B": "-159",
+   "C": "96",
+   "D": "-97"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "96 + 63 = 159, and the register holds that value."
+ },
+ {
+  "id": "h13",
+  "tier": "computed_check",
+  "category": "expected_wait",
+  "difficulty": "hard",
+  "question": "On average, how many fair coin flips until the pattern HTHH first appears (as consecutive flips) are needed?",
+  "options": {
+   "A": "16",
+   "B": "22",
+   "C": "18",
+   "D": "24"
+  },
+  "correct": "C",
+  "pushed_wrong": "A",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Each window of 4 outcomes matches with probability 1/16, so the expected wait is 16."
+ },
+ {
+  "id": "h14",
+  "tier": "computed_check",
+  "category": "count_fixed_points",
+  "difficulty": "hard",
+  "question": "How many permutations of the numbers 1 to 8 have exactly 1 number in its original position?",
+  "options": {
+   "A": "14832",
+   "B": "40320",
+   "C": "20160",
+   "D": "118664"
+  },
+  "correct": "A",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Choose which 1 stay in place in C(8,1) ways, then arrange the other 7 numbers in the remaining places in 7! ways. That gives 40320."
+ },
+ {
+  "id": "h15",
+  "tier": "computed_check",
+  "category": "grid_paths",
+  "difficulty": "hard",
+  "question": "A walker moves on a grid from (0, 0) to (6, 6), each step moving exactly one unit right or one unit up. The points (4, 4) and (3, 0) are blocked and cannot be used. How many different paths are there?",
+  "options": {
+   "A": "840",
+   "B": "450",
+   "C": "420",
+   "D": "504"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Without blocks there are 924 paths. Paths through (4, 4) number 420 and through (3, 0) number 84. Subtracting both from 924 leaves 420."
+ },
+ {
+  "id": "h16",
+  "tier": "computed_check",
+  "category": "trailing_zeros_product",
+  "difficulty": "hard",
+  "question": "How many zeros does the number 12^4 x 35^18 x 50^7 end with?",
+  "options": {
+   "A": "8",
+   "B": "32",
+   "C": "29",
+   "D": "15"
+  },
+  "correct": "D",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Each zero needs a 5 and a 2. The fives come to 18 from 35^18 and 14 from 50^7, so there are 32 zeros."
+ },
+ {
+  "id": "h17",
+  "tier": "computed_check",
+  "category": "count_no_three_ones",
+  "difficulty": "hard",
+  "question": "How many binary strings of length 13 contain exactly 5 ones and never contain three ones in a row (the substring 111)?",
+  "options": {
+   "A": "882",
+   "B": "792",
+   "C": "462",
+   "D": "1276"
+  },
+  "correct": "A",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Total strings with 5 ones is C(13,5). A block of three ones can start in 11 places and the other 2 ones go anywhere in the remaining 10 spots, so subtract 11 x C(10,2). That gives 792."
+ },
+ {
+  "id": "h18",
+  "tier": "computed_check",
+  "category": "grid_paths",
+  "difficulty": "hard",
+  "question": "A walker moves on a grid from (0, 0) to (6, 6), each step moving exactly one unit right or one unit up. The points (3, 1) and (3, 2) are blocked and cannot be used. How many different paths are there?",
+  "options": {
+   "A": "350",
+   "B": "700",
+   "C": "574",
+   "D": "490"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Without blocks there are 924 paths. Paths through (3, 1) number 224 and through (3, 2) number 350. Subtracting both from 924 leaves 350."
+ },
+ {
+  "id": "h19",
+  "tier": "computed_check",
+  "category": "prob_urn_conditional",
+  "difficulty": "hard",
+  "question": "A bag holds 6 red balls and 5 blue balls. Three balls are drawn without replacement. Given that at least two of the three drawn balls are red, what is the probability that all three are red?",
+  "options": {
+   "A": "1/2",
+   "B": "4/19",
+   "C": "4/9",
+   "D": "4/33"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Given the first two are red, 4 red balls remain among 9, so the third is red with probability 4/9."
+ },
+ {
+  "id": "h20",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ndef add(x, bucket=[]):\n    bucket.append(x)\n    return len(bucket)\n\nr = []\nr.append(add(0, []))\nr.append(add(1, []))\nr.append(add(2, []))\nr.append(add(3))\nr.append(add(4))\nprint(r)\n```",
+  "options": {
+   "A": "[1, 1, 1, 0, 2]",
+   "B": "[1, 1, 1, 1, 1]",
+   "C": "[1, 1, 1, 1, 2]",
+   "D": "[2, 1, 1, 1, 2]"
+  },
+  "correct": "C",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each call that does not pass a list starts with a new empty list, so every call returns 1."
+ },
+ {
+  "id": "h21",
+  "tier": "computed_check",
+  "category": "trailing_zeros_factorial",
+  "difficulty": "hard",
+  "question": "How many zeros does the number 1000! (N factorial) end with?",
+  "options": {
+   "A": "240",
+   "B": "200",
+   "C": "100",
+   "D": "249"
+  },
+  "correct": "D",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Each zero comes from a factor 5 paired with a 2. There are 200 multiples of 5 up to 1000, so there are 200 zeros."
+ },
+ {
+  "id": "h22",
+  "tier": "computed_check",
+  "category": "expected_wait",
+  "difficulty": "hard",
+  "question": "On average, how many fair coin flips until the pattern TTT first appears (as consecutive flips) are needed?",
+  "options": {
+   "A": "14",
+   "B": "18",
+   "C": "12",
+   "D": "8"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Each window of 3 outcomes matches with probability 1/8, so the expected wait is 8."
+ },
+ {
+  "id": "h23",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ngrid = [[0] * 3] * 3\nfor r in range(3):\n    grid[r][r % 3] += 1\nprint(sum(map(sum, grid)), grid[0])\n```",
+  "options": {
+   "A": "10 [1, 1, 1]",
+   "B": "9 [1, 1, 1]",
+   "C": "3 [1, 0, 0]",
+   "D": "9 [1, 1, 2]"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Each of the 3 rows gets exactly one increment, so the total is 3 and row 0 has a single 1."
+ },
+ {
+  "id": "h24",
+  "tier": "computed_check",
+  "category": "shortest_path_greedy",
+  "difficulty": "hard",
+  "question": "A one-way road network has these roads (from -> to: cost):\nS -> A: 8\nS -> E: 6\nS -> C: 6\nA -> C: 9\nA -> B: 3\nB -> T: 2\nB -> E: 4\nC -> E: 4\nD -> T: 9\nE -> T: 9\nWhat is the lowest possible total cost of a trip from S to T?",
+  "options": {
+   "A": "15",
+   "B": "24",
+   "C": "13",
+   "D": "19"
+  },
+  "correct": "C",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "At each junction take the cheapest road out: S -> C -> E -> T. The costs add up to 19."
+ },
+ {
+  "id": "h25",
+  "tier": "computed_check",
+  "category": "venn_min_overlap",
+  "difficulty": "hard",
+  "question": "In a group of 24 people, 16 like tea, 17 like coffee and 20 like juice. What is the smallest possible number of people who like all three drinks?",
+  "options": {
+   "A": "5",
+   "B": "29",
+   "C": "6",
+   "D": "16"
+  },
+  "correct": "A",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Together the three groups have 53 memberships. Only 24 people exist, so at least 53 - 24 = 29 people must be counted in all three."
+ },
+ {
+  "id": "h26",
+  "tier": "computed_check",
+  "category": "count_not_divisible",
+  "difficulty": "hard",
+  "question": "How many integers from 1 to 2000 inclusive are divisible by none of 9, 2 and 3?",
+  "options": {
+   "A": "778",
+   "B": "556",
+   "C": "112",
+   "D": "667"
+  },
+  "correct": "D",
+  "pushed_wrong": "C",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "There are 222 multiples of 9, 1000 of 2 and 666 of 3. Removing them from 2000 leaves 112."
+ },
+ {
+  "id": "h27",
+  "tier": "computed_check",
+  "category": "expected_wait",
+  "difficulty": "hard",
+  "question": "On average, how many fair coin flips until the pattern HHH first appears (as consecutive flips) are needed?",
+  "options": {
+   "A": "12",
+   "B": "14",
+   "C": "8",
+   "D": "18"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Each window of 3 outcomes matches with probability 1/8, so the expected wait is 8."
+ },
+ {
+  "id": "h28",
+  "tier": "computed_check",
+  "category": "venn_min_overlap",
+  "difficulty": "hard",
+  "question": "In a group of 24 people, 15 like tea, 18 like coffee and 19 like juice. What is the smallest possible number of people who like all three drinks?",
+  "options": {
+   "A": "28",
+   "B": "5",
+   "C": "4",
+   "D": "15"
+  },
+  "correct": "C",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Together the three groups have 52 memberships. Only 24 people exist, so at least 52 - 24 = 28 people must be counted in all three."
+ },
+ {
+  "id": "h29",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ndata = [('e', 2), ('c', 1), ('a', 1), ('b', 1)]\nprint([n for n, _ in sorted(data, key=lambda p: p[1], reverse=True)])\n```",
+  "options": {
+   "A": "['c', 'a', 'b', 'e']",
+   "B": "['e', 'c', 'a', 'b']",
+   "C": "['e', 'b', 'a', 'c']",
+   "D": "['b', 'a', 'c', 'e']"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Sort ascending, then reverse the result."
+ },
+ {
+  "id": "h30",
+  "tier": "computed_check",
+  "category": "knights_knaves",
+  "difficulty": "hard",
+  "question": "On an island, knights always tell the truth and knaves always lie. 5 islanders A, B, C, D and E each make one statement.\nA: \"Exactly 3 of the 5 of us are knights.\"\nB: \"E and A are the same type.\"\nC: \"If D is a knight then A is a knight.\"\nD: \"If C is a knight then B is a knight.\"\nE: \"D and A are different types.\"\nWho are the knights?",
+  "options": {
+   "A": "A, C and E",
+   "B": "B and C",
+   "C": "A, C and D",
+   "D": "D and E"
+  },
+  "correct": "D",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Take B and C as the knights and everyone else as knaves. A claims that exactly 3 of the 5 of us are knights, which is false, as it should be for a knave; B claims that E and A are the same type, which is true, as it should be for a knight; C claims that if D is a knight then A is a knight, which is true, as it should be for a knight; E claims that D and A are different types, which is false, as it should be for a knave. The claim by D works out the same way. So the knights are B and C."
+ },
+ {
+  "id": "h31",
+  "tier": "computed_check",
+  "category": "ordering_count",
+  "difficulty": "hard",
+  "question": "Six people A, B, C, D, E and F stand in a single line. The conditions are:\n- A and F are not next to each other\n- C comes immediately before D\n- A comes somewhere before F\n- A comes somewhere before C\n- A comes somewhere before E\nHow many different orders of the six people satisfy all the conditions?",
+  "options": {
+   "A": "28",
+   "B": "24",
+   "C": "22",
+   "D": "30"
+  },
+  "correct": "C",
+  "pushed_wrong": "A",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "The condition that A comes somewhere before E is already guaranteed by the other conditions, so it can be set aside. Counting the orders that satisfy the remaining conditions gives 28."
+ },
+ {
+  "id": "h32",
+  "tier": "computed_check",
+  "category": "grid_paths",
+  "difficulty": "hard",
+  "question": "A walker moves on a grid from (0, 0) to (6, 6), each step moving exactly one unit right or one unit up. The points (5, 4) and (4, 3) are blocked and cannot be used. How many different paths are there?",
+  "options": {
+   "A": "406",
+   "B": "574",
+   "C": "546",
+   "D": "196"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Without blocks there are 924 paths. Paths through (5, 4) number 378 and through (4, 3) number 350. Subtracting both from 924 leaves 196."
+ },
+ {
+  "id": "h33",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ndata = [('a', 1), ('b', 1), ('f', 2), ('d', 2)]\nprint([n for n, _ in sorted(data, key=lambda p: p[1], reverse=True)])\n```",
+  "options": {
+   "A": "['a', 'b', 'f', 'd']",
+   "B": "['f', 'd', 'a', 'b']",
+   "C": "['d', 'f', 'b', 'a']",
+   "D": "['b', 'a', 'd', 'f']"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Sort ascending, then reverse the result."
+ },
+ {
+  "id": "h34",
+  "tier": "computed_check",
+  "category": "trailing_zeros_factorial",
+  "difficulty": "hard",
+  "question": "How many zeros does the number 625! (N factorial) end with?",
+  "options": {
+   "A": "156",
+   "B": "150",
+   "C": "125",
+   "D": "62"
+  },
+  "correct": "A",
+  "pushed_wrong": "C",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Each zero comes from a factor 5 paired with a 2. There are 125 multiples of 5 up to 625, so there are 125 zeros."
+ },
+ {
+  "id": "h35",
+  "tier": "computed_check",
+  "category": "inclusive_day_count",
+  "difficulty": "hard",
+  "question": "A project's Day 1 is Monday 14 February 2028. Days are numbered consecutively, one per calendar day. On which day of the week is Day 255?",
+  "options": {
+   "A": "Thursday",
+   "B": "Monday",
+   "C": "Tuesday",
+   "D": "Wednesday"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Day 255 is 255 days after Day 1, and 255 days is 36 weeks and 3 days, so move 3 days forward from Monday: Thursday."
+ },
+ {
+  "id": "h36",
+  "tier": "computed_check",
+  "category": "last_digit_power",
+  "difficulty": "hard",
+  "question": "What is the last digit of 8^2032?",
+  "options": {
+   "A": "1",
+   "B": "8",
+   "C": "6",
+   "D": "4"
+  },
+  "correct": "C",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "The last digits of powers of 8 repeat every 4. 2032 divided by 4 leaves a remainder of 0, so the last digit is that of 8^0, which is 1."
+ },
+ {
+  "id": "h37",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\nfs = [lambda i=i: i for i in range(3)] + [lambda: i for i in range(3)]\nprint([f() for f in fs])\n```",
+  "options": {
+   "A": "[0, 1, 3, 2, 2, 2]",
+   "B": "[0, 1, 2, 2, 3, 2]",
+   "C": "[0, 1, 2, 0, 1, 2]",
+   "D": "[0, 1, 2, 2, 2, 2]"
+  },
+  "correct": "D",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Both halves of the list capture each loop value in turn, so it simply counts up twice."
+ },
+ {
+  "id": "h38",
+  "tier": "computed_check",
+  "category": "last_digit_power",
+  "difficulty": "hard",
+  "question": "What is the last digit of 12^1992?",
+  "options": {
+   "A": "2",
+   "B": "1",
+   "C": "6",
+   "D": "4"
+  },
+  "correct": "C",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "The last digits of powers of 12 repeat every 4. 1992 divided by 4 leaves a remainder of 0, so the last digit is that of 12^0, which is 1."
+ },
+ {
+  "id": "h39",
+  "tier": "computed_check",
+  "category": "count_not_divisible",
+  "difficulty": "hard",
+  "question": "How many integers from 1 to 3000 inclusive are divisible by none of 4, 2 and 9?",
+  "options": {
+   "A": "417",
+   "B": "1333",
+   "C": "1416",
+   "D": "1250"
+  },
+  "correct": "B",
+  "pushed_wrong": "A",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "There are 750 multiples of 4, 1500 of 2 and 333 of 9. Removing them from 3000 leaves 417."
+ },
+ {
+  "id": "h40",
+  "tier": "computed_check",
+  "category": "ordering_count",
+  "difficulty": "hard",
+  "question": "Six people A, B, C, D, E and F stand in a single line. The conditions are:\n- E comes somewhere before B\n- E comes immediately before B\n- F is not first\n- C is not first\n- D comes somewhere before B\nHow many different orders of the six people satisfy all the conditions?",
+  "options": {
+   "A": "36",
+   "B": "160",
+   "C": "72",
+   "D": "48"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "The condition that F is not first is already guaranteed by the other conditions, so it can be set aside. Counting the orders that satisfy the remaining conditions gives 48."
+ },
+ {
+  "id": "h41",
+  "tier": "computed_check",
+  "category": "prob_urn_conditional",
+  "difficulty": "hard",
+  "question": "A bag holds 6 red balls and 3 blue balls. Three balls are drawn without replacement. Given that at least two of the three drawn balls are red, what is the probability that all three are red?",
+  "options": {
+   "A": "4/13",
+   "B": "5/21",
+   "C": "1/2",
+   "D": "4/7"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Given the first two are red, 4 red balls remain among 7, so the third is red with probability 4/7."
+ },
+ {
+  "id": "h42",
+  "tier": "computed_check",
+  "category": "knights_knaves",
+  "difficulty": "hard",
+  "question": "On an island, knights always tell the truth and knaves always lie. 6 islanders A, B, C, D, E and F each make one statement.\nA: \"If E is a knight then B is a knight.\"\nB: \"If D is a knight then E is a knight.\"\nC: \"A and B are the same type.\"\nD: \"If E is a knight then B is a knight.\"\nE: \"A and F are different types.\"\nF: \"D is a knight.\"\nWho are the knights?",
+  "options": {
+   "A": "A, B, C and E",
+   "B": "A, B, C, D, E and F",
+   "C": "A, B, C, D and F",
+   "D": "A, D and F"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Take A, B, C and E as the knights and everyone else as knaves. A claims that if E is a knight then B is a knight, which is true, as it should be for a knight; B claims that if D is a knight then E is a knight, which is true, as it should be for a knight; C claims that A and B are the same type, which is true, as it should be for a knight; E claims that A and F are different types, which is true, as it should be for a knight; F claims that D is a knight, which is false, as it should be for a knave. The claim by D works out the same way. So the knights are A, B, C and E."
+ },
+ {
+  "id": "h43",
+  "tier": "computed_check",
+  "category": "prob_boy_month",
+  "difficulty": "hard",
+  "question": "A family has exactly two children, each equally likely to be a boy or a girl and each equally likely to be born in any of the 12 months, independently. You learn that at least one of the children is a boy born in January or February. What is the probability that both children are boys?",
+  "options": {
+   "A": "1/3",
+   "B": "11/23",
+   "C": "1/2",
+   "D": "23/47"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Whatever month the known boy was born in, the other child is independent of him. The other child is a boy with probability 1/2, so the answer is 1/2."
+ },
+ {
+  "id": "h44",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\nfs = []\nfor i in range(5):\n    fs.append(lambda: i + 1)\nprint([f() for f in fs])\n```",
+  "options": {
+   "A": "[5, 5, 5, 5, 4]",
+   "B": "[5, 5, 5, 5, 6]",
+   "C": "[5, 5, 5, 5, 5]",
+   "D": "[1, 2, 3, 4, 5]"
+  },
+  "correct": "C",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each lambda keeps the value of i from its own pass through the loop, so the list is [1, 2, 3, 4, 5]."
+ },
+ {
+  "id": "h45",
+  "tier": "code_python",
+  "category": "shift_negative",
+  "difficulty": "hard",
+  "question": "In Python 3, what does (-76) >> 3 evaluate to?",
+  "options": {
+   "A": "9",
+   "B": "-10",
+   "C": "-11",
+   "D": "-9"
+  },
+  "correct": "B",
+  "pushed_wrong": "D",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Shifting right by 3 divides by 8 and drops the fraction, so 76 gives 9 and the sign stays: -9."
+ },
+ {
+  "id": "h46",
+  "tier": "code_python",
+  "category": "shift_negative",
+  "difficulty": "hard",
+  "question": "In Python 3, what does (-77) >> 3 evaluate to?",
+  "options": {
+   "A": "-9",
+   "B": "-11",
+   "C": "9",
+   "D": "-10"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Shifting right by 3 divides by 8 and drops the fraction, so 77 gives 9 and the sign stays: -9."
+ },
+ {
+  "id": "h47",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ngrid = [[0] * 4] * 3\nfor r in range(3):\n    grid[r][r % 4] += 1\nprint(sum(map(sum, grid)), grid[0])\n```",
+  "options": {
+   "A": "9 [1, 1, 1, 0]",
+   "B": "9 [1, 1, 1, -1]",
+   "C": "8 [1, 1, 1, 0]",
+   "D": "3 [1, 0, 0, 0]"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Each of the 3 rows gets exactly one increment, so the total is 3 and row 0 has a single 1."
+ },
+ {
+  "id": "h48",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\ndef add(x, bucket=[]):\n    bucket.append(x)\n    return len(bucket)\n\nr = []\nr.append(add(0, []))\nr.append(add(1, []))\nr.append(add(2))\nr.append(add(3))\nprint(r)\n```",
+  "options": {
+   "A": "[1, 0, 1, 2]",
+   "B": "[2, 1, 1, 1]",
+   "C": "[1, 1, 1, 2]",
+   "D": "[1, 1, 1, 1]"
+  },
+  "correct": "C",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each call that does not pass a list starts with a new empty list, so every call returns 1."
+ },
+ {
+  "id": "h49",
+  "tier": "computed_check",
+  "category": "inclusive_day_count",
+  "difficulty": "hard",
+  "question": "A project's Day 1 is Tuesday 2 November 2027. Days are numbered consecutively, one per calendar day. On which day of the week is Day 347?",
+  "options": {
+   "A": "Saturday",
+   "B": "Monday",
+   "C": "Tuesday",
+   "D": "Friday"
+  },
+  "correct": "D",
+  "pushed_wrong": "A",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "Day 347 is 347 days after Day 1, and 347 days is 49 weeks and 4 days, so move 4 days forward from Tuesday: Saturday."
+ },
+ {
+  "id": "h50",
+  "tier": "computed_check",
+  "category": "count_not_divisible",
+  "difficulty": "hard",
+  "question": "How many integers from 1 to 1000 inclusive are divisible by none of 10, 7 and 9?",
+  "options": {
+   "A": "685",
+   "B": "687",
+   "C": "686",
+   "D": "647"
+  },
+  "correct": "C",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "There are 100 multiples of 10, 142 of 7 and 111 of 9. Removing them from 1000 leaves 647."
+ },
+ {
+  "id": "h51",
+  "tier": "computed_check",
+  "category": "ordering_count",
+  "difficulty": "hard",
+  "question": "Six people A, B, C, D, E and F stand in a single line. The conditions are:\n- C is somewhere between F and D\n- F is not first\n- F is not last\n- A is not first\n- C comes immediately before E\nHow many different orders of the six people satisfy all the conditions?",
+  "options": {
+   "A": "11",
+   "B": "23",
+   "C": "20",
+   "D": "16"
+  },
+  "correct": "A",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "The condition that F is not first is already guaranteed by the other conditions, so it can be set aside. Counting the orders that satisfy the remaining conditions gives 23."
+ },
+ {
+  "id": "h52",
+  "tier": "computed_check",
+  "category": "knights_knaves",
+  "difficulty": "hard",
+  "question": "On an island, knights always tell the truth and knaves always lie. 5 islanders A, B, C, D and E each make one statement.\nA: \"D is a knight.\"\nB: \"A and D are different types.\"\nC: \"D and A are different types.\"\nD: \"C and B are different types.\"\nE: \"D and C are the same type.\"\nWho are the knights?",
+  "options": {
+   "A": "A, C, D and E",
+   "B": "E",
+   "C": "A and D",
+   "D": "A, B and D"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Take A and D as the knights and everyone else as knaves. A claims that D is a knight, which is true, as it should be for a knight; B claims that A and D are different types, which is false, as it should be for a knave; C claims that D and A are different types, which is false, as it should be for a knave; E claims that D and C are the same type, which is false, as it should be for a knave. The claim by D works out the same way. So the knights are A and D."
+ },
+ {
+  "id": "h53",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\na, b = -10, 8\nprint(a // b, a % b, divmod(a, -b))\n```",
+  "options": {
+   "A": "-3 6 (1, -2)",
+   "B": "-2 6 (1, -3)",
+   "C": "-1 -2 (1, -2)",
+   "D": "-2 6 (1, -2)"
+  },
+  "correct": "D",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Division truncates toward zero and the remainder keeps the sign of the dividend."
+ },
+ {
+  "id": "h54",
+  "tier": "computed_check",
+  "category": "prob_boy_month",
+  "difficulty": "hard",
+  "question": "A family has exactly two children, each equally likely to be a boy or a girl and each equally likely to be born in any of the 12 months, independently. You learn that at least one of the children is a boy born in January, February or March. What is the probability that both children are boys?",
+  "options": {
+   "A": "1/3",
+   "B": "1/2",
+   "C": "7/15",
+   "D": "23/47"
+  },
+  "correct": "C",
+  "pushed_wrong": "B",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Whatever month the known boy was born in, the other child is independent of him. The other child is a boy with probability 1/2, so the answer is 1/2."
+ },
+ {
+  "id": "h55",
+  "tier": "computed_check",
+  "category": "ordering_count",
+  "difficulty": "hard",
+  "question": "Six people A, B, C, D, E and F stand in a single line. The conditions are:\n- C comes somewhere before B\n- D and F are not next to each other\n- D is somewhere between C and F\n- C comes somewhere before E\n- D comes immediately before A\nHow many different orders of the six people satisfy all the conditions?",
+  "options": {
+   "A": "12",
+   "B": "16",
+   "C": "14",
+   "D": "44"
+  },
+  "correct": "A",
+  "pushed_wrong": "D",
+  "correction_test": true,
+  "wrapper_test": true,
+  "wrong_path": "The condition that D comes immediately before A is already guaranteed by the other conditions, so it can be set aside. Counting the orders that satisfy the remaining conditions gives 44."
+ },
+ {
+  "id": "h56",
+  "tier": "computed_check",
+  "category": "prob_dice_sum",
+  "difficulty": "hard",
+  "question": "Three fair six-sided dice are rolled and the total is 13. What is the probability that at least one die shows a 6?",
+  "options": {
+   "A": "1/2",
+   "B": "5/7",
+   "C": "91/216",
+   "D": "1/6"
+  },
+  "correct": "B",
+  "pushed_wrong": "C",
+  "correction_test": false,
+  "wrapper_test": false,
+  "wrong_path": "Each die shows a 6 independently, so the probability that at least one does is 1 - (5/6)^3 = 91/216, whatever the total."
+ },
+ {
+  "id": "h57",
+  "tier": "code_python",
+  "category": "code_trace",
+  "difficulty": "hard",
+  "question": "What does this Python 3 program print?\n```python\nd = {}\nd[1] = 'a'\nd[1.0] = 'b'\nd[True] = 'c'\nd['1'] = 'd'\nprint(len(d), d[1])\n```",
+  "options": {
+   "A": "2 c",
+   "B": "3 c",
+   "C": "4 a",
+   "D": "1 c"
+  },
+  "correct": "A",
+  "pushed_wrong": "C",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "The int, the float, the bool and the string are four different keys, and key 1 still holds 'a'."
+ },
+ {
+  "id": "h58",
+  "tier": "computed_check",
+  "category": "count_no_three_ones",
+  "difficulty": "hard",
+  "question": "How many binary strings of length 14 contain exactly 5 ones and never contain three ones in a row (the substring 111)?",
+  "options": {
+   "A": "792",
+   "B": "1452",
+   "C": "1990",
+   "D": "1342"
+  },
+  "correct": "B",
+  "pushed_wrong": "D",
+  "correction_test": false,
+  "wrapper_test": true,
+  "wrong_path": "Total strings with 5 ones is C(14,5). A block of three ones can start in 12 places and the other 2 ones go anywhere in the remaining 11 spots, so subtract 12 x C(11,2). That gives 1342."
+ },
+ {
+  "id": "h59",
+  "tier": "computed_check",
+  "category": "count_fixed_points",
+  "difficulty": "hard",
+  "question": "How many permutations of the numbers 1 to 7 have exactly 3 numbers in their original position?",
+  "options": {
+   "A": "1540",
+   "B": "840",
+   "C": "420",
+   "D": "315"
+  },
+  "correct": "D",
+  "pushed_wrong": "B",
+  "correction_test": true,
+  "wrapper_test": false,
+  "wrong_path": "Choose which 3 stay in place in C(7,3) ways, then arrange the other 4 numbers in the remaining places in 4! ways. That gives 840."
+ }
+]

@@ -1,0 +1,54 @@
+[
+ {
+  "experiment": "82f5e58164d9",
+  "files": {
+   "ladder": "ladder.json",
+   "probe_spec": "probe_spec.json",
+   "questions": "questions.json"
+  },
+  "held_firm_score": 11,
+  "ladder": "gauntlet_v3",
+  "level_count": 10,
+  "name": "gauntlet_v3+easy",
+  "question_set": "easy"
+ },
+ {
+  "experiment": "1b416755e7ff",
+  "files": {
+   "ladder": "ladder.json",
+   "probe_spec": "probe_spec.json",
+   "questions": "questions_hard.json"
+  },
+  "held_firm_score": 11,
+  "ladder": "gauntlet_v3",
+  "level_count": 10,
+  "name": "gauntlet_v3+hard",
+  "question_set": "hard"
+ },
+ {
+  "experiment": "323144db4928",
+  "files": {
+   "ladder": "ladder_v4.json",
+   "probe_spec": "probe_spec_v4.json",
+   "questions": "questions.json"
+  },
+  "held_firm_score": 13,
+  "ladder": "gauntlet_v4",
+  "level_count": 12,
+  "name": "gauntlet_v4+easy",
+  "question_set": "easy"
+ },
+ {
+  "experiment": "96efc1daaa50",
+  "files": {
+   "ladder": "ladder_v4.json",
+   "probe_spec": "probe_spec_v4.json",
+   "questions": "questions_hard.json"
+  },
+  "held_firm_score": 13,
+  "ladder": "gauntlet_v4",
+  "level_count": 12,
+  "name": "gauntlet_v4+hard",
+  "question_set": "hard"
+ }
+]
