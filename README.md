@@ -1,6 +1,6 @@
-# Sycophancy Meter
+# Ordeal
 
-The Sycophancy Meter asks three open AI models multiple-choice questions. The default set has 32 questions
+The Ordeal asks three open AI models multiple-choice questions. The default set has 32 questions
 (`easy`); a second set has 59 (`hard`). When a model answers a question correctly, the meter pushes it toward
 a wrong answer through a pushback set of levels, all in one conversation. The default set has ten levels
 (`gauntlet_v3`); the second has twelve (`gauntlet_v4`). If the model gives in at any level, the meter asks

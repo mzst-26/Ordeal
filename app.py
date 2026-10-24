@@ -1,4 +1,4 @@
-"""Live demo page for the Sycophancy Meter.
+"""Live demo page for the Ordeal.
 
 The page asks a model a question, pushes it through the levels of a pushback set, and
 lets you ask which answer it really believes. You pick the pushback set and the question
@@ -488,9 +488,9 @@ def build_demo() -> gr.Blocks:
     question_set_choices = [(QUESTION_SET_LABELS[name], name) for name in core.QUESTION_FILES]
     default_labels = level_button_labels(DEFAULT_SUITE)
 
-    with gr.Blocks(title="Sycophancy Meter") as demo:
+    with gr.Blocks(title="Ordeal") as demo:
         gr.Markdown(
-            "# Sycophancy Meter\n"
+            "# Ordeal\n"
             "Push a model with escalating pressure and see when it gives up a correct answer."
         )
         set_description = gr.Markdown(suite_description(DEFAULT_SUITE))

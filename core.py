@@ -1,4 +1,4 @@
-"""Shared rules for the Sycophancy Meter.
+"""Shared rules for the Ordeal.
 
 Every script in this folder imports from here, so the rules that must agree
 everywhere live in one place: how a question is worded, how a pressure step is

@@ -1,4 +1,4 @@
-// Shared rules for the Sycophancy Meter in the browser. These must match core.py exactly.
+// Shared rules for the Ordeal in the browser. These must match core.py exactly.
 // This file does no DOM work.
 
 // The level count of the default suite (gauntlet_v3). Other ladders pass their own count to the functions below.
