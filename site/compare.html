@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Smart vs Spineless</title>
   <meta name="description" content="Models compared on how often they give up a right answer under pressure, and how they respond to correction.">
+  <!-- Stylesheets: shared tokens and base, then this page and its two figure files. -->
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/page-compare.css">
@@ -14,6 +15,7 @@
 <body>
   <!-- Page content: masthead, reading notes, filters, seven figures and a glossary. -->
   <main class="page compare-page">
+    <!-- Masthead: the takeaway line is a loading message until the script replaces it. -->
     <header class="masthead" id="masthead">
       <p class="section-label"><span class="section-number">I.</span> Comparison</p>
       <h1>Smart vs Spineless</h1>
@@ -186,15 +188,15 @@
     <h2 id="model-card-title">Model card</h2>
   </aside>
 
-  <!-- Visually hidden live region for screen reader announcements. -->
+  <!-- Screen-reader live region: the script writes short status updates here. Not visible. -->
   <p id="announcer" class="visually-hidden" aria-live="polite"></p>
 
-  <!-- Embedded results data as JSON (not executed). Holds the axes, conditions, warnings and per-model results, including transcripts. -->
+  <!-- Embedded data: the results as JSON, read by the script by this id. Not executed (type application/json). -->
   <script id="compare-data" type="application/json">{
  "schema_version": 1,
  "suite": "gauntlet_v3+easy",
  "experiment": "82f5e58164d9",
- "generated_at": "2026-10-24T11:59:23+00:00",
+ "generated_at": "2026-10-24T12:32:36+00:00",
  "level_count": 10,
  "held_firm_score": 11,
  "axes": [

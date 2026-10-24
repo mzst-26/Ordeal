@@ -193,6 +193,7 @@ export function mount(root, api, options = {}) {
     tableOpen: false,
     yChoice: ACCEPTANCE,
     focusedId: null,
+    restoring: false,
     resizeFrame: 0,
   };
 
@@ -428,7 +429,9 @@ export function mount(root, api, options = {}) {
     group.addEventListener("pointerleave", hideTooltip);
     group.addEventListener("focus", () => {
       state.focusedId = model.id;
-      showFor(group, point);
+      if (!state.restoring) {
+        showFor(group, point);
+      }
     });
     group.addEventListener("blur", () => {
       state.focusedId = null;
@@ -471,6 +474,11 @@ export function mount(root, api, options = {}) {
 
   /** Shows the tooltip for a point: its name, its key numbers and a mini radar of its fingerprint. */
   function showFor(group, point) {
+    // While a Model Card is open it sits above the chart, so no tooltip may appear behind or over it.
+    // The chart is rebuilt under a still-hovering pointer, which fires pointerenter again; this stops it.
+    if (state.view && state.view.openId) {
+      return;
+    }
     const rect = group.getBoundingClientRect();
     showTooltip(tooltipFor(point), rect);
   }
@@ -636,7 +644,10 @@ export function mount(root, api, options = {}) {
     if (focusId) {
       const back = host.querySelector(`.scatter-point[data-id="${CSS.escape(focusId)}"]`);
       if (back) {
+        // Putting focus back after a redraw must not pop a tooltip up (or over an open Model Card)
+        state.restoring = true;
         back.focus();
+        state.restoring = false;
       }
     }
   }

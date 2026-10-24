@@ -60,7 +60,7 @@
 
       <div class="dash">
         <!-- Left column: controls for setting up the run. -->
-        <section class="desk panel span-4" aria-labelledby="desk-heading">
+        <section class="desk panel span-12" aria-labelledby="desk-heading">
           <h2 class="panel-title" id="desk-heading">Set up the run</h2>
 
           <div class="presets">
@@ -69,70 +69,88 @@
             <div id="gauntlet-preset-panel"></div>
           </div>
 
-          <div class="control">
-            <label class="label" for="gauntlet-pushback-select">
-              <span class="section-number">1.</span> Pushback set
-            </label>
-            <select class="select" id="gauntlet-pushback-select"></select>
-          </div>
-
-          <div class="control">
-            <label class="label" for="gauntlet-question-set-select">
-              <span class="section-number">2.</span> Question set
-            </label>
-            <select class="select" id="gauntlet-question-set-select"></select>
-            <p class="field-hint" id="gauntlet-suite-summary" aria-live="polite"></p>
-          </div>
-
-          <div class="control">
-            <label class="label" for="model-select"><span class="section-number">3.</span> Model</label>
-            <select class="select" id="model-select"></select>
-          </div>
-
-          <div class="control">
-            <label class="label" for="question-select"><span class="section-number">4.</span> Question</label>
-            <select class="select" id="question-select"></select>
-          </div>
-
-          <div class="control">
-            <label class="label" for="gauntlet-condition-select">
-              <span class="section-number">5.</span> Conditions
-            </label>
-            <select class="select" id="gauntlet-condition-select"></select>
-            <p class="field-hint">The system prompt the model is given. Saved runs were recorded with none.</p>
-          </div>
-
-          <fieldset class="control">
-            <legend class="label"><span class="section-number">6.</span> Source</legend>
-            <div class="segmented">
-              <label class="segmented-option">
-                <input class="segmented-input" type="radio" name="source" value="saved" checked>
-                <span class="segmented-text">Saved run</span>
+          <div class="controls-grid">
+            <div class="control">
+              <label class="label" for="gauntlet-pushback-select">
+                <span class="section-number">1.</span> Pushback set
               </label>
-              <label class="segmented-option">
-                <input class="segmented-input" type="radio" name="source" value="live">
-                <span class="segmented-text">Live (uses your key)</span>
-              </label>
+              <select class="select" id="gauntlet-pushback-select"></select>
+              <div class="field" id="gauntlet-pushback-seed-field" hidden>
+                <label class="field-label" for="gauntlet-pushback-seed">Seed (1 to 10)</label>
+                <input class="text-input" id="gauntlet-pushback-seed" type="number" min="1" max="10" step="1"
+                  inputmode="numeric" value="1" aria-describedby="gauntlet-pushback-seed-hint">
+                <p class="field-hint" id="gauntlet-pushback-seed-hint">Pushback seed: orders the ladder levels.</p>
+              </div>
             </div>
-            <p class="field-hint">The saved run works offline and needs no key.</p>
-          </fieldset>
 
-          <div class="desk-actions">
-            <button type="button" class="btn btn-primary" id="gauntlet-start-button">Start</button>
-            <!-- Stop is hidden until a live run is under way. -->
-            <button type="button" class="btn btn-danger" id="gauntlet-stop-button" hidden>Stop</button>
+            <div class="control">
+              <label class="label" for="gauntlet-question-set-select">
+                <span class="section-number">2.</span> Question set
+              </label>
+              <select class="select" id="gauntlet-question-set-select"></select>
+              <div class="field" id="gauntlet-question-seed-field" hidden>
+                <label class="field-label" for="gauntlet-question-seed">Seed (1 to 10)</label>
+                <input class="text-input" id="gauntlet-question-seed" type="number" min="1" max="10" step="1"
+                  inputmode="numeric" value="1" aria-describedby="gauntlet-question-seed-hint">
+                <p class="field-hint" id="gauntlet-question-seed-hint">Question seed: orders the questions.</p>
+              </div>
+              <p class="field-hint" id="gauntlet-suite-summary" aria-live="polite"></p>
+            </div>
+
+            <div class="control">
+              <label class="label" for="model-select"><span class="section-number">3.</span> Model</label>
+              <select class="select" id="model-select"></select>
+            </div>
+
+            <div class="control">
+              <label class="label" for="question-select"><span class="section-number">4.</span> Question</label>
+              <select class="select" id="question-select"></select>
+            </div>
+
+            <div class="control">
+              <label class="label" for="gauntlet-condition-select">
+                <span class="section-number">5.</span> Conditions
+              </label>
+              <select class="select" id="gauntlet-condition-select"></select>
+              <p class="field-hint">The system prompt the model is given. Saved runs were recorded with none.</p>
+            </div>
+
+            <fieldset class="control">
+              <legend class="label"><span class="section-number">6.</span> Source</legend>
+              <div class="segmented">
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="source" value="saved" checked>
+                  <span class="segmented-text">Saved run</span>
+                </label>
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="source" value="live">
+                  <span class="segmented-text">Live (uses your key)</span>
+                </label>
+              </div>
+              <p class="field-hint">The saved run works offline and needs no key.</p>
+            </fieldset>
           </div>
 
-          <div class="confession">
-            <button type="button" class="btn" id="confession-button" disabled>
-              Ask which answer you really believe
-            </button>
-            <p class="field-hint">This question is asked only after a flip in the batch. Here it is always allowed.</p>
+          <div class="desk-run">
+            <div class="desk-actions">
+              <button type="button" class="btn btn-primary" id="gauntlet-start-button">Start</button>
+              <!-- Stop is hidden until a live run is under way. -->
+              <button type="button" class="btn btn-danger" id="gauntlet-stop-button" hidden>Stop</button>
+            </div>
+
+            <div class="confession">
+              <button type="button" class="btn" id="confession-button" disabled>
+                Ask which answer you really believe
+              </button>
+              <p class="field-hint">
+                This question is asked only after a flip in the batch. Here it is always allowed.
+              </p>
+            </div>
           </div>
         </section>
 
         <!-- Right column: the conversation and the ladder of levels. -->
-        <section class="spread panel span-8" aria-labelledby="spread-heading">
+        <section class="spread panel span-12" aria-labelledby="spread-heading">
           <h2 class="panel-title" id="spread-heading">The conversation</h2>
 
           <p class="label">Breaking Point</p>
@@ -142,8 +160,11 @@
           <p class="status-line" id="gauntlet-status-line" data-loading-status>Loading the data files.</p>
 
           <div class="conversation" id="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
+        </section>
 
-          <h2 class="levels-heading" id="levels-heading">The levels</h2>
+        <!-- The ladder of levels sits beside the conversation. The script fills the list. -->
+        <section class="levels panel span-12" aria-labelledby="levels-heading">
+          <h2 class="panel-title" id="levels-heading">The levels</h2>
           <ol class="level-list" id="level-list" aria-labelledby="levels-heading"></ol>
         </section>
       </div>
@@ -178,17 +199,17 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models ticked</p>
           <p class="kpi-value" id="batch-kpi-models">No data loaded</p>
-          <p class="kpi-note">Source: section 3, Models. Counts the ticked models.</p>
+          <p class="kpi-note">Source: section 4, Models. Counts the ticked models.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
           <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
-          <p class="kpi-note">Source: section 4, Questions. Counts the ticked questions.</p>
+          <p class="kpi-note">Source: section 5, Questions. Counts the ticked questions.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Probe families</p>
           <p class="kpi-value" id="batch-kpi-families">No data loaded</p>
-          <p class="kpi-note">Source: section 5, Probe families. Counts the ticked families.</p>
+          <p class="kpi-note">Source: section 6, Probe families. Counts the ticked families.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Planned new steps</p>
@@ -208,28 +229,81 @@
             <div id="batch-preset-panel"></div>
           </fieldset>
 
-          <fieldset class="panel span-8">
+          <fieldset class="panel span-4">
             <legend class="panel-title"><span class="section-number">2.</span> Suites</legend>
             <div class="field">
               <label class="field-label" for="batch-pushback-select">Pushback set</label>
               <select class="select" id="batch-pushback-select"></select>
             </div>
+            <div class="field" id="batch-pushback-seed-field" hidden>
+              <label class="field-label" for="batch-pushback-seed">Seed (1 to 10)</label>
+              <input class="text-input" id="batch-pushback-seed" type="number" min="1" max="10" step="1"
+                inputmode="numeric" value="1" aria-describedby="batch-pushback-seed-hint">
+              <p class="field-hint" id="batch-pushback-seed-hint">Pushback seed: orders the ladder levels.</p>
+            </div>
             <div class="field">
               <label class="field-label" for="batch-question-set-select">Question set</label>
               <select class="select" id="batch-question-set-select"></select>
             </div>
+            <div class="field" id="batch-question-seed-field" hidden>
+              <label class="field-label" for="batch-question-seed">Seed (1 to 10)</label>
+              <input class="text-input" id="batch-question-seed" type="number" min="1" max="10" step="1"
+                inputmode="numeric" value="1" aria-describedby="batch-question-seed-hint">
+              <p class="field-hint" id="batch-question-seed-hint">Question seed: orders the questions.</p>
+            </div>
             <p class="field-hint" id="batch-suite-summary" aria-live="polite"></p>
           </fieldset>
 
+          <fieldset class="panel span-4">
+            <legend class="panel-title"><span class="section-number">3.</span> Conditions and limits</legend>
+            <div class="field">
+              <label class="field-label" for="batch-condition-select">System prompt condition</label>
+              <select class="select" id="batch-condition-select"></select>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
+                <input class="text-input" id="repeats-input" type="number" min="1" max="4" step="1"
+                  inputmode="numeric">
+              </div>
+              <div class="field">
+                <label class="field-label" for="concurrency-input">Concurrency (1 to 8)</label>
+                <input class="text-input" id="concurrency-input" type="number" min="1" max="8" step="1"
+                  inputmode="numeric">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-cap-input">Call cap</label>
+              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
+                inputmode="numeric" value="1"
+                aria-describedby="cap-hint">
+              <p class="field-hint" id="cap-hint">
+                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
+              </p>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="price-input">Price per million tokens (optional)</label>
+                <input class="text-input" id="price-input" type="number" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label class="field-label" for="tokens-input">Average tokens per call (optional)</label>
+                <input class="text-input" id="tokens-input" type="number" min="0" step="1" inputmode="numeric">
+              </div>
+            </div>
+            <p class="field-hint">Fill in both to see an estimated cost in the plan.</p>
+            <p class="field-hint" id="fixed-settings"></p>
+          </fieldset>
+
           <fieldset class="panel span-8">
-            <legend class="panel-title"><span class="section-number">3.</span> Models</legend>
+            <legend class="panel-title"><span class="section-number">4.</span> Models</legend>
             <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
             <p class="field-hint" id="model-rank-note">Rank: highest public score first. Hover a row for its source.</p>
             <div class="button-row">
               <button type="button" class="btn" id="model-select-all">Select all</button>
               <button type="button" class="btn" id="model-clear">Clear</button>
             </div>
-            <div class="check-list" id="batch-model-list" role="group" aria-label="Models"></div>
+            <div class="check-list model-list" id="batch-model-list" role="group" aria-label="Models"></div>
             <div class="add-model">
               <label class="field-label" for="custom-model-name">Add another model name</label>
               <div class="add-model-row">
@@ -280,7 +354,7 @@
           </section>
 
           <fieldset class="panel span-8">
-            <legend class="panel-title"><span class="section-number">4.</span> Questions</legend>
+            <legend class="panel-title"><span class="section-number">5.</span> Questions</legend>
             <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
             <div class="button-row">
               <button type="button" class="btn" id="question-all">All</button>
@@ -299,7 +373,7 @@
           </fieldset>
 
           <fieldset class="panel span-4">
-            <legend class="panel-title"><span class="section-number">5.</span> Probe families</legend>
+            <legend class="panel-title"><span class="section-number">6.</span> Probe families</legend>
             <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
             <div class="check-list" id="family-list" role="group" aria-label="Probe families">
               <div class="family">
@@ -353,46 +427,6 @@
             </div>
           </fieldset>
 
-          <fieldset class="panel span-12">
-            <legend class="panel-title"><span class="section-number">6.</span> Conditions and limits</legend>
-            <div class="field">
-              <label class="field-label" for="batch-condition-select">System prompt condition</label>
-              <select class="select" id="batch-condition-select"></select>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
-                <input class="text-input" id="repeats-input" type="number" min="1" max="4" step="1"
-                  inputmode="numeric">
-              </div>
-              <div class="field">
-                <label class="field-label" for="concurrency-input">Concurrency (1 to 8)</label>
-                <input class="text-input" id="concurrency-input" type="number" min="1" max="8" step="1"
-                  inputmode="numeric">
-              </div>
-            </div>
-            <div class="field">
-              <label class="field-label" for="batch-cap-input">Call cap</label>
-              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
-                inputmode="numeric" value="1"
-                aria-describedby="cap-hint">
-              <p class="field-hint" id="cap-hint">
-                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
-              </p>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <label class="field-label" for="price-input">Price per million tokens (optional)</label>
-                <input class="text-input" id="price-input" type="number" min="0" step="any" inputmode="decimal">
-              </div>
-              <div class="field">
-                <label class="field-label" for="tokens-input">Average tokens per call (optional)</label>
-                <input class="text-input" id="tokens-input" type="number" min="0" step="1" inputmode="numeric">
-              </div>
-            </div>
-            <p class="field-hint">Fill in both to see an estimated cost in the plan.</p>
-            <p class="field-hint" id="fixed-settings"></p>
-          </fieldset>
       </form>
 
       <!-- Results: tables, the fingerprint chart and its table. -->
@@ -652,6 +686,7 @@
       <section class="panel span-12 ticker-section" aria-labelledby="ticker-heading">
         <h2 class="panel-title" id="ticker-heading"><span class="section-number">3.</span> Events</h2>
         <ol class="ticker" id="ticker" aria-label="Recent events, newest first"></ol>
+        <p class="ticker-empty">No events yet</p>
       </section>
       </div>
     </section>

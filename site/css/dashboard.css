@@ -4,7 +4,7 @@
 .dash {
   display: grid;
   grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
-  gap: var(--space-6);
+  gap: var(--dash-gap);
   min-width: 0;
 }
 
@@ -28,7 +28,7 @@
   /* Column flow with equal-width auto columns puts every card in one row, whatever the count (4 to 6) */
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: var(--space-4);
+  gap: var(--dash-gap);
   min-width: 0;
 }
 
@@ -55,7 +55,7 @@
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--dash-pad);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md);
@@ -75,7 +75,7 @@
 
 .kpi-value {
   font-family: var(--font-serif);
-  font-size: var(--size-3xl);
+  font-size: var(--dash-kpi-size);
   line-height: var(--leading-heading);
   color: var(--ink);
   overflow-wrap: anywhere;
@@ -106,7 +106,7 @@
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
-  padding: var(--space-4) var(--space-6);
+  padding: var(--dash-pad);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md);

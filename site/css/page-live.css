@@ -7,7 +7,7 @@
 }
 
 .masthead {
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-6);
 }
 
 .theatre .masthead h1 {
@@ -26,7 +26,12 @@
 /* 2. Controls: a mode switch, then the replay or live panel, then one status line */
 /* The KPI strip sits above the dashboard grid */
 .live-kpis {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+/* The card's flex gap already spaces the label, value and note */
+.live-kpis .kpi-card > p {
+  margin: 0;
 }
 
 .theatre .control {
@@ -41,10 +46,15 @@
   padding: 0;
 }
 
+/* The run controls panel: a slightly tighter stack, so the controls row is no taller than the lanes */
+.theatre .stage-controls {
+  gap: var(--space-3);
+}
+
 .replay-panel,
 .live-panel {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -112,31 +122,62 @@
 
 /* 3. Panels: the dashboard grid in index.html sets the spans and gaps */
 
-/* 4. Lanes: one paper card per model, one column on phones and a responsive grid from 760px */
+/* 4. Lanes: one compact row per model, stacked in one column. Each row is a grid: name, status and pips on the
+   first line, and the caption and margin note beneath. Phones stack every part in one column. */
 .lanes {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
   grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 760px) {
-  .lanes {
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+/* One lane per model: name, status and the ten pips on one line, the caption and note beneath */
+.lane {
+  display: grid;
+  grid-template-columns: minmax(0, 17rem) minmax(0, 13rem) minmax(0, 1fr);
+  grid-template-areas:
+    "name status pips"
+    "caption note note";
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) var(--dash-pad);
+}
+
+@media (max-width: 759px) {
+  .lane {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "name"
+      "status"
+      "pips"
+      "caption"
+      "note";
+  }
+
+  .lane .margin-note-text {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 
-/* One lane per model; the top rule is the only edge, with no side borders */
-.lane {
-  margin: 0;
-  padding: var(--space-4) var(--space-6) var(--space-6);
-  border-top: 1px solid var(--ink-mute);
+.lane-name {
+  grid-area: name;
+}
+
+.lane-status {
+  grid-area: status;
+}
+
+.lane .pips {
+  grid-area: pips;
 }
 
 .lane-caption {
+  grid-area: caption;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-2);
+  margin: 0;
 }
 
 .swatch {
@@ -176,12 +217,13 @@
 }
 
 .lane-name {
-  margin: 0 0 var(--space-1);
+  margin: 0;
   font-size: var(--size-lg);
+  overflow-wrap: anywhere;
 }
 
 .lane-status {
-  margin: 0 0 var(--space-3);
+  margin: 0;
   font-family: var(--font-sans);
   font-size: var(--size-ui);
   color: var(--ink);
@@ -285,28 +327,86 @@
 }
 
 .pip-key {
-  margin: var(--space-3) 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--ink-mute);
 }
 
-/* The margin note inside a lane: the last line of its conversation */
+/* The margin note inside a lane: one line, with its speaker label beside the text */
 .lane-note {
-  margin: var(--space-4) 0 0;
+  grid-area: note;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+}
+
+.lane .margin-note-speaker {
+  flex: 0 0 auto;
+  margin: 0;
 }
 
 .lane .margin-note-text {
+  min-width: 0;
   font-size: var(--size-base);
   line-height: 1.45;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Charts: the shared dashboard chart height, set on the svg and the host */
+.theatre .chart-host {
+  min-height: var(--dash-chart-height);
+}
+
+.theatre .chart-svg {
+  height: var(--dash-chart-height);
+}
+
+/* Events: an empty ticker takes no space, and the one-line note shows instead */
+.ticker:empty {
+  display: none;
+}
+
+.ticker-empty {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-mute);
+}
+
+.ticker:not(:empty) + .ticker-empty {
+  display: none;
 }
 
 /* 5. Charts: each figure is a .panel in a .span-6 cell from the dashboard grid */
+/* The title and the table toggle share the top row; the chart, the note and the table take the full width below */
 .figure {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .figure-label {
+  grid-column: 1;
+  grid-row: 1;
   margin: 0;
+}
+
+.figure .table-toggle {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.figure .chart-host,
+.figure .table-scroll,
+.figure .figure-caption {
+  grid-column: 1 / -1;
 }
 
 .figure-caption {

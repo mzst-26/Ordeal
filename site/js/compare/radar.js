@@ -1,14 +1,19 @@
 // A pure SVG radar. radarSvg({axes, series, size, label}) returns an <svg> element.
 // Values run from 0 (centre) to 1 (outer ring). A null value leaves a gap in its series.
-// Colours are CSS values (tokens), set through element.style, never as style attributes.
+// Spoke labels wrap onto short lines. The viewBox is widened and heightened by the measured label room,
+// so no label is clipped at the edge. `size` is the diameter of the ring, not of the whole SVG.
+// Colours and label fonts are tokens, set through element.style (never as style attributes).
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 // DEFAULT_SIZE is the svg width and height in px. LABEL_ROOM is the share of the size kept free around the
 // ring for spoke labels. LABEL_OFFSET is the gap in px between the outer ring and a label.
 const DEFAULT_SIZE = 220;
-const LABEL_ROOM = 0.26;
+const WRAP_CHARS = 10;
+// Estimated width of one glyph at --size-xs (12px) in the sans face, and the height of one line.
+const CHAR_WIDTH = 6.6;
+const LINE_HEIGHT = 14;
 const LABEL_OFFSET = 8;
-// Radius in px of the dot drawn for a value with no neighbours, then the fill opacity and outline width of a series.
+const MARGIN = 6;
 const MARKER_RADIUS = 2.5;
 const FILL_OPACITY = "0.18";
 const STROKE_WIDTH = "2";
@@ -48,6 +53,26 @@ function anchorFor(cos) {
   return "middle";
 }
 
+/** Splits a label into lines of about WRAP_CHARS characters, breaking only between words. */
+function wrapLabel(text) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && next.length > WRAP_CHARS) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) {
+    lines.push(line);
+  }
+  return lines.length > 0 ? lines : [""];
+}
+
 /** Path data for each run of drawn (non-null) points in one series. */
 function runsOf(points) {
   const runs = [];
@@ -69,31 +94,43 @@ function runsOf(points) {
 }
 
 /**
- * Builds the radar. `axes` is [{id, label}] (label, short or id is shown on the spoke). `series` is
+ * Builds the radar. `axes` is [{id, label}] (short, label or id is shown on the spoke). `series` is
  * [{name, values: {id: number|null}, colour, fill}]. Each series has a <title> for hover and screen readers.
  */
 export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = "Radar chart" } = {}) {
+  const count = axes.length;
+  const labelLines = axes.map((axis) => wrapLabel(axis.short || axis.label || axis.id));
+  // The room the labels need: the widest line, and the most lines, on any side of the ring.
+  const widest = Math.max(0, ...labelLines.map((lines) => Math.max(...lines.map((line) => line.length))));
+  const tallest = Math.max(1, ...labelLines.map((lines) => lines.length));
+  const padX = widest * CHAR_WIDTH + LABEL_OFFSET + MARGIN;
+  const padY = tallest * LINE_HEIGHT + LABEL_OFFSET + MARGIN;
+  const radius = size / 2;
+  const width = size + 2 * padX;
+  const height = size + 2 * padY;
+  const cx = width / 2;
+  const cy = height / 2;
+
   const svg = svgNode("svg", {
-    viewBox: `0 0 ${size} ${size}`,
+    viewBox: `0 0 ${width} ${height}`,
     role: "img",
     "aria-label": label,
     focusable: "false",
+    class: "radar-svg",
   });
-  const centre = size / 2;
-  // Outer ring radius: half the size, less half of the label room (the room is shared between both sides).
-  const radius = centre - size * LABEL_ROOM * 0.5;
-  const count = axes.length;
 
   // Two guide rings: the dashed one at 0.5 and the solid outer one at 1.
   for (const ring of [0.5, 1]) {
     const circle = svgNode("circle", {
-      cx: centre,
-      cy: centre,
+      cx,
+      cy,
       r: radius * ring,
       fill: "none",
       "stroke-width": "1",
-      "stroke-dasharray": ring === 0.5 ? "3 3" : "",
     });
+    if (ring === 0.5) {
+      circle.setAttribute("stroke-dasharray", "3 3");
+    }
     paint(circle, "stroke", "var(--rule)");
     svg.append(circle);
   }
@@ -104,26 +141,31 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
     const spoke = svgNode("line", {
-      x1: centre,
-      y1: centre,
-      x2: centre + radius * cos,
-      y2: centre + radius * sin,
+      x1: cx,
+      y1: cy,
+      x2: cx + radius * cos,
+      y2: cy + radius * sin,
       "stroke-width": "1",
     });
     paint(spoke, "stroke", "var(--rule)");
     svg.append(spoke);
 
-    const text = svgNode("text", {
-      x: centre + (radius + LABEL_OFFSET) * cos,
-      y: centre + (radius + LABEL_OFFSET) * sin,
-      "text-anchor": anchorFor(cos),
-      "dominant-baseline": "middle",
-    });
-    // Spoke labels use --size-xs (12px), the nearest token to the 11px they had before.
+    const lines = labelLines[index];
+    const anchorX = cx + (radius + LABEL_OFFSET) * cos;
+    const anchorY = cy + (radius + LABEL_OFFSET) * sin;
+    const text = svgNode("text", { "text-anchor": anchorFor(cos) });
     paint(text, "font-size", "var(--size-xs)");
     paint(text, "font-family", "var(--font-sans)");
     paint(text, "fill", "var(--ink-soft)");
-    text.textContent = String(axis.short || axis.label || axis.id);
+    lines.forEach((line, lineIndex) => {
+      const tspan = svgNode("tspan", {
+        x: anchorX,
+        y: anchorY + (lineIndex - (lines.length - 1) / 2) * LINE_HEIGHT,
+        "dominant-baseline": "middle",
+      });
+      tspan.textContent = line;
+      text.append(tspan);
+    });
     svg.append(text);
   });
 
@@ -141,7 +183,7 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
       }
       const r = radius * clampUnit(value);
       const angle = angleFor(index, count);
-      return { x: centre + r * Math.cos(angle), y: centre + r * Math.sin(angle) };
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
     });
 
     for (const run of runsOf(points)) {

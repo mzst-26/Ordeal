@@ -58,6 +58,14 @@
   --sidebar-width: 232px;
   --dashboard-max: 1440px;
 
+  /* Dashboard scale and rhythm: sizes and spaces for the dashboard pages (sizes only; no colours) */
+  --dash-kpi-size: var(--size-xl);
+  --dash-body-size: var(--size-base);
+  --dash-gap: var(--space-4);
+  --dash-pad: var(--space-4);
+  --dash-section-gap: var(--space-8);
+  --dash-chart-height: 240px;
+
   /* Colour plate: Paper (light) */
   --paper: #F5EFE3;
   --paper-raised: #FBF7EF;

@@ -200,6 +200,15 @@ h3 {
   font-size: var(--size-md);
 }
 
+/* Dashboard shell only (pages with a site header): body text and the masthead title use the dashboard scale */
+body:has(> .site-header) {
+  font-size: var(--dash-body-size);
+}
+
+body:has(> .site-header) .masthead h1 {
+  font-size: var(--size-xl);
+}
+
 .page-subtitle {
   font-size: var(--size-xl);
 }

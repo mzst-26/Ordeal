@@ -156,6 +156,8 @@
 /* 4. Cards and figures */
 .figure {
   margin-top: var(--space-6);
+  /* app.js sets --filter-bar-height to the sticky bar's height, so an anchored figure starts below the bar */
+  scroll-margin-top: calc(var(--filter-bar-height, 0px) + var(--space-4));
 }
 
 .figure-root {
@@ -309,6 +311,12 @@
 .tip-radar {
   margin: var(--space-2) auto 0;
   max-width: 220px;
+}
+
+/* Every radar fills its container; its viewBox already includes the room for the spoke labels */
+.radar-svg {
+  width: 100%;
+  height: auto;
 }
 
 /* 7. Glossary and footer */
