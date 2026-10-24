@@ -1,0 +1,411 @@
+/* Comparison page layout. Every colour, size, space and radius comes from tokens.css.
+   Cards, rules and borders do the work of elevation; there are no gradients and no shadows here. */
+
+/* 1. Page frame and masthead */
+.compare-page h1 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-serif);
+  font-size: var(--size-2xl);
+  font-weight: 400;
+  line-height: var(--leading-heading);
+  color: var(--ink);
+}
+
+.masthead {
+  margin-bottom: var(--space-6);
+}
+
+.standfirst {
+  margin: 0;
+  max-width: var(--measure);
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  color: var(--ink-soft);
+}
+
+/* 2. How to read */
+.how-to-read {
+  margin-bottom: var(--space-6);
+}
+
+.how-list {
+  margin: 0;
+  padding-left: var(--space-6);
+  max-width: var(--measure);
+  font-family: var(--font-serif);
+  font-size: var(--size-base);
+  color: var(--ink-soft);
+}
+
+.how-list li + li {
+  margin-top: var(--space-2);
+}
+
+/* 3. Sticky filter bar: paper-raised, a rule underneath, full width of the page */
+/* Negative inline margins pull the bar out to the viewport edges, cancelling the page gutter; the padding puts the content back */
+.filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  gap: var(--space-4);
+  margin-inline: calc(var(--page-gutter) * -1);
+  padding: var(--space-4) var(--page-gutter);
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--rule);
+}
+
+.filter-group {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.filter-group legend {
+  padding: 0;
+}
+
+.filter-family .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.filter-count {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.filter-group .field-hint {
+  margin: 0;
+}
+
+/* Anchors the visually-hidden checkbox from base.css inside its label */
+.check {
+  position: relative;
+}
+
+/* Family chips are buttons with aria-pressed. The box and its tick show the state, not colour alone. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+  background: var(--wash);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.filter-chip[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--paper-raised);
+  border-color: var(--ink);
+}
+
+/* Square box with a tick drawn from the ::after border below; shows state beyond colour */
+.chip-box {
+  position: relative;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+}
+
+.filter-chip[aria-pressed="true"] .chip-box {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.filter-chip[aria-pressed="true"] .chip-box::after {
+  content: "";
+  position: absolute;
+  left: var(--space-1);
+  top: 0;
+  width: 4px;
+  height: 9px;
+  border: solid var(--paper);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.chip-count {
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4. Cards and figures */
+.figure {
+  margin-top: var(--space-6);
+}
+
+.figure-root {
+  position: relative;
+  min-width: 0;
+  margin-top: var(--space-3);
+}
+
+.figure-message {
+  margin: 0;
+  padding: var(--space-3) 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+}
+
+.figure-caption {
+  margin-top: var(--space-3);
+  max-width: var(--measure);
+}
+
+.figure-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.figure-tools .select {
+  width: auto;
+  min-width: 220px;
+}
+
+.figure-note {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.figure-svg {
+  width: 100%;
+  height: auto;
+}
+
+/* Forces the sans stack on text inside figure SVGs */
+.figure-svg text {
+  font-family: var(--font-sans);
+}
+
+/* Empty state: no model matches the filters */
+.empty-state {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px dashed var(--edge);
+  border-radius: var(--radius-md);
+}
+
+.empty-state p {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+}
+
+/* 5. Data tables for the accessible fallback: hairline row rules, label left, values right */
+/* Tables follow charts as the text alternative; the wrapper scrolls instead of widening the page */
+.table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table caption {
+  padding-bottom: var(--space-2);
+  text-align: left;
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.data-table th {
+  font-size: var(--size-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+/* 6. Tooltip: a bordered panel, no shadow, never takes the pointer */
+/* position fixed with top/left 0: script moves it, and the width is capped to stay inside narrow screens */
+.compare-tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 16px));
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+.compare-tooltip[hidden] {
+  display: none;
+}
+
+.tip-title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--size-base);
+  color: var(--ink);
+}
+
+.tip-line {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.tip-radar {
+  margin: var(--space-2) auto 0;
+  max-width: 220px;
+}
+
+/* 7. Glossary and footer */
+.glossary {
+  margin-top: var(--space-6);
+}
+
+.glossary summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-serif);
+  font-size: var(--size-lg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.glossary-list {
+  margin: var(--space-3) 0 0;
+  max-width: var(--measure);
+}
+
+.glossary-list dt {
+  margin-top: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.glossary-list dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-base);
+  color: var(--ink-soft);
+}
+
+.page-footer {
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--page-gutter) var(--space-12);
+}
+
+.page-footer p {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+/* 8. Model Card position (its motion and content are styled in compare-figs-b.css) */
+/* Side panel pinned to the right edge, full height, above the filter bar (z-index 40 vs 10) */
+.model-card {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  padding: var(--space-6);
+  overflow-y: auto;
+  background: var(--paper-raised);
+  border-left: 1px solid var(--rule);
+}
+
+.model-card[hidden] {
+  display: none;
+}
+
+/* 9. Wide screens: the filter controls sit in a row, and the figure cards get the full content width */
+@media (min-width: 760px) {
+  .filter-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    padding-inline: var(--space-8);
+    margin-inline: calc(var(--space-8) * -1);
+  }
+
+  .filter-family,
+  .filter-foot {
+    grid-column: 1 / -1;
+  }
+
+  .compare-page {
+    padding-inline: var(--space-8);
+  }
+}
+
+@media (max-width: 759px) {
+  /* On a phone the filter bar would cover much of the screen; it scrolls inside itself instead */
+  .filter-bar {
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+
+  .model-card {
+    width: 100%;
+    border-left: 0;
+  }
+}

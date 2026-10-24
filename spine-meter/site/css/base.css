@@ -1,0 +1,848 @@
+/* Field Notes base: page frame, navigation, type, controls, cards, margin notes, toast and dialog.
+   Colours, sizes, spacing and radii all come from tokens.css; the focus ring is set there too. */
+
+/* 1. Helpers: hidden means hidden, even when a class sets display */
+[hidden] {
+  display: none !important;
+}
+
+/* Hides content visually but keeps it available to screen readers (unlike display:none) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 2. Page frame: one column on phones, 12 columns with margin notes on wide screens */
+.page {
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--page-gutter) var(--space-16);
+}
+
+.page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+}
+
+.reading {
+  max-width: var(--measure);
+}
+
+/* min-width 0 lets this grid item shrink below its content width instead of overflowing */
+.margin-notes {
+  min-width: 0;
+}
+
+@media (min-width: 760px) {
+  .page {
+    padding-inline: var(--space-8);
+  }
+
+  .page-grid {
+    grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
+    column-gap: var(--space-6);
+  }
+
+  .reading {
+    grid-column: 1 / span 8;
+  }
+
+  .margin-notes {
+    grid-column: 9 / span 4;
+  }
+}
+
+/* 3. Site header: a top bar below 1024px, a left sidebar (232px) from 1024px. Brand, nav, then tools. */
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-2) var(--page-gutter);
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-brand {
+  margin: 0;
+  max-width: none;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.site-nav-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 760px) {
+  .site-header {
+    padding-inline: var(--space-8);
+  }
+}
+
+/* Wide screens: the header turns into a full-height sticky sidebar */
+@media (min-width: 1024px) {
+  /* The body becomes two columns: the sidebar on the left, the page on the right */
+  /* :has() limits the two-column layout to pages that have a direct-child site header */
+  body:has(> .site-header) {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* The dashboard pages use the wider cap; the compare page keeps --content-max. */
+  body:has(> .site-header) > .page {
+    max-width: var(--dashboard-max);
+  }
+
+  /* 100vh plus overflow-y keeps the sidebar in view and scrollable on short screens; .site-tools is pushed to the bottom */
+  .site-header {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-6);
+    padding: var(--space-8) var(--space-6);
+    border-bottom: 0;
+    border-right: 1px solid var(--rule);
+    overflow-y: auto;
+  }
+
+  .site-nav-list {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .site-tools {
+    margin-top: auto;
+  }
+}
+
+/* min-height 44px is a touch-target size; the underline is transparent until hover or current page */
+.site-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 6px;
+  transition: color var(--dur-fast) var(--ease-out), text-decoration-color var(--dur-fast) var(--ease-out);
+}
+
+.site-nav-link:hover {
+  color: var(--ink);
+  text-decoration-color: var(--teal);
+}
+
+.site-nav-link[aria-current="page"] {
+  color: var(--ink);
+  text-decoration-color: var(--ink);
+  text-decoration-thickness: 2px;
+}
+
+.site-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.key-status {
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4. Typography: serif for headings and reading text, sans for UI text and labels */
+/* text-wrap: balance evens out line lengths in short headings */
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: var(--leading-heading);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--size-2xl);
+}
+
+h2 {
+  font-size: var(--size-lg);
+}
+
+h3 {
+  font-size: var(--size-md);
+}
+
+.page-subtitle {
+  font-size: var(--size-xl);
+}
+
+p {
+  margin: 0 0 var(--space-4);
+  max-width: var(--measure);
+}
+
+.reading-text {
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  line-height: var(--leading-body);
+}
+
+.ui-text {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+}
+
+.label {
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+/* Section numbering: "I." in ink, the title in small caps, then a hairline to the edge */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.section-label::after {
+  content: "";
+  flex: 1 1 auto;
+  border-top: 1px solid var(--rule);
+}
+
+.section-number {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 5. Buttons: primary (teal), quiet (ghost with a teal underline on hover), default (edge), danger */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  line-height: 1.2;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+
+.btn:hover {
+  border-color: var(--ink);
+}
+
+.btn-primary {
+  color: var(--paper);
+  background: var(--teal);
+  border-color: var(--teal);
+}
+
+.btn-primary:hover {
+  border-color: var(--ink);
+}
+
+.btn-quiet {
+  padding-inline: var(--space-2);
+  border-color: transparent;
+}
+
+.btn-quiet:hover {
+  border-color: transparent;
+  text-decoration: underline;
+  text-decoration-color: var(--teal);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.btn-danger {
+  color: var(--terracotta);
+  border-color: var(--terracotta);
+}
+
+.btn:disabled {
+  color: var(--ink-mute);
+  background: transparent;
+  border-color: var(--rule);
+  cursor: not-allowed;
+}
+
+.btn-primary:disabled {
+  color: var(--ink-mute);
+  background: var(--wash);
+  border-color: var(--rule);
+}
+
+/* 6. Form controls: text input, select, tick box, range slider, segmented control */
+.field {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+
+.field-label {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.field-hint {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.text-input,
+.select {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+}
+
+.text-input::placeholder {
+  color: var(--ink-mute);
+}
+
+.text-input:disabled,
+.select:disabled {
+  color: var(--ink-mute);
+  border-color: var(--rule);
+}
+
+.key-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.key-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Tick box: a visually hidden checkbox with a square and a teal tick drawn beside it */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* Same hiding pattern as .visually-hidden, applied to the real checkbox so it stays focusable and keyboard operable */
+.check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.check-box {
+  position: relative;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  background: var(--paper-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+}
+
+/* The tick is a rotated L made from two borders of a 6px by 12px box, turned 45 degrees */
+.check-input:checked + .check-box::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 12px;
+  border: solid var(--teal);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.check-input:focus-visible + .check-box {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* Range slider: a hairline track and a round thumb inside a 44px tall touch area */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--edge);
+}
+
+/* margin-top -9px centres the 20px thumb on the 2px track in WebKit/Blink (Firefox centres it itself); the -webkit and -moz rules are separate because the engines share no selectors */
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -9px;
+  background: var(--paper-raised);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+.range::-moz-range-track {
+  height: 2px;
+  background: var(--edge);
+}
+
+.range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: var(--paper-raised);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+/* Segmented control: radio buttons drawn as joined segments; the checked one is filled and underlined */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+}
+
+.segmented-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.segmented-option + .segmented-option {
+  border-left: 1px solid var(--rule);
+}
+
+/* Radio input hidden the same way as .check-input; the sibling .segmented-text is styled by its state */
+.segmented-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.segmented-text {
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+}
+
+.segmented-input:checked + .segmented-text {
+  color: var(--ink);
+  background: var(--wash);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* Negative offset draws the focus ring inside the segment so neighbouring segments do not clip it */
+.segmented-input:focus-visible + .segmented-text {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+/* 7. Cards and chips */
+.card {
+  padding: var(--space-6);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.card-label {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink);
+  background: var(--wash);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.chip-flip {
+  background: var(--clay);
+  border-color: var(--clay);
+}
+
+/* 8. Margin notes: a thin rule on the left, a small caps speaker label, serif text */
+.margin-note {
+  margin: 0 0 var(--space-6);
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--rule);
+}
+
+.margin-note-speaker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.margin-note-text {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
+
+/* 9. Token dialog: paper-raised, rule border, soft shadow, serif heading; full width on phones */
+.token-dialog {
+  width: calc(100% - 2 * var(--page-gutter));
+  max-width: 36rem;
+  margin: auto;
+  padding: var(--space-6);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+
+.token-dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+
+/* @starting-style gives the opening dialog a state to transition from, so it fades and rises in */
+@starting-style {
+  .token-dialog[open] {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+/* color-mix tints the theme ink colour at 40% so the backdrop works in both themes */
+.token-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.dialog-title {
+  margin-bottom: var(--space-3);
+}
+
+.token-status {
+  min-height: 1.5em;
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--terracotta);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+/* auto margin pushes the danger button to the far left, away from the other actions */
+.dialog-actions .btn-danger {
+  margin-right: auto;
+}
+
+/* 10. Toast: one line at the bottom of the screen; it never blocks the page */
+/* pointer-events none lets clicks pass through the region between toasts */
+.toast-region {
+  position: fixed;
+  left: var(--page-gutter);
+  right: var(--page-gutter);
+  bottom: var(--page-gutter);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-mute);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+.toast-label {
+  flex: 0 0 auto;
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-soft);
+}
+
+/* Single-line ellipsis: long messages are cut off rather than wrapped */
+.toast-message {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.toast-warn {
+  border-left-color: var(--ochre);
+}
+
+.toast-warn .toast-label {
+  color: var(--ochre);
+}
+
+.toast-error {
+  border-left-color: var(--terracotta);
+}
+
+.toast-error .toast-label {
+  color: var(--terracotta);
+}
+
+/* 11. Reduced motion: tokens.css already sets every duration to 0ms; this also drops the transitions */
+@media (prefers-reduced-motion: reduce) {
+  .site-nav-link,
+  .btn,
+  .token-dialog,
+  .toast {
+    transition: none;
+  }
+}
+
+/* 12. Charts: the svg fills the host width, and its height follows the viewBox */
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 8. Presets, resume notices and the Saved runs list. Shared by the Gauntlet and Batch pages (added in T16). */
+/* Empty containers are removed so their grid gap leaves no blank space */
+.notice-region:empty,
+.notice-list:empty {
+  display: none;
+}
+
+.notice-region {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.notice-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.notice-list:not(:empty) {
+  margin-bottom: var(--space-6);
+}
+
+/* An unfinished run: a card with an ochre edge, the one highlight colour, and Resume and Discard buttons */
+.notice {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--ochre);
+  border-radius: var(--radius-md);
+}
+
+.notice-title {
+  margin: 0;
+}
+
+.notice-text {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.notice .button-row,
+.preset-panel .button-row,
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.preset-panel {
+  display: grid;
+  gap: 0;
+}
+
+.preset-panel .field {
+  margin-bottom: var(--space-3);
+}
+
+.preset-status {
+  min-height: 1.4em;
+  margin: var(--space-2) 0 0;
+}
+
+.saved-runs {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-12);
+}
+
+.saved-runs h2 {
+  margin: 0;
+}
+
+.run-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.run-item {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+@media (min-width: 760px) {
+  .run-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+.run-label {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.run-meta {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}

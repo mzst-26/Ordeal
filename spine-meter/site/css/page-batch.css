@@ -1,0 +1,555 @@
+/* The Batch: a dashboard. KPI cards first, then the setup blocks and the run panel on the 12-column grid.
+   Colours, sizes and spacing come from tokens.css; buttons, tick boxes and inputs come from base.css. */
+
+/* 1. Masthead and the setup grid */
+.masthead {
+  margin-bottom: var(--space-8);
+}
+
+[data-view="batch"] .standfirst {
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  color: var(--ink-soft);
+}
+
+/* An empty KPI shows "No data loaded": a smaller size, so the words fit a narrow card */
+.dash-kpis .kpi-card.is-empty .kpi-value {
+  font-size: var(--size-xl);
+}
+
+/* The setup form is the dash grid itself: its blocks are panels with span classes (see dashboard.css) */
+.setup {
+  min-width: 0;
+  margin: 0;
+}
+
+/* 2. Numbered blocks: each fieldset is a panel. Its legend is the panel title, set inside the card */
+/* Fieldsets default to odd box behaviour; display block and min-width 0 make them behave like the other panels */
+fieldset.panel {
+  display: block;
+  min-width: 0;
+  margin: 0;
+}
+
+.panel-title .section-number {
+  margin-right: var(--space-1);
+}
+
+/* The legend floats to the full width so it sits inside the card, not on the border */
+fieldset.panel > legend.panel-title {
+  float: left;
+  width: 100%;
+  margin: 0 0 var(--space-4);
+}
+
+/* clear left stops the first child sitting beside the floated legend */
+fieldset.panel > legend.panel-title + * {
+  clear: left;
+  margin-top: 0;
+}
+
+fieldset.panel > .field,
+fieldset.panel > .field-grid,
+fieldset.panel > .field-hint,
+fieldset.panel > .check-list,
+fieldset.panel > .button-row,
+fieldset.panel > .add-model {
+  margin-top: var(--space-4);
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (min-width: 560px) {
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 3. Tick lists: one tick box per row, hint text under each family */
+.check-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Long lists (the model catalogue) scroll inside their panel at about 26rem tall */
+.check-list-tall {
+  max-height: 26rem;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.check-row,
+.family {
+  min-width: 0;
+}
+
+.check-row .check,
+.check-list .check {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  min-height: 44px;
+}
+
+.check-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * Model rows and their heading share one layout. Column 1 holds the tick box, column 2 the rank (a fixed width,
+ * right-aligned, so every name starts at the same x) and column 3 the name. The facts sit on a line under the
+ * name, each in a fixed-width slot, so their figures line up. On a narrow screen the facts wrap, keeping slots.
+ */
+.check-model,
+.model-head {
+  display: grid;
+  grid-template-columns: 22px 8ch minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  align-items: center;
+}
+
+/* Rank column is 8ch wide in the grid above, right-aligned, so names line up */
+.model-rank {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.model-facts {
+  grid-column: 3;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+/* The slots are wide enough for their heading in capitals. The price takes what is left, and wraps inside it */
+.model-context {
+  width: 10ch;
+}
+
+.model-reasoning {
+  width: 13ch;
+}
+
+.model-price {
+  flex: 1 1 0;
+  min-width: 12ch;
+}
+
+/*
+ * The heading has the row's font size, so its grid columns match the rows. Its words are small capitals in the
+ * muted ink, with a rule under the heading.
+ */
+.model-head {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+}
+
+.model-head span {
+  color: var(--ink-mute);
+  font-size: var(--size-xs);
+  font-weight: 400;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.family {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.family:last-child {
+  border-bottom: 0;
+}
+
+/* Indent equals the tick box (22px) plus the column gap, so hint text lines up under the rank and name */
+.family .field-hint {
+  margin: 0 0 0 calc(22px + var(--space-3));
+}
+
+/* A disabled block (during a run) keeps its labels readable but shows the tick boxes as inactive */
+fieldset:disabled .check {
+  color: var(--ink-mute);
+  cursor: not-allowed;
+}
+
+fieldset:disabled .check-box {
+  border-color: var(--rule);
+}
+
+/* 4. Add-a-model row: a text field with a button beside it */
+.add-model {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.add-model-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.add-model-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 5. The run panel: plan, confirmation, controls, progress and log */
+/* The run panel is a card in its own right, not a .panel, so it repeats the card styling */
+.run-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-6);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.run-panel h2 {
+  margin-bottom: var(--space-1);
+}
+
+.plan-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.plan-list li {
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.plan-totals {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+}
+
+.plan-cost {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.plan-problem {
+  min-height: 1.5em;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--terracotta);
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--wash);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-md);
+}
+
+.confirm-text {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  color: var(--ink);
+}
+
+.sub-heading {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-mute);
+}
+
+/* A progress rule: a hairline track that fills in ink. JavaScript picks one progress-N class below, in steps of 5%. */
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--ink);
+}
+
+/* One width class per step of 5%, so the page never writes an inline style. */
+/* Steps 0 to 100 in fives, one class per value */
+.progress-0 { width: 0%; }
+.progress-5 { width: 5%; }
+.progress-10 { width: 10%; }
+.progress-15 { width: 15%; }
+.progress-20 { width: 20%; }
+.progress-25 { width: 25%; }
+.progress-30 { width: 30%; }
+.progress-35 { width: 35%; }
+.progress-40 { width: 40%; }
+.progress-45 { width: 45%; }
+.progress-50 { width: 50%; }
+.progress-55 { width: 55%; }
+.progress-60 { width: 60%; }
+.progress-65 { width: 65%; }
+.progress-70 { width: 70%; }
+.progress-75 { width: 75%; }
+.progress-80 { width: 80%; }
+.progress-85 { width: 85%; }
+.progress-90 { width: 90%; }
+.progress-95 { width: 95%; }
+.progress-100 { width: 100%; }
+
+.progress-line {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-view="batch"] .status-line {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.log-list {
+  max-height: 16rem;
+  margin: 0;
+  padding: 0 var(--space-3);
+  overflow-y: auto;
+  list-style: none;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.log-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+}
+
+.log-item:last-child {
+  border-bottom: 0;
+}
+
+/* Fixed 5.5rem label column keeps log messages aligned */
+.log-kind {
+  flex: 0 0 5.5rem;
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.log-item-failed .log-kind {
+  color: var(--terracotta);
+}
+
+.log-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+/* 6. Results: one table per ticked model, then the fingerprint chart */
+.results {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-12);
+  min-width: 0;
+}
+
+.results > h2 {
+  margin-bottom: 0;
+}
+
+/* One table per model; from 760px they flow into as many columns as fit, each at least 18rem (or the full width if narrower) */
+.model-tables {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 760px) {
+  .model-tables {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  }
+}
+
+.model-table {
+  min-width: 0;
+}
+
+.model-name {
+  margin: 0 0 var(--space-2);
+  font-size: var(--size-md);
+  overflow-wrap: anywhere;
+}
+
+[data-view="batch"] .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.data-table thead th {
+  font-size: var(--size-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.data-table tbody th {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.probe-details {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+}
+
+.probe-details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.chart-frame {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-6);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.chart-label {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-mute);
+}
+
+.chart-frame .field-hint {
+  margin: 0 0 var(--space-3);
+}
+
+.chart-host {
+  min-width: 0;
+}
+
+[data-view="batch"] .table-toggle {
+  justify-self: start;
+  margin: var(--space-2) 0;
+}
+
+.table-caption {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  text-align: left;
+  color: var(--ink-soft);
+}
+
+/* A chart's table keeps each cell on one line, so a wide table scrolls sideways on a phone */
+[data-view="batch"] .table-scroll > .chart-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-scroll > .chart-table th,
+.table-scroll > .chart-table td {
+  white-space: nowrap;
+}
+
+.chart-caption {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-mute);
+}
+
+/* 7. Export and footer */
+.export {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.export h2 {
+  margin-bottom: 0;
+}
+
+.page-footer {
+  margin-top: var(--space-12);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
+.page-footer p {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}

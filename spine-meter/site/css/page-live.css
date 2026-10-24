@@ -1,0 +1,444 @@
+/* Page III, The Theatre: controls, lanes, charts and ticker. Colours, sizes, spacing and motion come from
+   tokens.css; this file only places things and shows the pips, the pulse and the swatches. */
+
+/* 1. Page: figures use tabular numerals throughout */
+.theatre {
+  font-variant-numeric: tabular-nums;
+}
+
+.masthead {
+  margin-bottom: var(--space-8);
+}
+
+.theatre .masthead h1 {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.theatre .standfirst {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-lg);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+/* 2. Controls: a mode switch, then the replay or live panel, then one status line */
+/* The KPI strip sits above the dashboard grid */
+.live-kpis {
+  margin-bottom: var(--space-6);
+}
+
+.theatre .control {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.theatre .control legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.replay-panel,
+.live-panel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.theatre .field {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.field-hint {
+  margin: 0;
+}
+
+.speed-field .field-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+/* Shows the current speed value beside the slider label */
+.speed-output {
+  font-family: var(--font-sans);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-fields {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.live-value {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.number-input {
+  max-width: 10rem;
+}
+
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.plan-note {
+  max-width: var(--measure);
+  color: var(--ink-soft);
+}
+
+/* Resets the label-style capitals and tracking in case the element also carries a .label class */
+.run-status {
+  margin: 0;
+  min-height: 1.4em;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink-soft);
+}
+
+/* 3. Panels: the dashboard grid in index.html sets the spans and gaps */
+
+/* 4. Lanes: one paper card per model, one column on phones and a responsive grid from 760px */
+.lanes {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 760px) {
+  .lanes {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+/* One lane per model; the top rule is the only edge, with no side borders */
+.lane {
+  margin: 0;
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--ink-mute);
+}
+
+.lane-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+}
+
+.swatch-1 {
+  background: var(--cat-1);
+}
+
+.swatch-2 {
+  background: var(--cat-2);
+}
+
+.swatch-3 {
+  background: var(--cat-3);
+}
+
+/* Series 4 and later reuse a slot colour; a dashed ring in that colour marks the repeat. */
+.swatch-repeat.swatch-1 {
+  outline: 1px dashed var(--cat-1);
+  outline-offset: 2px;
+}
+
+.swatch-repeat.swatch-2 {
+  outline: 1px dashed var(--cat-2);
+  outline-offset: 2px;
+}
+
+.swatch-repeat.swatch-3 {
+  outline: 1px dashed var(--cat-3);
+  outline-offset: 2px;
+}
+
+.lane-name {
+  margin: 0 0 var(--space-1);
+  font-size: var(--size-lg);
+}
+
+.lane-status {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+/* Pips: a 1px ring per level. The fill scales from 0.6 to 1 over 240ms when a level is passed. */
+/* Ten columns, one per level */
+.pips {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pip-dot {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  background: var(--paper-raised);
+}
+
+.pip-fill {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: transparent;
+  transform: scale(0.6);
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out);
+}
+
+.pip-dot.is-passed .pip-fill {
+  background: var(--sage);
+  transform: scale(1);
+}
+
+.pip-dot.is-gave .pip-fill {
+  background: var(--terracotta);
+  transform: scale(1);
+}
+
+.pip-dot.is-passed {
+  border-color: var(--sage);
+}
+
+.pip-dot.is-gave {
+  border-color: var(--terracotta);
+}
+
+/* The one-off flip ring: a terracotta ring that grows and fades over 480ms */
+/* Hidden until .is-pulsing runs the animation, and ignores the pointer */
+.pip-dot::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--terracotta);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pip-dot.is-pulsing::after {
+  animation: pip-ring-pulse var(--dur-slow) var(--ease-out) 1;
+}
+
+@keyframes pip-ring-pulse {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.pip-label {
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1;
+  color: var(--ink-mute);
+}
+
+.pip-dot.is-passed + .pip-label,
+.pip-dot.is-gave + .pip-label {
+  color: var(--ink);
+}
+
+.pip-key {
+  margin: var(--space-3) 0 0;
+  color: var(--ink-mute);
+}
+
+/* The margin note inside a lane: the last line of its conversation */
+.lane-note {
+  margin: var(--space-4) 0 0;
+}
+
+.lane .margin-note-text {
+  font-size: var(--size-base);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* 5. Charts: each figure is a .panel in a .span-6 cell from the dashboard grid */
+.figure {
+  margin: 0;
+}
+
+.figure-label {
+  margin: 0;
+}
+
+.figure-caption {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  line-height: 1.45;
+  color: var(--ink-mute);
+}
+
+.theatre .chart-host {
+  min-height: 220px;
+  width: 100%;
+  min-width: 0;
+}
+
+.finale {
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-serif);
+  font-size: var(--size-lg);
+  color: var(--ink);
+}
+
+/* 6. Ticker: newest first, a small caps kind label beside each event */
+.ticker {
+  max-height: 22rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+/* Two columns: kind label (up to 8rem) and text */
+.ticker-item {
+  display: grid;
+  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ticker-kind {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.ticker-text {
+  font-family: var(--font-serif);
+  font-size: var(--size-base);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 559px) {
+  .ticker-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/* 7. Chart tables: the toggle sits above each chart; a wide table scrolls sideways inside its card */
+.table-toggle {
+  justify-self: start;
+}
+
+.table-caption {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  text-align: left;
+  color: var(--ink-soft);
+}
+
+.theatre .table-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.data-table {
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+}
+
+.data-table th,
+.data-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+}
+
+.data-table thead th {
+  font-size: var(--size-xs);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.data-table tbody th {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+/* Chart tables keep each cell on one line, so a wide table scrolls inside .table-scroll */
+.chart-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.chart-table th,
+.chart-table td {
+  white-space: nowrap;
+}
+
+/* 8. Reduced motion: tokens.css sets every duration to 0ms, so the pulse and fills show their end state at once */
+@media (prefers-reduced-motion: reduce) {
+  .pip-fill {
+    transition: none;
+  }
+
+  .pip-dot.is-pulsing::after {
+    animation: none;
+  }
+}

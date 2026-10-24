@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sycophancy Meter: Gauntlet</title>
+  <meta name="description"
+    content="One conversation with one model, pushed level by level, to find its Breaking Point.">
+  <!-- Stylesheets: shared tokens and base first, then the dashboard layout, then one file per view. -->
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/page-gauntlet.css">
+  <link rel="stylesheet" href="/css/page-batch.css">
+  <link rel="stylesheet" href="/css/page-live.css">
+  <!-- Classic (non-module) script on purpose: it still runs if the ES modules fail, and shows a -->
+  <!-- message when a [data-loading-status] line is still on its loading text after a few seconds. -->
+  <script src="/js/load-fallback.js"></script>
+</head>
+<body>
+  <!-- All three views live in this one document. /js/app.js shows one section at a time (chosen by the -->
+  <!-- URL hash: #gauntlet, #batch or #live) and builds the site header at the start of body. -->
+  <main class="page">
+    <!-- VIEW I: Gauntlet. One model, one question, pressed level by level. -->
+    <section data-view="gauntlet">
+      <header class="masthead">
+        <p class="section-label"><span class="section-number">I.</span> Gauntlet</p>
+        <h1>The Gauntlet</h1>
+        <p class="standfirst">
+          Ask one model one question, press it level by level, and see when it gives up a right answer.
+        </p>
+      </header>
+
+      <!-- Summary figure cards. They start empty (is-empty) and the page script fills them. -->
+      <div class="dash-kpis gauntlet-kpis">
+        <div class="kpi-card is-empty" id="gauntlet-kpi-breaking">
+          <p class="kpi-label">Breaking Point</p>
+          <p class="kpi-value">No data loaded</p>
+          <p class="kpi-note">Where this run gave in, from the conversation below.</p>
+        </div>
+        <div class="kpi-card is-empty" id="gauntlet-kpi-levels">
+          <p class="kpi-label">Levels</p>
+          <p class="kpi-value">No data loaded</p>
+          <p class="kpi-note">Levels on the ladder of the pushback set on the desk.</p>
+        </div>
+        <div class="kpi-card is-empty" id="gauntlet-kpi-passed">
+          <p class="kpi-label">Levels passed</p>
+          <p class="kpi-value">No data loaded</p>
+          <p class="kpi-note">Answers held right in this run, counted from the Breaking Point.</p>
+        </div>
+        <div class="kpi-card is-empty" id="gauntlet-kpi-saved">
+          <p class="kpi-label">Saved replies</p>
+          <p class="kpi-value">No data loaded</p>
+          <p class="kpi-note">Steps in the saved run file, counted when the page loads.</p>
+        </div>
+      </div>
+
+      <!-- Empty container: the page script puts notices about resuming a saved run here. -->
+      <div class="notice-region" id="gauntlet-resume-notices"></div>
+
+      <div class="dash">
+        <!-- Left column: controls for setting up the run. -->
+        <section class="desk panel span-4" aria-labelledby="desk-heading">
+          <h2 class="panel-title" id="desk-heading">Set up the run</h2>
+
+          <div class="presets">
+            <h3 class="label">Presets</h3>
+            <!-- Empty: preset buttons are rendered here by the script. -->
+            <div id="gauntlet-preset-panel"></div>
+          </div>
+
+          <div class="control">
+            <label class="label" for="gauntlet-pushback-select">
+              <span class="section-number">1.</span> Pushback set
+            </label>
+            <select class="select" id="gauntlet-pushback-select"></select>
+          </div>
+
+          <div class="control">
+            <label class="label" for="gauntlet-question-set-select">
+              <span class="section-number">2.</span> Question set
+            </label>
+            <select class="select" id="gauntlet-question-set-select"></select>
+            <p class="field-hint" id="gauntlet-suite-summary" aria-live="polite"></p>
+          </div>
+
+          <div class="control">
+            <label class="label" for="model-select"><span class="section-number">3.</span> Model</label>
+            <select class="select" id="model-select"></select>
+          </div>
+
+          <div class="control">
+            <label class="label" for="question-select"><span class="section-number">4.</span> Question</label>
+            <select class="select" id="question-select"></select>
+          </div>
+
+          <div class="control">
+            <label class="label" for="gauntlet-condition-select">
+              <span class="section-number">5.</span> Conditions
+            </label>
+            <select class="select" id="gauntlet-condition-select"></select>
+            <p class="field-hint">The system prompt the model is given. Saved runs were recorded with none.</p>
+          </div>
+
+          <fieldset class="control">
+            <legend class="label"><span class="section-number">6.</span> Source</legend>
+            <div class="segmented">
+              <label class="segmented-option">
+                <input class="segmented-input" type="radio" name="source" value="saved" checked>
+                <span class="segmented-text">Saved run</span>
+              </label>
+              <label class="segmented-option">
+                <input class="segmented-input" type="radio" name="source" value="live">
+                <span class="segmented-text">Live (uses your key)</span>
+              </label>
+            </div>
+            <p class="field-hint">The saved run works offline and needs no key.</p>
+          </fieldset>
+
+          <div class="desk-actions">
+            <button type="button" class="btn btn-primary" id="gauntlet-start-button">Start</button>
+            <!-- Stop is hidden until a live run is under way. -->
+            <button type="button" class="btn btn-danger" id="gauntlet-stop-button" hidden>Stop</button>
+          </div>
+
+          <div class="confession">
+            <button type="button" class="btn" id="confession-button" disabled>
+              Ask which answer you really believe
+            </button>
+            <p class="field-hint">This question is asked only after a flip in the batch. Here it is always allowed.</p>
+          </div>
+        </section>
+
+        <!-- Right column: the conversation and the ladder of levels. -->
+        <section class="spread panel span-8" aria-labelledby="spread-heading">
+          <h2 class="panel-title" id="spread-heading">The conversation</h2>
+
+          <p class="label">Breaking Point</p>
+          <div class="spine-row" id="spine" role="img" aria-label="Breaking Point: no pressure yet"></div>
+          <p class="spine-message" id="spine-message">No pressure yet</p>
+
+          <p class="status-line" id="gauntlet-status-line" data-loading-status>Loading the data files.</p>
+
+          <div class="conversation" id="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
+
+          <h2 class="levels-heading" id="levels-heading">The levels</h2>
+          <ol class="level-list" id="level-list" aria-labelledby="levels-heading"></ol>
+        </section>
+      </div>
+
+      <!-- Saved runs: the storage note and the list are filled in by the script. -->
+      <section class="saved-runs" aria-labelledby="gauntlet-saved-heading">
+        <h2 id="gauntlet-saved-heading">Saved runs</h2>
+        <p class="field-hint" id="gauntlet-storage-note" role="status"></p>
+        <div id="gauntlet-runs-list"></div>
+      </section>
+
+      <footer class="page-footer">
+        <p id="footer-text">
+          The test uses multiple-choice questions, a model may know it is being tested,
+          and the invented claims are for testing only.
+        </p>
+      </footer>
+    </section>
+    <!-- VIEW II: Batch. Hidden until the router shows it; its script is loaded the first time it is shown. -->
+    <section data-view="batch" hidden>
+      <header class="masthead">
+        <p class="section-label"><span class="section-number">II.</span> Batch</p>
+        <h1>The Batch</h1>
+        <p class="standfirst">
+          Tick what to run. We show the exact number of calls first, then run them one by one in your browser,
+          with pauses and a hard cap.
+        </p>
+      </header>
+
+      <!-- Summary figure cards, filled by the script. -->
+      <div class="dash-kpis">
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Models ticked</p>
+          <p class="kpi-value" id="batch-kpi-models">No data loaded</p>
+          <p class="kpi-note">Source: section 3, Models. Counts the ticked models.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Questions in set</p>
+          <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
+          <p class="kpi-note">Source: section 4, Questions. Counts the ticked questions.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Probe families</p>
+          <p class="kpi-value" id="batch-kpi-families">No data loaded</p>
+          <p class="kpi-note">Source: section 5, Probe families. Counts the ticked families.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Planned new steps</p>
+          <p class="kpi-value" id="batch-kpi-steps">No data loaded</p>
+          <p class="kpi-note">Source: The plan. At most this many new steps; saved replies are reused.</p>
+        </div>
+      </div>
+
+      <div class="notice-region" id="batch-resume-notices"></div>
+
+      <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
+      <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
+          <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
+
+          <fieldset class="panel span-4">
+            <legend class="panel-title"><span class="section-number">1.</span> Presets</legend>
+            <div id="batch-preset-panel"></div>
+          </fieldset>
+
+          <fieldset class="panel span-8">
+            <legend class="panel-title"><span class="section-number">2.</span> Suites</legend>
+            <div class="field">
+              <label class="field-label" for="batch-pushback-select">Pushback set</label>
+              <select class="select" id="batch-pushback-select"></select>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-question-set-select">Question set</label>
+              <select class="select" id="batch-question-set-select"></select>
+            </div>
+            <p class="field-hint" id="batch-suite-summary" aria-live="polite"></p>
+          </fieldset>
+
+          <fieldset class="panel span-8">
+            <legend class="panel-title"><span class="section-number">3.</span> Models</legend>
+            <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
+            <p class="field-hint" id="model-rank-note">Rank: highest public score first. Hover a row for its source.</p>
+            <div class="button-row">
+              <button type="button" class="btn" id="model-select-all">Select all</button>
+              <button type="button" class="btn" id="model-clear">Clear</button>
+            </div>
+            <div class="check-list" id="batch-model-list" role="group" aria-label="Models"></div>
+            <div class="add-model">
+              <label class="field-label" for="custom-model-name">Add another model name</label>
+              <div class="add-model-row">
+                <input class="text-input" id="custom-model-name" type="text" autocomplete="off"
+                  spellcheck="false" aria-describedby="custom-model-message">
+                <button type="button" class="btn" id="custom-model-add">Add</button>
+              </div>
+              <p class="field-hint" id="custom-model-message"></p>
+            </div>
+          </fieldset>
+
+          <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
+          <section class="run-panel panel span-4" aria-labelledby="plan-heading">
+            <h2 class="panel-title" id="plan-heading">The plan</h2>
+            <ul class="plan-list" id="plan-models"></ul>
+            <p class="plan-totals" id="plan-totals"></p>
+            <p class="plan-cost" id="plan-cost"></p>
+            <p class="plan-problem" id="plan-problem"></p>
+
+            <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
+            <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
+              <p class="confirm-text" id="confirm-text"></p>
+              <div class="button-row">
+                <button type="button" class="btn btn-primary" id="confirm-continue">Continue</button>
+                <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
+              <button type="button" class="btn" id="pause-button" disabled>Pause</button>
+              <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
+            </div>
+
+            <h3 class="label sub-heading">Progress</h3>
+            <div class="progress-track" id="progress-track" role="progressbar" aria-label="Batch progress"
+              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p class="progress-line" id="progress-line"></p>
+            <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
+              Loading the data files.
+            </p>
+
+            <h3 class="label sub-heading">Log</h3>
+            <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
+              tabindex="0"></ol>
+          </section>
+
+          <fieldset class="panel span-8">
+            <legend class="panel-title"><span class="section-number">4.</span> Questions</legend>
+            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
+            <div class="button-row">
+              <button type="button" class="btn" id="question-all">All</button>
+              <button type="button" class="btn" id="question-none">None</button>
+              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
+              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
+            </div>
+            <div class="field">
+              <label class="field-label" for="tier-filter">Show tier</label>
+              <select class="select" id="tier-filter">
+                <option value="all">All tiers</option>
+              </select>
+            </div>
+            <div class="check-list check-list-tall" id="question-list" role="group" aria-label="Questions"
+              tabindex="0"></div>
+          </fieldset>
+
+          <fieldset class="panel span-4">
+            <legend class="panel-title"><span class="section-number">5.</span> Probe families</legend>
+            <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
+            <div class="check-list" id="family-list" role="group" aria-label="Probe families">
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="gauntlet" checked aria-describedby="hint-gauntlet">
+                  <span class="check-box"></span><span class="check-text">gauntlet</span>
+                </label>
+                <p class="field-hint" id="hint-gauntlet">
+                  Ten levels of pressure in one conversation, then a check on whether the model changed its answer.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="corrections" checked
+                    aria-describedby="hint-corrections">
+                  <span class="check-box"></span><span class="check-text">corrections</span>
+                </label>
+                <p class="field-hint" id="hint-corrections">
+                  The correction tests: a planted wrong answer, then a polite or a confident correction from the user.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="fingerprint" checked
+                    aria-describedby="hint-fingerprint">
+                  <span class="check-box"></span><span class="check-text">fingerprint</span>
+                </label>
+                <p class="field-hint" id="hint-fingerprint">
+                  One-message probes, one for each kind of pressure, to see which kinds move the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="twins" checked aria-describedby="hint-twins">
+                  <span class="check-box"></span><span class="check-text">twins</span>
+                </label>
+                <p class="field-hint" id="hint-twins">
+                  The same message sent with a wrong claim and with a right claim, to see whether the claim
+                  moves the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="dose" checked aria-describedby="hint-dose">
+                  <span class="check-box"></span><span class="check-text">dose</span>
+                </label>
+                <p class="field-hint" id="hint-dose">
+                  The same push at rising strengths, to find how much pressure it takes before the model moves.
+                </p>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="panel span-12">
+            <legend class="panel-title"><span class="section-number">6.</span> Conditions and limits</legend>
+            <div class="field">
+              <label class="field-label" for="batch-condition-select">System prompt condition</label>
+              <select class="select" id="batch-condition-select"></select>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
+                <input class="text-input" id="repeats-input" type="number" min="1" max="4" step="1"
+                  inputmode="numeric">
+              </div>
+              <div class="field">
+                <label class="field-label" for="concurrency-input">Concurrency (1 to 8)</label>
+                <input class="text-input" id="concurrency-input" type="number" min="1" max="8" step="1"
+                  inputmode="numeric">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-cap-input">Call cap</label>
+              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
+                inputmode="numeric" value="1"
+                aria-describedby="cap-hint">
+              <p class="field-hint" id="cap-hint">
+                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
+              </p>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="price-input">Price per million tokens (optional)</label>
+                <input class="text-input" id="price-input" type="number" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label class="field-label" for="tokens-input">Average tokens per call (optional)</label>
+                <input class="text-input" id="tokens-input" type="number" min="0" step="1" inputmode="numeric">
+              </div>
+            </div>
+            <p class="field-hint">Fill in both to see an estimated cost in the plan.</p>
+            <p class="field-hint" id="fixed-settings"></p>
+          </fieldset>
+      </form>
+
+      <!-- Results: tables, the fingerprint chart and its table. -->
+      <section class="results panel" aria-labelledby="results-heading">
+        <h2 class="panel-title" id="results-heading">Results</h2>
+        <p class="field-hint" id="results-message">Tick models and questions to see results.</p>
+        <div class="model-tables" id="gauntlet-tables"></div>
+
+        <figure class="chart-frame">
+          <figcaption class="label chart-label">Fig. 1 · Fingerprint flip rates</figcaption>
+          <p class="field-hint" id="chart-message"></p>
+          <div class="chart-host" id="fingerprint-chart"></div>
+          <!-- Hidden text-table version of the chart above, shown by the script as an alternative to the chart. -->
+          <div class="table-scroll" id="fingerprint-table" hidden></div>
+          <p class="chart-caption">
+            The share of baseline-right answers that moved to a wrong letter under one message. Error bars show
+            95 percent intervals. A probe with no replies yet is drawn at zero.
+          </p>
+        </figure>
+
+        <!-- Collapsible table of the same fingerprint numbers; rows are filled in by the script. -->
+        <details class="probe-details">
+          <summary>Table of fingerprint flip rates</summary>
+          <div class="table-scroll">
+            <table class="data-table">
+              <caption class="visually-hidden">Fingerprint flip rates by probe and model</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Probe</th>
+                  <th scope="col">Model</th>
+                  <th scope="col" class="num">Units</th>
+                  <th scope="col" class="num">Flip rate</th>
+                  <th scope="col" class="num">Low</th>
+                  <th scope="col" class="num">High</th>
+                </tr>
+              </thead>
+              <tbody id="probe-table-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <!-- Saved runs for the Batch view. -->
+      <section class="saved-runs panel" aria-labelledby="batch-saved-heading">
+        <h2 class="panel-title" id="batch-saved-heading">Saved runs</h2>
+        <p class="field-hint" id="batch-storage-note" role="status"></p>
+        <div id="batch-runs-list"></div>
+      </section>
+
+      <!-- Export buttons. They start disabled and are enabled by the script once results exist. -->
+      <section class="export panel" aria-labelledby="export-heading">
+        <h2 class="panel-title" id="export-heading">Export</h2>
+        <p class="field-hint">Exports hold only the results and replies on this page. The key is never included.</p>
+        <div class="button-row">
+          <button type="button" class="btn" id="export-gauntlet" disabled>Download results (CSV)</button>
+          <button type="button" class="btn" id="export-probes" disabled>Download probe results (CSV)</button>
+          <button type="button" class="btn" id="export-replies" disabled>Download all replies (JSON)</button>
+        </div>
+      </section>
+
+      <footer class="page-footer">
+        <p>
+          Each finished unit is saved in this browser, so a reload can resume an unfinished run without repeating
+          the calls already saved. The key is never saved.
+        </p>
+      </footer>
+    </section>
+    <!-- VIEW III: Live (the Theatre). Watch models hold or give way level by level. Hidden until shown by the router. -->
+    <section data-view="live" class="theatre" hidden>
+      <header class="masthead">
+        <p class="section-label"><span class="section-number">III.</span> Live</p>
+        <h1>The Theatre</h1>
+        <p class="standfirst">
+          Watch each model hold or give way, level by level. Replay the saved run, or run a small batch
+          with your own key.
+        </p>
+      </header>
+
+      <!-- Summary figure cards, filled by the script. -->
+      <div class="dash-kpis live-kpis">
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Models</p>
+          <p class="kpi-value" id="live-kpi-models">No data loaded</p>
+          <p class="kpi-note">The models in the config file.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Calls made</p>
+          <p class="kpi-value" id="live-kpi-calls">No data loaded</p>
+          <p class="kpi-note">API attempts in this live run. Saved replies are not counted.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Call cap</p>
+          <p class="kpi-value" id="live-kpi-cap">No data loaded</p>
+          <p class="kpi-note">From the Call cap box below.</p>
+        </div>
+        <div class="kpi-card is-empty">
+          <p class="kpi-label">Flips seen</p>
+          <p class="kpi-value" id="live-kpi-flips">No data loaded</p>
+          <p class="kpi-note">Units that gave way under pressure in the run or replay so far.</p>
+        </div>
+      </div>
+
+      <div class="dash">
+      <!-- Left column: run controls, either replay of the saved run or a live run with the visitor's key. -->
+      <section class="panel span-4 stage-controls" aria-labelledby="controls-heading">
+        <h2 class="visually-hidden" id="controls-heading">Run controls</h2>
+
+        <fieldset class="control mode-control">
+          <legend class="label">Mode</legend>
+          <div class="segmented">
+            <label class="segmented-option">
+              <input class="segmented-input" type="radio" name="mode" value="replay" checked>
+              <span class="segmented-text">Replay saved run</span>
+            </label>
+            <label class="segmented-option">
+              <input class="segmented-input" type="radio" name="mode" value="live">
+              <span class="segmented-text">Live with your key</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="replay-panel" id="replay-panel">
+          <div class="field speed-field">
+            <label class="field-label" for="speed-input">
+              Speed <output class="speed-output" id="speed-output" for="speed-input">2x</output>
+            </label>
+            <input class="range" type="range" id="speed-input" min="0.5" max="8" step="0.5" value="2">
+            <p class="field-hint">From half speed to eight times. The saved run takes about 34 minutes at 2x.</p>
+          </div>
+          <div class="transport">
+            <button type="button" class="btn btn-primary" id="play-button">Play</button>
+            <button type="button" class="btn" id="restart-button">Restart</button>
+          </div>
+        </div>
+
+        <!-- Live-mode options, shown only when the Live mode is selected (the replay options above are for the other mode). -->
+        <div class="live-panel" id="live-panel" hidden>
+          <div class="live-fields">
+            <div class="field">
+              <span class="field-label">Models</span>
+              <p class="live-value" id="live-model-list"></p>
+              <p class="field-hint">All models in the config file.</p>
+            </div>
+            <fieldset class="field control">
+              <legend class="label">Pushback set</legend>
+              <div class="segmented">
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="pushback-set" value="gauntlet_v3" checked
+                    aria-label="Pushback set gauntlet_v3">
+                  <span class="segmented-text">gauntlet_v3</span>
+                </label>
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="pushback-set" value="gauntlet_v4"
+                    aria-label="Pushback set gauntlet_v4">
+                  <span class="segmented-text">gauntlet_v4</span>
+                </label>
+              </div>
+              <p class="field-hint">The pressure ladder. Its levels and labels come from the chosen file.</p>
+            </fieldset>
+            <fieldset class="field control">
+              <legend class="label">Question set</legend>
+              <div class="segmented">
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="question-set" value="easy" checked
+                    aria-label="Question set easy">
+                  <span class="segmented-text">Easy</span>
+                </label>
+                <label class="segmented-option">
+                  <input class="segmented-input" type="radio" name="question-set" value="hard"
+                    aria-label="Question set hard">
+                  <span class="segmented-text">Hard</span>
+                </label>
+              </div>
+              <p class="field-hint">The questions that the first N of the run are taken from.</p>
+            </fieldset>
+            <div class="field">
+              <label class="field-label" for="question-input">Questions</label>
+              <input class="text-input number-input" type="number" id="question-input" min="1" max="8"
+                step="1" value="3">
+              <p class="field-hint">The first questions of the set, from 1 to 8.</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="live-cap-input">Call cap</label>
+              <input class="text-input number-input" type="number" id="live-cap-input" min="1" max="400" step="1"
+                value="20">
+              <p class="field-hint">The most calls this run may make, up to 400.</p>
+            </div>
+          </div>
+          <p class="field-hint" id="suite-note" aria-live="polite"></p>
+          <div class="transport">
+            <button type="button" class="btn btn-primary" id="live-start-button">Start</button>
+            <button type="button" class="btn btn-danger" id="live-stop-button" disabled>Stop</button>
+          </div>
+          <p class="field-hint plan-note" id="plan-note" aria-live="polite"></p>
+        </div>
+
+        <p class="run-status label" id="run-status" role="status" aria-live="polite" data-loading-status>
+          Loading the data files.
+        </p>
+      </section>
+
+      <!-- Right column: one lane per model, filled by the script. -->
+      <section class="panel span-8 lanes-section" aria-labelledby="lanes-heading">
+        <h2 class="panel-title" id="lanes-heading"><span class="section-number">1.</span> Lanes</h2>
+        <div class="lanes" id="lanes"></div>
+        <p class="pip-key label">Sage: passed the level. Terracotta: gave way there. Empty: not yet passed.</p>
+      </section>
+
+        <!-- Charts: four figures, each with a hidden text-table twin (table-scroll) that the script can show in place of the chart. -->
+        <h2 class="section-label span-12" id="charts-heading"><span class="section-number">2.</span> Charts</h2>
+          <figure class="panel span-6 figure">
+            <figcaption class="label figure-label panel-title">
+              <span class="section-number">Fig. 1</span> The level curve
+            </figcaption>
+            <div class="chart-host" id="chart-levels"></div>
+            <div class="table-scroll" id="table-levels" hidden></div>
+            <p class="figure-caption">
+              The share of right first answers that have given way by each level. Bands are 95 per cent intervals.
+            </p>
+          </figure>
+
+          <figure class="panel span-6 figure">
+            <figcaption class="label figure-label panel-title">
+              <span class="section-number">Fig. 2</span> Fingerprint probes
+            </figcaption>
+            <div class="chart-host" id="chart-fingerprints"></div>
+            <div class="table-scroll" id="table-fingerprints" hidden></div>
+            <p class="figure-caption">
+              The flip rate on each single-shot probe, among units that began with the right answer.
+            </p>
+          </figure>
+
+          <figure class="panel span-6 figure">
+            <figcaption class="label figure-label panel-title">
+              <span class="section-number">Fig. 3</span> The twin probes
+            </figcaption>
+            <div class="chart-host" id="chart-twins"></div>
+            <div class="table-scroll" id="table-twins" hidden></div>
+            <p class="figure-caption">
+              Each model is one point, averaged over its twin probes. Firm and open sits top left.
+            </p>
+          </figure>
+
+          <figure class="panel span-6 figure">
+            <figcaption class="label figure-label panel-title">
+              <span class="section-number">Fig. 4</span> The confessions
+            </figcaption>
+            <div class="chart-host" id="chart-confessions"></div>
+            <div class="table-scroll" id="table-confessions" hidden></div>
+            <p class="figure-caption">
+              Confession answers from models that flipped under pressure, summed over the models.
+            </p>
+          </figure>
+        <!-- End-of-run message, hidden until the script has something to say. -->
+        <p class="finale span-12" id="finale" hidden></p>
+      <!-- Events: running list of recent events, newest first. -->
+      <section class="panel span-12 ticker-section" aria-labelledby="ticker-heading">
+        <h2 class="panel-title" id="ticker-heading"><span class="section-number">3.</span> Events</h2>
+        <ol class="ticker" id="ticker" aria-label="Recent events, newest first"></ol>
+      </section>
+      </div>
+    </section>
+  </main>
+  <!-- Entry point: builds the header, routes between the three views and loads each view's script on first use. -->
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

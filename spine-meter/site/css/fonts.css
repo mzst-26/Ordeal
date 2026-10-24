@@ -1,0 +1,83 @@
+/*
+  Licensed web fonts for Field Notes (Tiempos and Styrene A).
+
+  Uncomment a block only after the matching file is in site/fonts/.
+  A missing file makes the browser request a 404 for the font, which is
+  harmless but noisy.
+
+  Each block is commented out. To enable one, remove its opening "/*" line
+  and its closing "*/" line. See site/fonts/README.md for the steps.
+*/
+
+/*
+  Tiempos Text, regular (400, upright). Body text.
+  File: site/fonts/TiemposText-Regular.woff2
+  @font-face {
+    font-family: "Tiempos Text";
+    src: url("../fonts/TiemposText-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+*/
+
+/*
+  Tiempos Text, italic (400, italic). Emphasis.
+  File: site/fonts/TiemposText-Italic.woff2
+  @font-face {
+    font-family: "Tiempos Text";
+    src: url("../fonts/TiemposText-Italic.woff2") format("woff2");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+  }
+*/
+
+/*
+  Tiempos Headline, semibold (600). Headings. Loaded under the Tiempos Text
+  family name so the serif stack picks it up at weight 600.
+  File: site/fonts/TiemposHeadline-Semibold.woff2
+  @font-face {
+    font-family: "Tiempos Text";
+    src: url("../fonts/TiemposHeadline-Semibold.woff2") format("woff2");
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+  }
+*/
+
+/*
+  Styrene A, regular (400). Controls and labels.
+  File: site/fonts/StyreneA-Regular.woff2
+  @font-face {
+    font-family: "Styrene A";
+    src: url("../fonts/StyreneA-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+*/
+
+/*
+  Styrene A, medium (500). Labels and emphasis in the sans stack.
+  File: site/fonts/StyreneA-Medium.woff2
+  @font-face {
+    font-family: "Styrene A";
+    src: url("../fonts/StyreneA-Medium.woff2") format("woff2");
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+*/
+
+/*
+  Styrene A, bold (700). Strong labels and numbers.
+  File: site/fonts/StyreneA-Bold.woff2
+  @font-face {
+    font-family: "Styrene A";
+    src: url("../fonts/StyreneA-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+*/
