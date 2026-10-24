@@ -16,16 +16,22 @@ import openai
 
 import core
 
+# Errors that can pass on a later try. Other errors (bad request, bad key, missing model) would fail again.
 RETRYABLE_ERROR_TYPES = (
     openai.RateLimitError,
     openai.APITimeoutError,
     openai.APIConnectionError,
     openai.InternalServerError,
 )
+# Error text is cut to this length so a long server message cannot flood the output.
 MAX_ERROR_TEXT_LENGTH = 200
+# Number of hex characters of the digest added to a custom model's saved name (see record_label).
 LABEL_DIGEST_LENGTH = 8
+# Hosts allowed for a plain-http test server (see is_local_base_url).
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
+# A valid environment variable name, matched in full.
 ENV_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# Every custom_models entry in config.json must have all of these as non-blank text.
 CUSTOM_MODEL_FIELDS = ("name", "base_url", "model", "api_key_env")
 CUSTOM_URL_MESSAGE = (
     "Custom model '{name}' needs a base_url that starts with https://, "
@@ -42,6 +48,7 @@ class ModelRoute:
     base_url: str
     key_env: str  # the environment variable that holds the key
     custom: bool = False  # True for a config.json custom model; its saved replies get a digest label
+    # Empty until attach_keys fills it in. repr=False keeps the key out of printed routes and logs.
     api_key: str = field(default="", repr=False)
 
 
@@ -65,6 +72,7 @@ class TokenFactoryClient:
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        # The message content can be None; callers expect a string, so it becomes "".
         content = response.choices[0].message.content
         if content is None:
             return ""
@@ -109,11 +117,13 @@ def describe_error(error: Exception) -> str:
 
 def is_local_base_url(url: str) -> bool:
     """Return True for an http or https URL to 127.0.0.1 or localhost, with no user name or password."""
+    # urlsplit and .hostname can raise ValueError on malformed input such as a bad port or bracket.
     try:
         parts = urlsplit(url)
         host = parts.hostname
     except ValueError:
         return False
+    # "@" in the network part would mean user:password@host, which could carry a secret in the config.
     return parts.scheme in ("http", "https") and host in LOCAL_HOSTS and "@" not in parts.netloc
 
 
@@ -126,6 +136,7 @@ def is_safe_custom_url(url: Any) -> bool:
     """Return True for an https URL with a host, no user name or password, no query, fragment or control character."""
     if not isinstance(url, str) or not url.startswith("https://") or has_forbidden_url_character(url):
         return False
+    # Custom models send a real API key, so only https is accepted here (plain http is for local tests only).
     try:
         parts = urlsplit(url)
     except ValueError:
@@ -143,6 +154,7 @@ def custom_route(entry: Any) -> ModelRoute:
     name = entry["name"]
     if not is_safe_custom_url(entry["base_url"]):
         raise ValueError(CUSTOM_URL_MESSAGE.format(name=name))
+    # A custom model must not reuse the built-in key, or that key would be sent to a third-party endpoint.
     key_env = entry["api_key_env"]
     if not ENV_NAME_PATTERN.fullmatch(key_env) or key_env == core.TOKEN_ENV_VAR:
         raise ValueError(
@@ -189,6 +201,8 @@ def record_label(route: ModelRoute) -> str:
     """Return the model name saved with each reply. A built-in model keeps its name; a custom one adds a digest."""
     if not route.custom:
         return route.name
+    # The digest covers the endpoint and API model id, so pointing the same name somewhere else
+    # gives a different label and old saved replies are not reused for it.
     text = f"{route.base_url}\n{route.api_model}"
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:LABEL_DIGEST_LENGTH]
     return f"{route.name}@{digest}"
@@ -204,6 +218,7 @@ def record_labels(
 
 def read_route_key(route: ModelRoute) -> str:
     """Return the key for one route. The error names the variable, never its value."""
+    # The built-in key has its own reader, which also loads the .env file and raises its own error.
     if route.key_env == core.TOKEN_ENV_VAR:
         return core.read_api_key()
     core.load_env_file()

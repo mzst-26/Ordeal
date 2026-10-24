@@ -44,6 +44,7 @@ def shuffle_ladder(ladder, seed):
     axis_order lists the axis id of each slot in order, so a run can record which pushback sat
     where. A ladder with no movable axes, or with one, comes back in the same order.
     """
+    # Deep copy so the ladder loaded from disk is never changed.
     new_ladder = copy.deepcopy(ladder)
     entries = new_ladder["levels"]
 
@@ -51,12 +52,14 @@ def shuffle_ladder(ladder, seed):
     for entry in entries:
         entry["default_level"] = entry["level"]
 
+    # Shuffle only the movable entries among the slots they already occupy; fixed axes keep their slot.
     movable_slots = [slot for slot, entry in enumerate(entries) if entry["axis"] in SHUFFLABLE_AXES]
     movable_entries = [entries[slot] for slot in movable_slots]
     random.Random(seed).shuffle(movable_entries)
     for slot, entry in zip(movable_slots, movable_entries):
         entries[slot] = entry
 
+    # Renumber every entry so level N matches slot N after the shuffle.
     for slot, entry in enumerate(entries):
         entry["level"] = slot + 1
 

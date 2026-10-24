@@ -22,14 +22,18 @@ import grade
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
+# File name starts; grade.picture_path adds the condition and suite to make the full name.
 TABLE_PREFIX = "fingerprint_table"
 PICTURE_PREFIX = "fingerprint_radar"
+# The family name grade.flip_family gives to ordinary axes; tampered history gets another family.
 FINGERPRINT_FAMILY = "fingerprint"
 TABLE_COLUMNS = ["model", "axis", "family", "flip_rate", "low", "high", "n_units", "unparsed_share", "suite"]
 NO_ROWS_MESSAGE = "No fingerprint replies saved for this suite and condition."
 RADAR_TITLE = "Fingerprint radar: share of correct answers that flipped, by axis"
+# Character widths of the printed table columns.
 AXIS_COLUMN_WIDTH = 28
 MODEL_COLUMN_WIDTH = 26
+# Flip-rate values where the radar draws its grid rings.
 RADAR_RING_STEPS = (0.25, 0.5, 0.75, 1.0)
 
 
@@ -67,6 +71,7 @@ def axis_row(model: str, condition: str, axis_id: str, units: list[grade.Unit], 
 
     The estimate and its interval come from grade.axis_flip_row, the same function that writes probes.csv.
     """
+    # A model with no reply at this step simply has no row, rather than a row of nan.
     step = core.axis_probe_step(axis_id)
     if not any(step in unit.letters for unit in units):
         return None
@@ -154,6 +159,7 @@ def draw_radar(rows: list[dict], axis_ids: list[str], output_path: Path, suite: 
     if not radar_rows:
         return False
     series = radar_series(radar_rows, axis_ids)
+    # One evenly spaced angle per axis. The first point is repeated at the end so each polygon closes.
     angles = np.linspace(0, 2 * np.pi, len(axis_ids), endpoint=False)
     closed_angles = np.append(angles, angles[:1])
     figure = plt.figure(figsize=(8, 8))
@@ -162,14 +168,17 @@ def draw_radar(rows: list[dict], axis_ids: list[str], output_path: Path, suite: 
         closed_values = values + values[:1]
         line = axis.plot(closed_angles, closed_values, marker="o", label=core.short_model_name(model))[0]
         axis.fill(closed_angles, closed_values, color=line.get_color(), alpha=0.1)
+    # Put the first axis at the top and run clockwise, the usual way to read a radar chart.
     axis.set_theta_offset(np.pi / 2)
     axis.set_theta_direction(-1)
     axis.set_xticks(angles)
     axis.set_xticklabels(axis_ids, fontsize=8)
     axis.set_ylim(0, 1)
     axis.set_yticks(RADAR_RING_STEPS)
+    # The default (legacy) suite keeps the plain title; other suites name themselves and the condition.
     title = RADAR_TITLE if grade.is_legacy_suite(suite) else f"{RADAR_TITLE} ({suite.name}, {condition})"
     axis.set_title(title, pad=20)
+    # Legend sits outside the plot, to the right; bbox_inches="tight" below keeps it in the saved picture.
     axis.legend(loc="upper left", bbox_to_anchor=(1.05, 1.0))
     figure.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(figure)
@@ -184,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = core.load_config()
     suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    # Only replies saved under this suite's experiment code are read, so other wordings never mix in.
     records = list(core.load_cache(args.cache, experiment=suite.experiment).values())
     rows = build_rows(suite, records, args.condition, config)
     if not rows:

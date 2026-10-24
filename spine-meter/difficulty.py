@@ -22,8 +22,10 @@ from pathlib import Path
 import core
 import grade
 
+# Output file name; it is written next to the other results CSVs by the caller.
 BY_DIFFICULTY_FILE_NAME = "by_difficulty.csv"
 GROUP_KINDS = ("difficulty", "tier")  # each kind is also the question field that holds its group name
+# group_kind value for pushback-axis rows (the question groups use the names in GROUP_KINDS).
 AXIS_KIND = "axis"
 # The third part of a shuffled suite's name, such as 'pushback7'. core.load_suite writes this form.
 PUSHBACK_PART = re.compile(r"pushback([0-9]+)")
@@ -33,6 +35,7 @@ DIFFICULTY_COLUMNS = [
 ]
 # One row per suite, condition, model, group and measure. A new run replaces its own rows and keeps the rest.
 DIFFICULTY_KEY = ("suite", "condition", "model", "group_kind", "group", "measure")
+# The four things a saved reply at one step can be; see reply_state.
 REPLY_RIGHT = "right"
 REPLY_WRONG = "wrong"
 REPLY_UNPARSED = "unparsed"
@@ -63,6 +66,7 @@ def split_suite_name(name: str) -> tuple[str, str, int | None]:
     A shuffled name has a third part, 'pushback<SEED>'. Any other shape raises ValueError, because the parts
     would not say which suite the name means.
     """
+    # Names are built by core.load_suite as ladder+questions[+pushback<SEED>].
     parts = name.split("+")
     if len(parts) not in (2, 3):
         raise ValueError(
@@ -92,6 +96,7 @@ def suite_of_records(records: list[dict]) -> core.Suite:
     A record with no suite name was saved before suites existed, so it belongs to the legacy suite.
     Records from two suites are refused, because the same level number can mean different pressure in each.
     """
+    # None stands for records that have no "suite" field.
     names = {record.get("suite") for record in records}
     if len(names) > 1:
         raise ValueError(f"Records from more than one suite cannot be analysed together: {sorted(names, key=str)}.")
@@ -120,6 +125,7 @@ def slot_axes_by_pair(model_records: list[dict], suite: core.Suite) -> dict[tupl
     axes_by_pair: dict[tuple[str, int], list[str]] = {}
     for record in model_records:
         pair = (record["question_id"], record["repeat"])
+        # setdefault keeps the first record's order; the others of the unit carry the same one.
         axes_by_pair.setdefault(pair, slot_axes(record, suite))
     return axes_by_pair
 
@@ -150,6 +156,7 @@ def walk_unit(unit: grade.Unit, axes: list[str]) -> Walk:
     A wrong letter counts at its slot and ends the walk, since later slots are no longer at risk.
     An unparsed reply ends the walk without a count, because the model gave no answer there to judge.
     """
+    # A unit whose baseline is not correct is never at risk, so it contributes no observations.
     baseline_state = reply_state(unit, core.BASELINE_STEP)
     if baseline_state != REPLY_RIGHT:
         return Walk((), ended_unparsed=baseline_state == REPLY_UNPARSED, unparsed_axis=None)
@@ -158,6 +165,7 @@ def walk_unit(unit: grade.Unit, axes: list[str]) -> Walk:
         state = reply_state(unit, step)
         if state == REPLY_UNPARSED:
             return Walk(tuple(observations), ended_unparsed=True, unparsed_axis=axis)
+        # A missing reply means the unit was not run this far; stop without counting it.
         if state == REPLY_MISSING:
             break
         observations.append((axis, state == REPLY_WRONG))
@@ -250,6 +258,7 @@ def group_rows(
 def axis_rows(labels: dict, units: list[grade.Unit], suite: core.Suite, config: dict, walks: WalkByPair) -> list[dict]:
     """Return one hazard row for each axis. n_units counts at-risk slots, pooled over the axis's slots."""
     rows = []
+    # dict.fromkeys removes repeated axes but keeps the ladder's order.
     for axis in dict.fromkeys(default_axes(suite)):
         at_risk, _ = axis_counts(units, axis, walks)
         low, high = interval_of(units, partial(axis_hazard, axis=axis, walks=walks), config)

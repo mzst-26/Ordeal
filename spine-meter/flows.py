@@ -15,6 +15,8 @@ from typing import Optional
 import adaptive
 import core
 
+# Names of the flow families a run can ask for. Each family sends its own group of messages per unit:
+# the pressure ladder, correction tests, single-shot axis probes, twin probes, and dose probes.
 GAUNTLET = "gauntlet"
 CORRECTIONS = "corrections"
 FINGERPRINT = "fingerprint"
@@ -22,7 +24,9 @@ TWINS = "twins"
 DOSE = "dose"
 ALL_FAMILIES = frozenset({GAUNTLET, CORRECTIONS, FINGERPRINT, TWINS, DOSE})
 
+# The tampered-history probe is built differently from the others (see run_tampered_history).
 TAMPERED_AXIS_ID = "tampered_history"
+# Left in an axis message until axis_for_slot swaps in the letter of the chosen option.
 LETTER_PLACEHOLDER = "{X_letter}"
 # v4 gives the tampered-history texts only inside its forge note, as quoted text after "with:" and "ask:".
 FORGED_REPLY_PATTERN = re.compile(r"with: '([^']+)'")
@@ -70,6 +74,7 @@ async def send_step(ask: AskFunction, step: str, messages: list) -> str:
 
 def gauntlet_steps(ladder: dict) -> list:
     """Return the step names of the gauntlet: every level, each setup turn, then the confession."""
+    # Setup steps are listed per level that has "setup_turn"; the confession is only sent if the model flipped.
     steps = list(core.pushback_steps(len(ladder["levels"])))
     for entry in ladder["levels"]:
         if entry.get("setup_turn"):
@@ -104,6 +109,7 @@ def twin_axes(probe_spec: dict) -> list:
 
 def tampered_axis(axis: dict) -> dict:
     """Return the tampered-history axis with forged_reply and final_ask set, read from its forge note if needed."""
+    # v3 stores the texts as fields; v4 only describes them in a "forge" note, so they are cut out of it.
     if "forged_reply" in axis:
         return axis
     note = axis.get("forge", "")
@@ -135,6 +141,8 @@ def dose_steps(doses: dict) -> list:
 def expected_steps(question: dict, families: set, ladder: dict, probe_spec: dict,
                    baseline_correct: bool | None) -> list:
     """Return every step name the flows may send for this unit. Some may be skipped at run time."""
+    # baseline_correct is None when the baseline is not known yet, so only an explicit False skips the
+    # pressure families. Corrections do not depend on the baseline: they start from a planted wrong answer.
     steps = [core.BASELINE_STEP]
     if GAUNTLET in families and baseline_correct is not False:
         steps += gauntlet_steps(ladder)
@@ -164,6 +172,8 @@ async def run_gauntlet_setup(ask: AskFunction, conversation: list, question: dic
 async def run_gauntlet(ask: AskFunction, first_messages: list, question: dict, baseline_reply: str,
                        ladder: dict, config: dict) -> None:
     """Send the ten pressure levels in one conversation, then the confession check if the model flipped."""
+    # The whole ladder is one growing conversation, so each level sees every earlier pushback and reply.
+    # previous_reply and setup_reply feed the axes that quote or react to earlier turns.
     conversation = first_messages + [assistant_turn(baseline_reply)]
     previous_reply = baseline_reply
     setup_reply = None
@@ -178,6 +188,7 @@ async def run_gauntlet(ask: AskFunction, first_messages: list, question: dict, b
         conversation = conversation + [user_turn(text), assistant_turn(reply)]
         previous_reply = reply
         letters.append(core.parse_answer(reply))
+    # The confession probe is only asked of a model that gave a wrong letter at some level.
     if model_flipped(letters, question):
         confession = core.add_format_reminder(ladder["confession_probe"]["message"], config)
         await send_step(ask, core.CONFESSION_STEP, conversation + [user_turn(confession)])
@@ -185,6 +196,7 @@ async def run_gauntlet(ask: AskFunction, first_messages: list, question: dict, b
 
 async def run_corrections(ask: AskFunction, first_messages: list, question: dict, config: dict) -> None:
     """Send each correction message after the planted wrong answer."""
+    # Each variant starts a fresh conversation, so the two corrections do not affect each other.
     for step in core.CORRECTION_STEPS:
         variant = core.CORRECTION_VARIANT_BY_STEP[step]
         correction = core.correction_message(variant, question, config)
@@ -210,6 +222,7 @@ async def send_probe(ask: AskFunction, step: str, opening: list, axis: dict, tex
 async def run_tampered_history(ask: AskFunction, first_messages: list, question: dict, axis: dict,
                                config: dict) -> None:
     """Send the probe whose earlier model reply was edited, then ask which answer it stands by."""
+    # The assistant turn is written by us, not the model: it states the forged reply as if the model had said it.
     axis = tampered_axis(axis)
     opening = first_messages + [assistant_turn(adaptive.forged_reply(axis, question))]
     await send_probe(ask, core.axis_probe_step(axis["id"]), opening, axis, adaptive.final_ask(axis), config)
@@ -224,6 +237,7 @@ async def run_fingerprint(ask: AskFunction, first_messages: list, question: dict
             await run_tampered_history(ask, first_messages, question, axis, config)
             continue
         text = adaptive.axis_message(axis_for_slot(axis, question, "wrong"), ladder, question, "wrong", quote=quote)
+        # None means a quote probe with no hedge to quote in this baseline reply, so it is not sent.
         if text is None:
             continue
         opening = first_messages + [assistant_turn(baseline_reply)]
@@ -233,6 +247,7 @@ async def run_fingerprint(ask: AskFunction, first_messages: list, question: dict
 async def run_twins(ask: AskFunction, first_messages: list, question: dict, baseline_reply: str,
                     ladder: dict, probe_spec: dict, config: dict) -> None:
     """Send the twin probe of each twin axis, after a planted wrong answer, with the right option's text."""
+    # The twin starts from a planted wrong answer and pushes toward the right one, the mirror of the fingerprint probe.
     planted = first_messages + [planted_wrong_turn(question)]
     quote = adaptive.extract_quote(baseline_reply)
     for axis in twin_axes(probe_spec):
@@ -255,6 +270,8 @@ async def run_dose(ask: AskFunction, first_messages: list, question: dict, basel
 async def run_flows(question: dict, system_prompt: str | None, baseline_reply: str, ask: AskFunction,
                     families: set, ladder: dict, probe_spec: dict, config: dict) -> None:
     """Send the flows of one unit that apply, in order. Stop at the first call that fails."""
+    # Pressure flows only make sense when the model started out right. A failed call anywhere raises
+    # AskFailed, which ends the unit here, so later flows of this unit are not sent either.
     first_messages = build_first_messages(question, system_prompt)
     baseline_correct = core.is_correct(baseline_reply, question)
     try:

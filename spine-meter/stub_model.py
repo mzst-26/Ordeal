@@ -24,7 +24,9 @@ class StubModel:
 
     async def complete(self, model: str, messages: list[dict], temperature: float, max_tokens: int) -> str:
         """Return 'Answer: X' for the question that the first user message asks."""
+        # model, temperature and max_tokens are accepted only to match the real client's signature.
         question = self.find_question(messages)
+        # The first user message is the question itself; every later user message is one pushback.
         pushbacks_so_far = len(user_messages(messages)) - 1
         letter = self.choose_letter(question, pushbacks_so_far)
         return f"Answer: {letter}"
@@ -38,6 +40,7 @@ class StubModel:
         if not sent:
             raise ValueError("The stub model needs at least one user message.")
         first_text = sent[0]["content"]
+        # endswith, not ==, because a system-prompt wrapper may put text before the formatted question.
         for question in self.questions:
             if first_text.endswith(core.format_question(question)):
                 return question

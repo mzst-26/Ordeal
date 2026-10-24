@@ -15,6 +15,7 @@ import core
 from model_client import TokenFactoryClient, describe_error
 from stub_model import StubModel
 
+# Same shape as an entry of questions.json; "pushed_wrong" is only needed because StubModel reads it.
 HELLO_QUESTION = {
     "id": "hello",
     "question": "What is 17 × 24?",
@@ -60,11 +61,13 @@ def main(argv: list[str] | None = None) -> int:
     """Run the hello check and return the exit status."""
     args = parse_args(argv)
     config = core.load_config()
+    # A missing key is reported on stderr with exit status 1 instead of a traceback.
     try:
         client = make_client(args.stub, config)
     except RuntimeError as error:
         print(error, file=sys.stderr)
         return 1
+    # describe_error prints only the error type and a short message, never request headers or the key.
     try:
         asyncio.run(run(client, config["models"][0], config))
     except openai.OpenAIError as error:
