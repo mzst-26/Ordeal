@@ -1,0 +1,416 @@
+/* Comparison page, figures 2, 3 and 7: heatmap, survivors strip and mitigation bars.
+   Tokens only. Cell and bar colours are set through element.style (the CSSOM), never in HTML. */
+
+/* 1. Shared figure pieces (prefixed fg-) */
+.fg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.fg-caption {
+  margin-top: var(--space-3);
+}
+
+.fg-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+.fg-empty p {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+}
+
+.fg-alt {
+  margin-top: var(--space-4);
+  overflow-x: auto;
+}
+
+.fg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--size-base);
+  color: var(--ink);
+}
+
+.fg-table-caption {
+  caption-side: top;
+  padding-bottom: var(--space-2);
+  text-align: left;
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.fg-table th,
+.fg-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+
+.fg-table thead th {
+  font-size: var(--size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+}
+
+.fg-table tbody th {
+  font-weight: 400;
+}
+
+/* 2. FIG 2, fingerprint heatmap */
+.fp-chart {
+  overflow-x: auto;
+}
+
+.fp-grid {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink);
+}
+
+.fp-grid th {
+  padding: 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.fp-th {
+  width: 96px;
+  min-width: 96px;
+  padding-bottom: var(--space-1);
+  vertical-align: bottom;
+}
+
+.fp-sort {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-1);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--edge);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.3;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fp-sort:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--teal);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.fp-arrow {
+  color: var(--ink-soft);
+}
+
+.fp-rowhead {
+  min-width: 170px;
+  max-width: 220px;
+  padding-right: var(--space-2);
+}
+
+.fp-rowname {
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  background: transparent;
+  border: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  line-height: 1.25;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
+}
+
+.fp-rowname:hover {
+  text-decoration-color: var(--teal);
+}
+
+.fp-cell {
+  position: relative;
+  min-width: 96px;
+  height: 48px;
+  padding: var(--space-1);
+  text-align: center;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.fp-pct {
+  display: block;
+  font-size: var(--size-sm);
+  line-height: 1.2;
+}
+
+/* The number sits in a label box on paper-raised, so its text is ink on paper whatever the cell colour */
+.fp-label {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border-radius: var(--radius-sm);
+}
+
+.fp-n {
+  display: block;
+  font-size: var(--size-xs);
+  line-height: 1.2;
+  color: var(--ink-soft);
+}
+
+.fp-band {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+/* Small sample: diagonal hatch (hard stops, no blend), with the n shown as text too */
+.fp-cell--low {
+  background-image: repeating-linear-gradient(45deg, var(--ink-mute) 0 1px, transparent 1px 6px);
+}
+
+/* Not run: dotted outline and the words "not run" */
+.fp-cell--none {
+  background: transparent;
+  border-color: transparent;
+  outline: 1px dotted var(--ink-mute);
+  outline-offset: -4px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.fp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  color: var(--ink-mute);
+}
+
+.fp-legend .field-hint {
+  flex-basis: 100%;
+}
+
+.fp-swatch {
+  display: inline-block;
+  width: 24px;
+  height: 16px;
+  border: 1px solid var(--rule);
+}
+
+/* 3. FIG 3, survivors strip */
+.sv-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.sv-range-wrap {
+  display: grid;
+  flex: 1 1 220px;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sv-range {
+  width: 100%;
+  min-height: 44px;
+}
+
+.sv-level {
+  min-width: 9ch;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sv-count {
+  margin: 0;
+  font-size: var(--size-lg);
+  line-height: var(--leading-heading);
+  color: var(--ink);
+}
+
+.sv-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sv-item {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 88px;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-1);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.25;
+  text-align: center;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sv-item:hover {
+  border-color: var(--rule);
+}
+
+.sv-dot {
+  width: 16px;
+  height: 16px;
+}
+
+.sv-dot circle {
+  stroke-width: 2px;
+  transition: fill var(--dur-base) var(--ease-out), stroke var(--dur-base) var(--ease-out);
+}
+
+.sv-label {
+  max-width: 96px;
+  overflow-wrap: anywhere;
+}
+
+.sv-value {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4. FIG 7, mitigation bars */
+.mit-switch {
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.mit-switch legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.mit-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.mit-name {
+  justify-self: start;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  background: transparent;
+  border: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  line-height: 1.25;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--dur-fast) var(--ease-out);
+}
+
+.mit-name:hover {
+  text-decoration-color: var(--teal);
+}
+
+.mit-track {
+  position: relative;
+  height: 16px;
+  overflow: hidden;
+  background: var(--wash);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.mit-track--none {
+  background: transparent;
+  border: 1px dotted var(--ink-mute);
+}
+
+.mit-fill {
+  height: 100%;
+  width: 0;
+  background: var(--ink-soft);
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.mit-value {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.mit-delta {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 620px) {
+  .mit-row {
+    grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 64px minmax(0, 260px);
+    align-items: center;
+  }
+}

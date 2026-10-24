@@ -1,0 +1,123 @@
+/* Dashboard kit: 12-column grid, KPI strip, KPI cards and panels. Tokens only; no colour values here. */
+
+/* 1. Grid: 12 columns from 1024px, a single column under 760px */
+.dash {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+/* 2. Span classes: children are full width by default; from 1024px each span takes its columns */
+.dash > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .dash > .span-3 { grid-column: span 3; }
+  .dash > .span-4 { grid-column: span 4; }
+  .dash > .span-6 { grid-column: span 6; }
+  .dash > .span-8 { grid-column: span 8; }
+  .dash > .span-12 { grid-column: span 12; }
+}
+
+/* 3. KPI strip: one row of 4 to 6 cards from 1024px, two per row from 560px, one per row below */
+.dash-kpis {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (min-width: 560px) and (max-width: 1023px) {
+  .dash-kpis {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: auto;
+  }
+}
+
+@media (max-width: 559px) {
+  .dash-kpis {
+    grid-auto-flow: row;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: auto;
+  }
+}
+
+/* 4. KPI card: label, large serif value, short note naming the source */
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+
+.kpi-label {
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+  overflow-wrap: anywhere;
+}
+
+.kpi-value {
+  font-family: var(--font-serif);
+  font-size: var(--size-3xl);
+  line-height: var(--leading-heading);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.kpi-note {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  line-height: 1.4;
+  color: var(--ink-mute);
+  overflow-wrap: anywhere;
+}
+
+/* Empty state: the value shows a placeholder in the muted colour */
+.kpi-card.is-empty .kpi-value {
+  color: var(--ink-mute);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card {
+    transition: none;
+  }
+}
+
+/* 5. Panel: a bordered card with a numbered small-caps title and a body */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) var(--space-6);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.panel-title {
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--ink-mute);
+  margin: 0;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  overflow-wrap: anywhere;
+}

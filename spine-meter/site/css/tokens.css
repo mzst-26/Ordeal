@@ -1,0 +1,191 @@
+/* Field Notes: design tokens and base reset. No external resources; font files are added by another task. */
+
+/* 1. Shared tokens, colour plate (Paper, light) and base defaults */
+:root {
+  color-scheme: light;
+
+  /* Font stacks: licensed faces first, then fallbacks */
+  --font-serif: "Tiempos Text", "Tiempos", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans: "Styrene A", "Styrene", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Type scale in px (rem equivalents are listed in DESIGN.md) */
+  --size-xs: 12px;
+  --size-sm: 14px;
+  --size-base: 16px;
+  --size-md: 18px;
+  --size-lg: 22px;
+  --size-xl: 28px;
+  --size-2xl: 36px;
+  --size-3xl: 48px;
+  --size-ui: 15px;
+  --leading-body: 1.55;
+  --leading-heading: 1.2;
+  --tracking-label: 0.08em;
+  --measure: 66ch;
+
+  /* Spacing: 4px base scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Corner radii: borders are preferred to shadows */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  /* Motion: all durations become 0ms under reduced motion (section 3) */
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 480ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Focus ring for every interactive element */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+
+  /* Layout: 12 columns on wide screens, 16px side gutter on phones */
+  --grid-columns: 12;
+  --page-gutter: var(--space-4);
+  --content-max: 1120px;
+  --sidebar-width: 232px;
+  --dashboard-max: 1440px;
+
+  /* Colour plate: Paper (light) */
+  --paper: #F5EFE3;
+  --paper-raised: #FBF7EF;
+  --wash: #EDE6D8;
+  --ink: #26211C;
+  --ink-soft: #5A5048;
+  --ink-mute: #6B6055;
+  --rule: #D9CDBB;
+  --edge: #8C7F70;
+  --terracotta: #A34A25;
+  --ochre: #8A5F1C;
+  --sage: #4F6A4A;
+  --teal: #2E5E5B;
+  --plum: #6B4A63;
+  --clay: #E4B9A6;
+  --focus: #2E5E5B;
+  --shadow-soft: 0 1px 2px rgba(38, 33, 28, 0.08);
+
+  /* Categorical chart series, one per series in fixed order (validated; see DESIGN.md) */
+  --cat-1: #892C1A;
+  --cat-2: #A57C00;
+  --cat-3: #9A6AAF;
+}
+
+/* 2. Colour plate: Lamplight (dark), applied when the OS asks for dark unless data-theme="light" */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #1D1915;
+    --paper-raised: #26201B;
+    --wash: #2E271F;
+    --ink: #EDE4D3;
+    --ink-soft: #B9AD9B;
+    --ink-mute: #958A7B;
+    --rule: #3A322A;
+    --edge: #7D7163;
+    --terracotta: #E0785A;
+    --ochre: #E0AE5C;
+    --sage: #9DB58F;
+    --teal: #7FB3AE;
+    --plum: #B894B0;
+    --clay: #6E4A3F;
+    --focus: #7FB3AE;
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --cat-1: #AD5349;
+    --cat-2: #B4902E;
+    --cat-3: #B079C6;
+  }
+}
+
+/* 3. Colour plate: Lamplight (dark), forced with data-theme="dark" */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #1D1915;
+  --paper-raised: #26201B;
+  --wash: #2E271F;
+  --ink: #EDE4D3;
+  --ink-soft: #B9AD9B;
+  --ink-mute: #958A7B;
+  --rule: #3A322A;
+  --edge: #7D7163;
+  --terracotta: #E0785A;
+  --ochre: #E0AE5C;
+  --sage: #9DB58F;
+  --teal: #7FB3AE;
+  --plum: #B894B0;
+  --clay: #6E4A3F;
+  --focus: #7FB3AE;
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cat-1: #AD5349;
+  --cat-2: #B4902E;
+  --cat-3: #B079C6;
+}
+
+/* 4. Reduced motion: every duration token becomes 0ms */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
+
+/* 5. Base reset: box sizing, page colours, serif reading text */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--size-md);
+  line-height: var(--leading-body);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--teal);
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* 6. Focus: 2px solid teal ring with 2px offset on every interactive element */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}

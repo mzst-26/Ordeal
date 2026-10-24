@@ -1,0 +1,305 @@
+/* Page I, The Gauntlet: the desk (set-up controls and level cards) beside the spread (meter and
+   conversation). Colours, sizes, spacing and motion come from tokens.css; this file only places things. */
+
+/* 1. Masthead: the title in serif, a one-line standfirst */
+.masthead {
+  margin-bottom: var(--space-8);
+}
+
+[data-view="gauntlet"] .masthead h1 {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+[data-view="gauntlet"] .standfirst {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--size-lg);
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+/* 2. Layout: the KPI strip sits above the notices and the dash grid. The desk (span 4) and the spread
+   (span 8) are placed by the dashboard kit, so this file sets no columns. */
+.gauntlet-kpis {
+  margin-bottom: var(--space-6);
+}
+
+.desk,
+.spread {
+  min-width: 0;
+}
+
+/* 3. Desk: numbered controls, the Start row, the level cards and the confession question */
+[data-view="gauntlet"] .control {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+[data-view="gauntlet"] .control legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.control .field-hint {
+  margin: 0;
+}
+
+.desk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-6) 0;
+}
+
+.levels-heading {
+  margin-top: var(--space-8);
+}
+
+/* One column on phones; two columns from 760px */
+.level-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 760px) {
+  .level-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.level-card {
+  padding: var(--space-3) var(--space-4);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+
+.level-card.is-next {
+  border-left: 3px solid var(--ochre);
+}
+
+.level-card.is-next .level-number {
+  color: var(--ochre);
+}
+
+/* A pressed level dims a little: the wash fill and the tick show it, the text stays fully legible */
+.level-card.is-done {
+  background: var(--wash);
+}
+
+.level-card.is-waiting .level-type {
+  color: var(--ink-mute);
+}
+
+.level-number {
+  margin: 0 0 var(--space-1);
+}
+
+.level-type {
+  margin: 0 0 var(--space-1);
+}
+
+.level-note,
+.level-tests {
+  max-width: none;
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.level-tests {
+  margin-bottom: 0;
+}
+
+.level-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.level-button {
+  min-width: 7.5rem;
+}
+
+.level-tick {
+  width: 8px;
+  height: 14px;
+  margin-right: auto;
+  border: solid var(--teal);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  visibility: hidden;
+}
+
+.level-card.is-done .level-tick {
+  visibility: visible;
+}
+
+.confession {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-8);
+  justify-items: start;
+}
+
+.confession .field-hint {
+  margin: 0;
+}
+
+/* 4. Spread: the spine meter, its result line, the status line and the conversation */
+.spread .label {
+  margin: 0 0 var(--space-2);
+}
+
+/* One box per possible score: 11 for gauntlet_v3, 13 for gauntlet_v4. The boxes flow along one row. */
+.spine-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+[data-view="gauntlet"] .presets {
+  margin: 0 0 var(--space-6);
+}
+
+[data-view="gauntlet"] .presets > .label {
+  margin: 0 0 var(--space-2);
+}
+
+.spine-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
+}
+
+/* Passed levels: the pale tone */
+.spine-segment.is-passed {
+  color: var(--ink);
+  background: var(--wash);
+}
+
+/* The flip: terracotta, with paper-coloured text */
+.spine-segment.is-flip {
+  color: var(--paper);
+  font-weight: 600;
+  background: var(--terracotta);
+  border-color: var(--terracotta);
+}
+
+/* Held firm through every level: sage */
+.spine-segment.is-held {
+  color: var(--paper);
+  font-weight: 600;
+  background: var(--sage);
+  border-color: var(--sage);
+}
+
+.spine-message {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.spine-message.is-flip {
+  color: var(--terracotta);
+}
+
+.spine-message.is-held {
+  color: var(--sage);
+}
+
+[data-view="gauntlet"] .status-line {
+  min-height: 1.5em;
+  margin: var(--space-3) 0 var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.conversation {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-2) var(--space-4) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.condition-note {
+  margin: var(--space-3) 0;
+}
+
+.empty-note {
+  margin: var(--space-4) 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-mute);
+}
+
+.turn-model {
+  border-left-color: var(--edge);
+}
+
+[data-view="gauntlet"] .margin-note-text {
+  max-width: var(--measure);
+}
+
+/* A new turn fades in and rises a little; with reduced motion the durations are 0ms and it shows at once */
+.turn-new {
+  animation: turn-in var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes turn-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-new {
+    animation: none;
+  }
+}
+
+/* 5. Footer: the limits, in one sentence */
+.page-footer {
+  margin-top: var(--space-12);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
+.page-footer p {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
