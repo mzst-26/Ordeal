@@ -4,8 +4,15 @@
 # Local virtual environment (recreate with: python3.12 -m venv .venv-spine)
 .venv-spine/
 
-# Machine-local Claude Code settings and scheduler state
+# Saved model replies and generated charts (rebuilt by running the scripts)
+results/
+
+# Calibration output and scratch files used by the Makefile
+scratch/
+
+# Local tooling state: Claude Code settings and Superpowers workspaces
 .claude/
+.superpowers/
 
 # macOS metadata
 .DS_Store

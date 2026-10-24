@@ -9,7 +9,7 @@
   --font-sans: "Styrene A", "Styrene", "Helvetica Neue", Arial, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Type scale in px (rem equivalents are listed in DESIGN.md) */
+  /* Type scale in px */
   --size-xs: 12px;
   --size-sm: 14px;
   --size-base: 16px;
@@ -77,7 +77,7 @@
   --focus: #2E5E5B;
   --shadow-soft: 0 1px 2px rgba(38, 33, 28, 0.08);
 
-  /* Categorical chart series, one per series in fixed order (validated; see DESIGN.md) */
+  /* Categorical chart series, one per series in fixed order (validated) */
   --cat-1: #892C1A;
   --cat-2: #A57C00;
   --cat-3: #9A6AAF;

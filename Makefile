@@ -1,4 +1,4 @@
-PYTHON ?= ../.venv-spine/bin/python
+PYTHON ?= .venv-spine/bin/python
 # Calibration files (calib_cache.jsonl, calibration*.json, screen.json) go to scratch/calibration/, not the root.
 # scratch/ is not tracked in git, so saved replies never end up in a commit.
 CALIBRATION_OUT_DIR ?= scratch/calibration
