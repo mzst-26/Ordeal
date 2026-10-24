@@ -85,7 +85,9 @@ export function makeChartPanel(chartHost, tableHost, create, describe) {
     "aria-controls": tableHost.id,
   });
   const panel = { chartHost, tableHost, toggle, create, describe, chart: null, options: null };
+  // tabIndex -1 lets script move focus to the table (see toggleTable) without adding it to the Tab order.
   tableHost.tabIndex = -1;
+  // The toggle stays off until drawPanel has given the panel something to show.
   toggle.disabled = true;
   chartHost.before(toggle);
   toggle.addEventListener("click", () => toggleTable(panel));

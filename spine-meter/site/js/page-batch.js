@@ -48,6 +48,7 @@ const CONDITION_LABELS = {
 };
 const FINGERPRINT_FAMILY = "fingerprint";
 const FLIP_MEASURE = "flip_rate";
+// Upper limits for the Repeats and Concurrency inputs; readChoices treats anything outside 1..max as invalid.
 const MAX_REPEATS = 4;
 const MAX_CONCURRENCY = 8;
 // The most API attempts one batch may be given. It is the same limit as the live page's cap.
@@ -60,6 +61,7 @@ const QUESTION_TEXT_LENGTH = 60;
 const LABEL_LIMIT = 80;
 // Quick grading for redraws while a run is going, so each redraw stays fast. The config value is used after.
 const FAST_RESAMPLES = 200;
+// Prices are typed per million tokens, so the cost estimate divides by this.
 const PRICE_SCALE = 1000000;
 // The progress bar uses one width class per step: progress-0, progress-5 ... progress-100 (see the CSS).
 const PROGRESS_STEP = 5;
@@ -379,6 +381,8 @@ function fillSuiteSelects() {
 
 /** Fill the model, condition and number controls from the config. Built-in models are ticked by default. */
 function setupControls(config) {
+  // Setup order matters: the built-in rows come first, then the custom endpoints from config, so a custom
+  // name can be checked against every built-in name before it is accepted.
   const choices = modelChoices(config);
   const defaults = new Set(config.models);
   // The rows are drawn in rank order, but allModels keeps the catalog order: the chart colours depend on it.
@@ -448,6 +452,7 @@ function fillOptions(select, choices) {
 /** Return the reply cache of a suite. The saved replies belong to the suite gauntlet_v3 with the easy questions. */
 function cacheFor(suite) {
   if (!page.caches.has(suite.name)) {
+    // Any other suite starts with an empty cache, so none of its steps are treated as already answered.
     const records = isSavedSuite(suite) ? page.data.savedRecords : [];
     page.caches.set(suite.name, buildCacheIndex(records));
   }
@@ -702,6 +707,7 @@ function planFor(choices) {
 
 /** Return the default cap for a number of plan steps: their attempt bound rounded up, from 1 to the maximum. */
 function defaultCap(steps) {
+  // Worst case every step is retried up to MAX_ATTEMPTS_PER_STEP times, so this is the largest cap a run could need.
   const attempts = steps * MAX_ATTEMPTS_PER_STEP;
   return Math.min(MAX_BATCH_CALLS, Math.max(1, Math.ceil(attempts / CAP_STEP) * CAP_STEP));
 }
@@ -719,6 +725,7 @@ function onFormEdited(event) {
     || target === page.dom.questionSetSelect) {
     return;
   }
+  // Editing the form means the next Start is a fresh run, not the continuation of a saved one.
   if (!page.confirming) {
     page.resumeRunId = null;
   }
@@ -746,6 +753,7 @@ function onSelectionChanged() {
   }
   const choices = readChoices();
   const plan = planFor(choices);
+  // Until the user types a cap, keep the cap box in step with the plan.
   if (plan !== null && !page.capTouched) {
     choices.cap = defaultCap(plan.totals.atMostNew);
     page.dom.cap.value = String(choices.cap);
@@ -895,6 +903,7 @@ async function handleStart() {
   if (page.confirming || isRunning() || findProblem(readChoices()) !== null) {
     return;
   }
+  // confirming locks the form (see updateControls) while the key dialog and confirmation line are open.
   page.confirming = true;
   updateControls();
   const ready = vault.has() || (await askForToken({ vault }));
@@ -981,6 +990,7 @@ async function openRunFor(choices) {
   const { adapter } = storage;
   try {
     return await page.queue.run(async () => {
+      // A resume keeps its original run and id; only a fresh batch creates a new saved run.
       if (page.resumeRunId !== null) {
         const resumedId = page.resumeRunId;
         await resumeRun(adapter, resumedId);
@@ -1016,6 +1026,7 @@ async function beginRun() {
     setStatus(`Running. ${NOT_SAVED_TEXT}`);
   }
   page.resumeRunId = null;
+  // The budget enforces the call cap; the runner stops the batch when it is used up (see onBudgetExhausted).
   const client = createChatClient({
     baseUrl: config.base_url,
     customModels: page.customModels,
@@ -1068,6 +1079,7 @@ async function resumeBatchRun(run) {
     await refreshRuns();
     return;
   }
+  // Putting the saved records back in the cache is what stops the runner repeating those calls.
   restoreChoices(config);
   addRecordsToCache(page.cache, resumeState(run).records);
   page.resumeRunId = run.id;
@@ -1111,6 +1123,8 @@ function tickOnly(container, values) {
   }
 }
 
+// A unit is one model, question and repeat. Its steps are buffered in page.unitSteps as they finish, and the
+// whole unit is saved on "unit-done"; a failed unit is dropped, so a resume repeats it.
 /** Route one event from the runner to the page. Events arrive in order. */
 function handleEvent(event) {
   switch (event.kind) {
@@ -1164,6 +1178,7 @@ function eventUnitKey(event) {
 
 /** Keep the step record of a finished step (new or reused) until its unit is done, so the unit can be saved whole. */
 function bufferStep(event) {
+  // The runner writes each finished step into page.cache, so the record is looked up there by its key.
   const record = page.cache.get(cacheKey(page.runCondition, event.model, event.questionId, event.repeat, event.step));
   if (record === undefined) {
     return;
@@ -1284,6 +1299,7 @@ function handleRunError(error) {
  * is queued behind the saves, so the run is never marked done before its last unit is in storage.
  */
 function finishSavedRun(status) {
+  // Clear page.runId first so no later event is saved into a run that has ended.
   const runId = page.runId;
   page.runId = null;
   if (runId === null) {
@@ -1368,6 +1384,7 @@ function scheduleResults() {
   if (page.resultsTimer !== null) {
     return;
   }
+  // Throttle: wait out whatever is left of the interval since the last draw.
   const wait = Math.max(0, RESULTS_INTERVAL_MS - (Date.now() - page.lastResultsAt));
   page.resultsTimer = window.setTimeout(flushResults, wait);
 }
@@ -1542,6 +1559,7 @@ function drawProbeChart(models, probeRows) {
   dom.chartMessage.textContent = "";
   const probes = [...new Set(rows.map((row) => row.probe))];
   const options = buildChartOptions(rows, probes, models);
+  // The key identifies the chart's shape; a changed key means the old chart cannot be updated in place.
   const key = `${models.join("|")}#${probes.join("|")}`;
   if (page.chartKey !== key) {
     destroyChart(page.chartPanel);
@@ -1592,6 +1610,7 @@ function toCsv(rows) {
 function exportGauntletCsv() {
   const choices = readChoices();
   const records = recordsFor(choices);
+  // Exports grade with the full configured resamples, not the fast on-screen setting from gradeNow.
   const rows = gradeCondition(records, page.suite.questions, page.data.config, choices.condition, page.suite);
   downloadText("batch-gauntlet.csv", toCsv(rows), "text/csv");
 }

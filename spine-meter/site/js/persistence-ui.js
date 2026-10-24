@@ -7,6 +7,7 @@ import { openRunStorage, deleteRun, exportRun, getRun } from "./store/run-store.
 import { createPresetStore } from "./presets.js";
 import { savedRunRows, interruptedRunsOfKind } from "./saved-runs.js";
 
+// How long to wait before freeing a download URL, so the browser has started the download first.
 const REVOKE_DELAY_MS = 1000;
 const NO_STORAGE_TEXT = "Runs are not saved in this window. Presets last only until this page is closed.";
 const STORAGE_TEXT = "Runs and presets are kept in this browser, so they survive a reload. The key is never saved.";

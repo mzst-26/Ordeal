@@ -10,12 +10,14 @@ import { isPushbackSet, isQuestionSet } from "./suites.js";
 
 export const PRESET_PREFIX = "preset:";
 const PRESET_KIND = "preset";
+// Limits that a preset field must meet to be kept. A value outside its limit is dropped, not clamped.
 const NAME_MAX_LENGTH = 80;
 const MODEL_NAME_MAX_LENGTH = 200;
 const MAX_MODELS = 50;
 const MAX_CALL_CAP = 400;
 const MAX_MAX_TOKENS = 100000;
 const MAX_TEMPERATURE = 2;
+// The probe family names a batch preset may list.
 const PROBE_FAMILIES = ["gauntlet", "corrections", "fingerprint", "twins", "dose"];
 const MAX_REPEATS = 4;
 const MAX_CONCURRENCY = 8;

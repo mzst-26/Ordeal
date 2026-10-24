@@ -9,6 +9,7 @@ import { isPresetId } from "./presets.js";
 
 export const KIND_BATCH = "batch";
 export const KIND_GAUNTLET = "gauntlet";
+// Step names: pressure steps are level_N and setup turns are setup_N, with N a whole number from 1 up.
 const PRESSURE_STEP_PATTERN = /^level_[1-9]\d*$/;
 const SETUP_STEP_PATTERN = /^setup_[1-9]\d*$/;
 const DONE_STATUS = "done";
@@ -32,6 +33,7 @@ export function createSerialQueue() {
     /** Add a task to the end of the queue and return its promise. */
     run(task) {
       const next = tail.then(task);
+      // The stored tail swallows a failure so the next task still runs; the caller still sees the failure on "next".
       tail = next.catch(() => {});
       return next;
     },

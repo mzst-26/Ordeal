@@ -27,11 +27,16 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 
+// The saved replies and every live run use the "none" condition (no system prompt).
 const CONDITION = "none";
+// A live run asks each question once per model.
 const LIVE_REPEATS = 1;
+// Delay after one replayed reply at 1x speed; the speed control divides it (see eventDelayMs).
 const BASE_EVENT_MS = 900;
+// How many events the ticker keeps, and how many characters a margin note shows before it is cut.
 const TICKER_LIMIT = 30;
 const NOTE_LIMIT = 140;
+// The one fingerprint-family probe that is left off the flip-rate chart.
 const TAMPERED_PROBE = "tampered_history";
 // Quick grading for redraws while a run is going, so each redraw stays fast. The config value is used after.
 const FAST_RESAMPLES = 200;
@@ -41,8 +46,10 @@ const QUADRANT_NAMES = {
   bottomLeft: "Stubborn",
   bottomRight: "Unreliable",
 };
+// A live run uses the first N questions of the set; N starts at 3 and is limited to 8.
 const DEFAULT_QUESTION_COUNT = 3;
 const MAX_QUESTIONS = 8;
+// Limits for the call cap input (the cap counts API attempts, retries included).
 const MIN_CAP = 1;
 const MAX_CAP = 400;
 // The site files behind each pushback set. A question set names one file of questions.
@@ -54,19 +61,30 @@ const QUESTION_FILES = { easy: "questions.json", hard: "questions_hard.json" };
 // The saved run has no suite field, so its replies belong to the default suite.
 const SAVED_SUITE_NAME = `${DEFAULT_LADDER}+${DEFAULT_QUESTION_SET}`;
 
+// Module state. The page is mounted once and keeps this state while the visitor is on another view.
+// The config, models, saved records and the saved run's suite view, once loaded.
 let data = null;
 // The suite view behind the live choice: the pushback set and question set the visitor picked.
 let liveView = null;
 // Counts the choice requests, so a slow load that finishes late is ignored.
 let choiceRequest = 0;
+// Loaded suite views by "pushback set+question set".
 const suiteCache = new Map();
+// Saved-reply indexes by suite name, so each suite filters the saved records once.
 const liveCaches = new Map();
+// The lane cards by model id.
 let lanes = new Map();
+// The four chart panels, made by createCharts.
 let panels = null;
+// What the theatre has shown so far: the replies seen (these are graded for the charts), the view state of
+// each unit, and which unit each model's lane is showing.
 let run = emptyRun();
 // The grades behind the charts on screen, kept so a theme change can redraw them without grading again.
 let shownGrades = null;
+// Replay state: the steps to play, the next one to play, the pending timer, and the unit counter and totals for the status line.
 const replay = { items: [], cursor: 0, timerId: null, playing: false, unitCount: 0, totals: null };
+// Live run state. capTouched stops the cap following the plan once the visitor types one; budgetHit and
+// keyRefused remember why a run ended so the status line can say so.
 const live = {
   runner: null,
   running: false,
@@ -162,6 +180,7 @@ function cacheFor(suiteName) {
 /** Return the short name for a model id, such as "Qwen3-30B" for "Qwen/Qwen3-30B-A3B-Instruct-2507". */
 function shortName(modelId) {
   const bare = modelId.slice(modelId.lastIndexOf("/") + 1);
+  // Keep everything up to the first "-<number>B" size tag; names without one are shown whole.
   const match = /^.*?-\d+[Bb]/.exec(bare);
   return match ? match[0] : bare;
 }
@@ -181,6 +200,8 @@ function unitKey(ref) {
   return JSON.stringify([ref.model, ref.questionId, ref.repeat]);
 }
 
+// A unit is one model answering one question for one repeat. Its view state keeps the correct letter (null when the
+// question is unknown), every reply by step name, the level it gave way at, and the latest step and reply.
 /** Return the view state of one unit, created the first time the unit is seen. */
 function getUnit(ref) {
   const key = unitKey(ref);
@@ -291,6 +312,7 @@ function createPip(lane, entry) {
 
 /** Create one lane card for a model. Its pips come from the levels of the suite's ladder. */
 function createLane(model, index, levels) {
+  // dots is filled by createPip, one ring per level, so later redraws can set each pip's state by level.
   const lane = {
     model,
     dots: [],
@@ -447,6 +469,7 @@ function finishUnit(ref) {
 
 /** Return the grading settings for a redraw: fast while a run is going, the configured resamples after. */
 function gradeNow() {
+  // Fewer bootstrap resamples keep each mid-run redraw quick; the configured count is used once the run ends.
   const resamples = runInProgress() ? FAST_RESAMPLES : data.config.bootstrap_resamples;
   return { ...data.config, bootstrap_resamples: resamples };
 }
@@ -590,6 +613,7 @@ function confessionSum(rows, shareKey) {
   }
   let total = 0;
   for (const row of rows) {
+    // Shares are fractions of confession_units, so multiplying back and rounding recovers a whole count.
     const count = Math.round(row[shareKey] * row.confession_units);
     if (!Number.isFinite(count)) {
       return Number.NaN;
@@ -769,6 +793,7 @@ function buildReplayItems(records, questions) {
     if (!byKey.has(key)) byKey.set(key, { ref, records: [] });
     byKey.get(key).records.push(record);
   }
+  // Each unit plays as "start", its replies, then "end". The start and end items add no delay (see advanceReplay).
   const units = [...byKey.values()].sort(replayOrder(questions));
   const items = [];
   for (const { ref, records: unitRecords } of units) {
@@ -942,6 +967,7 @@ function defaultCapFor(plannedCalls) {
  * The sentence names the suite and its level count, then the planned calls.
  */
 export function planMessage(plan, cap, suite) {
+  // atMostNew is the most new calls the plan can need; saved steps come from the cache and make no call.
   const { atMostNew, saved } = plan.totals;
   let message = `Suite ${suite.name}, ${suite.levelCount} levels. `
     + `This will make at most ${atMostNew} calls; ${saved} are already saved and will be replayed.`;
@@ -1033,6 +1059,7 @@ function handleLiveEvent(event) {
     case "unit-start":
       startUnit(ref);
       break;
+    // A reused step came from the saved replies and made no API call, so only new steps count as calls.
     case "step-done":
       if (!event.reused) live.calls += 1;
       revealReply(ref, event.step, event.reply);
@@ -1187,6 +1214,7 @@ async function onSuiteChoice() {
     showToast(error.message, { tone: "error" });
     return;
   }
+  // A newer choice was made while this one loaded, so this result is stale and is dropped.
   if (request !== choiceRequest) return;
   liveView = view;
   if (currentMode() === "live") {

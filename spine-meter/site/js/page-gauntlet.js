@@ -30,10 +30,14 @@ const DATA_PATHS = {
   config: "/data/config.json",
   records: "/data/sample_run.json",
 };
+// The saved replies were recorded for repeat 1 only, so only that repeat is indexed.
 const SAVED_REPEAT = 1;
+// The two sources a conversation can come from: the saved replies, or live calls with the visitor's key.
 const SOURCE_SAVED = "saved";
 const SOURCE_LIVE = "live";
+// How many words of a question show in the question menu before it is cut.
 const QUESTION_WORD_LIMIT = 6;
+// Longest label for a saved run, in characters.
 const LABEL_LIMIT = 80;
 const START_PROMPT = "Pick a model and a question, then press Start.";
 const NO_DATA_TEXT = "No data loaded";
@@ -54,6 +58,7 @@ const SAVE_FAILED_TEXT = "This step could not be saved, so a reload would send i
 const RUN_FINISHED_TEXT = "Every level of this run is saved, so the run is marked done.";
 const LIVE_TITLE_ID = "live-confirm-title";
 const PRESET_HINT = "Presets hold the sets, the model, the system prompt and the fixed settings.";
+// Footer sentence; %COUNT% is replaced with the number of questions in the suite on the desk (see selectSuite).
 const FOOTER_TEXT = "The test uses %COUNT% multiple-choice questions, a model may know it is being tested, "
   + "and the invented claims are for testing only.";
 // Every live call in one page session shares this cap. It counts API attempts, retries included.
@@ -64,6 +69,7 @@ const CAP_NOTE =
 const CAP_REACHED_TEXT =
   `The session cap of ${GAUNTLET_SESSION_CAP} calls was reached. ` +
   "Reload the page to start a new session.";
+// Display names for the system-prompt conditions listed in rules.CONDITIONS.
 const CONDITION_LABELS = {
   none: "None",
   mitigation: "Mitigation",
@@ -251,6 +257,9 @@ function onRunDeleted(runId) {
   refreshRuns();
 }
 
+// A run is the conversation on screen. Its shape: mode (saved or live), suite, model, condition, question,
+// turns (user and assistant messages), letters (one parsed answer per pressure level, null when unparseable) and
+// setupReply (the reply to a level's setup turn, kept for later levels).
 /** Index the saved replies of repeat 1 by model, question and step, so each lookup is one step. */
 function indexSavedRuns(records) {
   const index = new Map();
@@ -463,6 +472,7 @@ function renderSpine() {
 
 /** Return the level of the first wrong answer, or null when the model has held firm so far. */
 function flippedLevel(letters, correct) {
+  // spineScore returns the held-firm score when no level answer was wrong; any other score is the flip level.
   const held = page.suite.heldFirmScore;
   const score = rules.spineScore(letters, correct, held);
   return score === held ? null : score;
@@ -470,6 +480,7 @@ function flippedLevel(letters, correct) {
 
 /** Return the class for one box: flip, held, passed, or an empty string for an empty box. */
 function segmentState(segment, flipped, count) {
+  // The last box (the held-firm score) lights up only when every level has been passed with no flip.
   const held = page.suite.heldFirmScore;
   if (segment === flipped) {
     return "is-flip";
@@ -507,6 +518,7 @@ function renderConversation() {
   if (run.condition !== rules.NO_SYSTEM_PROMPT) {
     region.append(el("p", { className: "condition-note label", text: `Under a system prompt: ${run.condition}` }));
   }
+  // Only the newest turn is a live region, so a screen reader announces each new turn once.
   const newest = run.turns.length - 1;
   run.turns.forEach((turn, index) => region.append(buildTurn(turn, run.model, index === newest)));
   region.scrollTop = region.scrollHeight;
@@ -566,6 +578,7 @@ function labelWhileWorking(name, idleLabel) {
 
 /** Set one level card to done, next or waiting, and set its button label and enabled state. */
 function updateLevelItem(item, done, hasRun) {
+  // Levels are pressed in order: levels up to done are finished, only done + 1 can be pressed, the rest wait.
   const isDone = item.level <= done;
   const isNext = hasRun && item.level === done + 1;
   item.card.classList.toggle("is-done", isDone);
@@ -702,10 +715,12 @@ function callModel(run, messages, signal) {
  * no call. Live mode builds the text with makeText and sends it with the conversation so far.
  */
 async function exchange(run, step, makeText, signal) {
+  // makeText is only called in live mode, so saved mode never builds text it will not send.
   if (run.mode === SOURCE_SAVED) {
     const record = findSavedRecord(run, step);
     return { userText: record.user_text, reply: record.reply };
   }
+  // The model sees the system prompt (if the condition has one), then the conversation so far, then the new user turn.
   const userText = makeText();
   const messages = [...systemMessages(run), ...conversationMessages(run), { role: "user", content: userText }];
   const reply = await callModel(run, messages, signal);
@@ -789,6 +804,8 @@ async function persistStep(run, payload) {
   const { adapter } = page.storage;
   try {
     await page.queue.run(async () => {
+      // The saved run is created lazily, on the first step that is saved, so a conversation that never gets a
+      // reply leaves nothing in storage.
       if (page.runId === null) {
         const created = await createRun(adapter, {
           label: gauntletLabel(run),
@@ -799,6 +816,7 @@ async function persistStep(run, payload) {
         page.runId = created.id;
       }
       await saveResult(adapter, page.runId, payload.step, gauntletStepPayload(payload));
+      // Saving the last pressure level marks the saved run done and stops further saves (page.runFinished).
       if (payload.step === `level_${run.suite.levelCount}`) {
         await setStatus(adapter, page.runId, "done");
         page.runFinished = true;
@@ -833,6 +851,7 @@ async function startWork(run, signal) {
 async function advanceLevel(run, level, signal) {
   const entry = ladderEntry(run, level);
   const previousReply = lastModelReply(run);
+  // previousReply is taken before the setup turn is added, so the level text refers to the earlier answer.
   const ready = entry.setup_turn ? await addSetupTurn(run, entry, signal) : run;
   const makeText = () => levelText(entry, previousReply, ready);
   const step = run.suite.pushbackSteps[level - 1];
@@ -868,6 +887,7 @@ async function confessionWork(run, signal) {
  * error is shown in the status line. Returns true when the step succeeded.
  */
 async function runStep(working, work) {
+  // On failure (including Stop) page.run is left unchanged, so the conversation stays as it was.
   page.busy = true;
   page.working = working;
   page.controller = new AbortController();
@@ -987,6 +1007,7 @@ async function startRun() {
     showStatus(CAP_REACHED_TEXT);
     return;
   }
+  // Read the desk before the key and confirmation dialogs, so the run uses the choices made at the moment of Start.
   const choice = readDesk();
   const source = await resolveSource(selectedSource());
   const run = newRun(choice, source);
@@ -1095,6 +1116,7 @@ async function resumeGauntletRun(run) {
     showStatus(problem);
     return;
   }
+  // replayGauntlet rebuilds the turns and letters from the saved steps; a null nextLevel means all levels are saved.
   const replay = replayGauntlet(run);
   if (replay.nextLevel === null) {
     await page.queue.run(() => setStatus(page.storage.adapter, run.id, "done"));

@@ -5,8 +5,10 @@
 import { buildShell } from "./shell.js";
 import { vault } from "./engine/token.js";
 
+// The view names, also used as the URL hash and as the data-view values in the page.
 export const VIEWS = ["gauntlet", "batch", "live"];
 const DEFAULT_VIEW = "gauntlet";
+// The document title shown for each view.
 const TITLES = {
   gauntlet: "Sycophancy Meter: Gauntlet",
   batch: "Sycophancy Meter: Batch",

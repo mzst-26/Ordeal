@@ -6,6 +6,7 @@ export function el(tag, attributes = {}, children = []) {
   for (const [name, value] of Object.entries(attributes)) {
     applyAttribute(node, name, value);
   }
+  // Null and undefined children are skipped, so callers can write "condition ? node : null" in a list.
   for (const child of children) {
     if (child !== null && child !== undefined) {
       node.append(child);

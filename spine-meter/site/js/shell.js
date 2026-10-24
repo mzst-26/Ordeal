@@ -5,8 +5,11 @@
 import { askForToken } from "./token-dialog.js";
 import { el } from "./ui.js";
 
+// localStorage key that remembers the visitor's theme choice between visits.
 const THEME_STORAGE_KEY = "sycophancy-theme";
+// The theme choices in the order the button cycles through them. Anything else in storage is ignored.
 const THEME_ORDER = ["light", "dark", "system"];
+// One entry per view. "view" must match a name in app.js VIEWS; "label" is the text shown in the header.
 const NAV_LINKS = [
   { view: "gauntlet", label: "I. Gauntlet" },
   { view: "batch", label: "II. Batch" },

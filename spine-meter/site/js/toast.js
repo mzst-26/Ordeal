@@ -2,11 +2,13 @@
 
 import { el } from "./ui.js";
 
+// The visible word for each tone, so the meaning does not rely on colour alone.
 const TONE_LABELS = { info: "Note", warn: "Check", error: "Problem" };
 const DEFAULT_TONE = "info";
 // How long a message stays on screen, in milliseconds, when the caller does not give a duration.
 const DEFAULT_TOAST_MS = 4000;
 
+// The shared container for all toasts. It is created lazily so importing this module does not touch the DOM.
 let region = null;
 
 /** Return the polite live region, creating it the first time it is needed. */
