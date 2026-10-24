@@ -25,6 +25,8 @@ const MIN_TITLE_CHARS = 16;
 const TITLE_LINE_HEIGHT = 22;
 // The least horizontal room, in px, given to each x-axis label before labels are thinned out.
 const TICK_LABEL_SPACING = 64;
+// Rough width in px of one character of a 12px tick label, so long category names get more room.
+const TICK_CHAR_WIDTH = 7;
 // A repeat series (series 4 and later) is drawn with this fill opacity, and its lines with this dash.
 export const FADED_OPACITY = 0.45;
 export const DASH_PATTERN = "6 4";
@@ -251,7 +253,9 @@ export function drawBaseline(frame) {
 /** Draws category labels under the plot. Labels are thinned out when there is no room for all of them. */
 export function drawXLabels(frame, xs, labels) {
   const { svg, theme, plot } = frame;
-  const maxLabels = Math.max(2, Math.floor(plot.width / TICK_LABEL_SPACING));
+  const longest = labels.reduce((most, label) => Math.max(most, String(label).length), 0);
+  const spacing = Math.max(TICK_LABEL_SPACING, longest * TICK_CHAR_WIDTH);
+  const maxLabels = Math.max(2, Math.floor(plot.width / spacing));
   const every = Math.ceil(xs.length / maxLabels);
   xs.forEach((x, index) => {
     if (index % every !== 0) {

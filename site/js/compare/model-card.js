@@ -10,11 +10,12 @@ import { setReplay } from "./fig-replay.js";
 export const TITLE_ID = "model-card-title";
 // DOM id of the formula note. The "How is this calculated?" button references it through aria-describedby.
 export const BACKBONE_NOTE_ID = "model-card-backbone-note";
-// LOW_SAMPLE_N and DATA_WARNING_SHARE only supply the numbers quoted in the data-quality chip text.
-// Whether a chip is flagged as a warning comes from model.gates, not from comparing against these.
+// Threshold numbers shown in the data-quality chip text: a cell under LOW_SAMPLE_N units is low sample,
+// and unparsed output above DATA_WARNING_SHARE (a fraction, 0.1 = 10%) is a data warning.
+// This file only displays them; the gates themselves come in the model data (model.gates).
 export const LOW_SAMPLE_N = 15;
 export const DATA_WARNING_SHARE = 0.1;
-// Printed at the bottom of the downloadable PNG.
+// Printed at the foot of the downloaded PNG.
 export const CARD_FOOTNOTE =
   "Samples are small: each rate rests on a few units, so read the intervals before comparing models.";
 
@@ -44,6 +45,7 @@ export function reasoningLabel(value) {
   return "Reasoning not known";
 }
 
+/** Same as reasoningLabel, for the open-weights flag. */
 export function weightsLabel(value) {
   if (value === true) return "Open weights";
   if (value === false) return "Closed weights";
@@ -252,9 +254,11 @@ export function open(id, api) {
   if (!model) return false;
   // Remember the trigger only when the card was closed. Switching models while open keeps the original trigger for focus return.
   if (!card.openId) {
-    const active = document.activeElement;
-    // SVG points (FIG 1 and FIG 6) are Elements, not HTMLElements, and still take focus.
-    card.trigger = active instanceof Element && active !== document.body && typeof active.focus === "function" ? active : null;
+    // The app re-renders the figures when a model opens, so the element that had focus is often detached by now.
+    // Keep a key (data-id and class) as well, and find the matching point again on close.
+    const last = lastFocus;
+    card.trigger = last && last.el.isConnected ? last.el : null;
+    card.triggerKey = last && last.id ? last : null;
   }
   card.api = useApi;
   card.openId = id;
@@ -271,11 +275,35 @@ export function close(options = {}) {
   const returnFocus = options.returnFocus !== false;
   card.root.classList.remove("is-open");
   card.openId = null;
-  const trigger = card.trigger;
+  const captured = card.trigger;
+  const key = card.triggerKey;
   card.trigger = null;
-  // Tell app.js the card is closed, so that it can open the same model again.
+  card.triggerKey = null;
+  // Tell app.js the card is closed, so that it can open the same model again. This re-renders the figures,
+  // so a node captured before it is used only if it is still in the page; otherwise the point is found again by data-id.
   closeHandoff(card.api);
-  if (returnFocus && trigger && trigger.isConnected) trigger.focus();
+  if (!returnFocus) return;
+  const trigger = captured && captured.isConnected ? captured : findTrigger({ trigger: null, triggerKey: key });
+  if (trigger && trigger.isConnected) trigger.focus();
+}
+
+/** The element to return focus to: the trigger if it is still in the page, else the one with the same data-id and class. */
+function findTrigger(state) {
+  if (state.trigger && state.trigger.isConnected) return state.trigger;
+  const key = state.triggerKey;
+  if (!key) return null;
+  return Array.from(document.querySelectorAll("[data-id]")).find(
+    (node) => node.getAttribute("data-id") === key.id && (node.getAttribute("class") || "") === key.cls,
+  ) || null;
+}
+
+let lastFocus = null;
+
+function rememberFocus(event) {
+  const target = event.target;
+  if (!(target instanceof Element) || typeof target.focus !== "function") return;
+  if (card && card.root.contains(target)) return;
+  lastFocus = { el: target, id: target.getAttribute("data-id"), cls: target.getAttribute("class") || "" };
 }
 
 /** Calls api.closeModel() when the app provides it. Returns true when it was called. */
@@ -638,7 +666,7 @@ function onRootKey(event) {
  * whose update(view) opens or closes the card to follow view.openId.
  */
 export function mount(root, api) {
-  card = { root, api, openId: null, trigger: null };
+  card = { root, api, openId: null, trigger: null, triggerKey: null };
   lastViewOpenId = null;
   root.hidden = false;
   root.classList.add("model-card");
@@ -648,6 +676,7 @@ export function mount(root, api) {
   root.replaceChildren();
   root.addEventListener("keydown", onRootKey);
   document.addEventListener("keydown", onDocumentKey);
+  document.addEventListener("focusin", rememberFocus, true);
 
   return {
     update(view) {

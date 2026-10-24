@@ -104,15 +104,24 @@ export function mount(root, api) {
     },
   });
   const caption = h("p", { class: "field-hint fg-caption", text: CAPTION });
+  const scrollCue = h("p", { class: "field-hint fp-scroll-cue", hidden: true, text: "Scroll sideways to see every column." });
 
   root.replaceChildren(
     h("div", { class: "figure-tools" }, toggle),
     chartBox,
+    scrollCue,
     caption,
     altBox,
   );
 
-// Shows either the heatmap or the accessible table, and hides the toggle when there are no rows.
+  // The cue shows only while the grid is wider than its box (the box then scrolls sideways).
+  function updateScrollCue() {
+    const overflowing = !chartBox.hidden && chartBox.scrollWidth > chartBox.clientWidth + 1;
+    scrollCue.hidden = !overflowing;
+  }
+  window.addEventListener("resize", updateScrollCue);
+
+  // Shows either the heatmap or the accessible table, and hides the toggle when there are no rows.
   function applyVisibility() {
     const empty = state.view.models.length === 0;
     if (empty) state.tableOpen = false;
@@ -121,6 +130,7 @@ export function mount(root, api) {
     toggle.setAttribute("aria-expanded", String(state.tableOpen));
     chartBox.hidden = state.tableOpen;
     altBox.hidden = !state.tableOpen;
+    updateScrollCue();
   }
 
 // Clicking the same column flips the direction; a new column starts highest-first. Announces the result for screen readers.

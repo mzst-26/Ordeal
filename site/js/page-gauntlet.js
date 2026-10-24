@@ -7,6 +7,9 @@ import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
 import { vault } from "./engine/token.js";
 import { VIEW_IDS } from "./view-ids.js";
+import {
+  dropdownChoices, dropdownValueFor, isSeedOrFixed, readSuiteChoice, SHUFFLED_CHOICE,
+} from "./shuffle-choice.js";
 import { loadJson } from "./data-cache.js";
 import { createBudget, createChatClient, BudgetExhausted } from "./engine/api.js";
 import * as rules from "./engine/rules.js";
@@ -17,7 +20,7 @@ import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
-  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET,
+  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, choiceFromSettings, fixedChoice,
 } from "./suites.js";
 import {
   createSerialQueue, gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, KIND_GAUNTLET,
@@ -29,6 +32,7 @@ import {
 const DATA_PATHS = {
   config: "/data/config.json",
   records: "/data/sample_run.json",
+  suites: "/data/suites.json",
 };
 // The saved replies were recorded for repeat 1 only, so only that repeat is indexed.
 const SAVED_REPEAT = 1;
@@ -90,6 +94,7 @@ function createPageState() {
     data: null,        // config and the saved-reply index, once loaded
     suite: null,       // the pushback set and question set on the desk, with the ladder and the questions
     loader: null,      // the suite loader, which keeps each suite once it is read
+    suiteRequest: 0,   // counts the suite choices made, so a load that a newer choice overtook is not shown
     run: null,         // the conversation on screen, or null before Start
     runId: null,       // the saved run for the live conversation on screen, or null
     runFinished: false, // true once every level of the saved run is saved
@@ -126,6 +131,8 @@ export function mountGauntlet(root) {
   page.dom.confession.addEventListener("click", askConfession);
   page.dom.pushback.addEventListener("change", onSuiteChanged);
   page.dom.questionSet.addEventListener("change", onSuiteChanged);
+  page.dom.pushbackSeed.addEventListener("input", onSuiteChanged);
+  page.dom.questionSeed.addEventListener("input", onSuiteChanged);
   renderAll();
   loadData();
 }
@@ -148,6 +155,10 @@ function findElements(root) {
   return {
     pushback: byId(root, VIEW_IDS.gauntlet["pushback-select"]),
     questionSet: byId(root, VIEW_IDS.gauntlet["question-set-select"]),
+    pushbackSeedField: byId(root, VIEW_IDS.gauntlet["pushback-seed-field"]),
+    pushbackSeed: byId(root, VIEW_IDS.gauntlet["pushback-seed"]),
+    questionSeedField: byId(root, VIEW_IDS.gauntlet["question-seed-field"]),
+    questionSeed: byId(root, VIEW_IDS.gauntlet["question-seed"]),
     suiteSummary: byId(root, VIEW_IDS.gauntlet["suite-summary"]),
     model: byId(root, "model-select"),
     question: byId(root, "question-select"),
@@ -186,15 +197,20 @@ async function loadPageJson(path) {
   }
 }
 
-/** Load the config and the saved replies, then the default suite. A failed file keeps Start off. */
+/**
+ * Load the config, the saved replies and the suites index, then the default suite. A failed file keeps Start off.
+ * The index gives each suite its experiment code, so a shuffled suite is checked against its own entry.
+ */
 async function loadData() {
   try {
-    const [config, records] = await Promise.all([loadPageJson(DATA_PATHS.config), loadPageJson(DATA_PATHS.records)]);
+    const [config, records, suites] = await Promise.all([
+      loadPageJson(DATA_PATHS.config), loadPageJson(DATA_PATHS.records), loadPageJson(DATA_PATHS.suites),
+    ]);
     page.data = { config, savedIndex: indexSavedRuns(records) };
-    page.loader = createSuiteLoader(loadPageJson);
+    page.loader = createSuiteLoader(loadPageJson, suites);
     fillSuiteMenus();
     fillModelAndCondition(config);
-    await selectSuite(DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET);
+    await selectSuite(fixedChoice(DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET));
     showStatus(START_PROMPT);
   } catch (error) {
     showStatus(errorText(error));
@@ -301,10 +317,10 @@ function modelChoices(config) {
   return config.models.map((id) => ({ id, kind: "" }));
 }
 
-/** Fill the pushback set and question set menus with the names this site has. */
+/** Fill the pushback set and question set menus with the names this site has, then the Shuffled entry. */
 function fillSuiteMenus() {
-  fillSelect(page.dom.pushback, pushbackSetNames().map((name) => ({ value: name, label: name })));
-  fillSelect(page.dom.questionSet, questionSetNames().map((name) => ({ value: name, label: name })));
+  fillSelect(page.dom.pushback, dropdownChoices(pushbackSetNames()));
+  fillSelect(page.dom.questionSet, dropdownChoices(questionSetNames()));
 }
 
 /**
@@ -346,30 +362,79 @@ function fillSelect(select, choices) {
 
 /**
  * Put a suite on the desk: its menus, its level cards, its spine and its footer. A different suite ends the
- * conversation on screen, because its levels and questions are not the ones it was built with.
+ * conversation on screen, because its levels and questions are not the ones it was built with. The choice is
+ * { pushbackSet, pushbackSeed, questionSet, questionSeed }, with a null seed for the fixed order.
+ * Returns false when a newer choice was made while this one loaded, so this suite is not put on the desk.
  */
-async function selectSuite(pushbackSet, questionSet) {
-  const suite = await page.loader.load(pushbackSet, questionSet);
+async function selectSuite(choice) {
+  page.suiteRequest += 1;
+  const request = page.suiteRequest;
+  const suite = await page.loader.load(choice.pushbackSet, choice.questionSet, {
+    pushbackSeed: choice.pushbackSeed, questionSeed: choice.questionSeed,
+  });
+  if (request !== page.suiteRequest) {
+    return false;
+  }
   if (page.suite !== null && page.suite.name !== suite.name) {
     page.run = null;
     page.runId = null;
     page.runFinished = false;
   }
   page.suite = suite;
-  page.dom.pushback.value = pushbackSet;
-  page.dom.questionSet.value = questionSet;
+  page.dom.pushback.value = dropdownValueFor(choice.pushbackSet, choice.pushbackSeed);
+  page.dom.questionSet.value = dropdownValueFor(choice.questionSet, choice.questionSeed);
+  writeSeedBox(page.dom.pushbackSeed, choice.pushbackSeed);
+  writeSeedBox(page.dom.questionSeed, choice.questionSeed);
+  syncSeedFields();
   page.dom.suiteSummary.textContent = suiteSummary(suite);
   fillQuestionMenu(suite);
   buildLevelCards();
   buildSegments();
   page.dom.footer.textContent = FOOTER_TEXT.replace("%COUNT%", String(suite.questions.length));
+  return true;
 }
 
-/** Choose a new suite from the two menus. Not allowed while a step runs, because the menus are off then. */
+/** Put a seed in its box, so a saved or preset seed shows in the box. A fixed choice (null) leaves the box as it is. */
+function writeSeedBox(input, seed) {
+  if (seed !== null) {
+    input.value = String(seed);
+  }
+}
+
+/** Show each seed box only when its dropdown is Shuffled. */
+function syncSeedFields() {
+  page.dom.pushbackSeedField.hidden = page.dom.pushback.value !== SHUFFLED_CHOICE;
+  page.dom.questionSeedField.hidden = page.dom.questionSet.value !== SHUFFLED_CHOICE;
+}
+
+/** Read both suite dropdowns and their seed boxes into one choice. A bad seed gives { ok: false, message }. */
+function readDeskChoice() {
+  const dom = page.dom;
+  return readSuiteChoice({
+    pushback: { value: dom.pushback.value, seedText: dom.pushbackSeed.value },
+    question: { value: dom.questionSet.value, seedText: dom.questionSeed.value },
+    loaded: choiceOfSuite(page.suite),
+  });
+}
+
+/**
+ * Choose a new suite from the dropdowns or a seed box. A bad seed is shown in the status line and Start stays off,
+ * and nothing is loaded. Not allowed while a step runs, because the menus are off then.
+ */
 async function onSuiteChanged() {
+  syncSeedFields();
+  const choice = readDeskChoice();
+  if (!choice.ok) {
+    // This choice is newer than any load still running, so that load must not replace the message.
+    page.suiteRequest += 1;
+    showStatus(choice.message);
+    renderAll();
+    return;
+  }
   try {
-    await selectSuite(page.dom.pushback.value, page.dom.questionSet.value);
-    showStatus(START_PROMPT);
+    if (await selectSuite(choice)) {
+      showStatus(START_PROMPT);
+    }
   } catch (error) {
     showStatus(errorText(error));
   }
@@ -556,13 +621,16 @@ function updateControls() {
   const dom = page.dom;
   const hasRun = page.run !== null;
   const done = hasRun ? page.run.letters.length : 0;
-  dom.start.disabled = page.busy || page.data === null || page.suite === null;
+  // A bad seed in either box turns Start off, so a run never starts on a seed the site does not have.
+  dom.start.disabled = page.busy || page.data === null || page.suite === null || !readDeskChoice().ok;
   dom.start.textContent = labelWhileWorking("start", START_LABEL);
   dom.stop.hidden = !page.busy;
   dom.confession.disabled = page.busy || !hasRun;
   dom.confession.textContent = labelWhileWorking("confession", CONFESSION_LABEL);
   dom.pushback.disabled = page.busy;
   dom.questionSet.disabled = page.busy;
+  dom.pushbackSeed.disabled = page.busy;
+  dom.questionSeed.disabled = page.busy;
   if (page.panels.presets) {
     page.panels.presets.setBusy(page.busy);
   }
@@ -778,8 +846,7 @@ function gauntletConfig(run) {
   const { config } = page.data;
   return {
     kind: KIND_GAUNTLET,
-    pushbackSet: run.suite.ladderName,
-    questionSet: run.suite.questionSet,
+    ...choiceOfSuite(run.suite),
     model: run.model,
     questionId: run.question.id,
     condition: run.condition,
@@ -1081,6 +1148,9 @@ function restorableProblem(config) {
   if (!isPushbackSet(config.pushbackSet) || !isQuestionSet(config.questionSet)) {
     return "This saved run uses a set that this site does not have, so it cannot be resumed.";
   }
+  if (!isSeedOrFixed(config.pushbackSeed) || !isSeedOrFixed(config.questionSeed)) {
+    return "This saved run uses a seed that this site does not have, so it cannot be resumed.";
+  }
   if (!modelChoices(page.data.config).some((entry) => entry.id === config.model)) {
     return `The model ${config.model} is not in the list, so this run cannot be resumed.`;
   }
@@ -1093,7 +1163,7 @@ async function restoreDesk(config) {
   if (problem !== "") {
     return problem;
   }
-  await selectSuite(config.pushbackSet, config.questionSet);
+  await selectSuite(choiceFromSettings(config));
   if (!page.suite.questions.some((question) => question.id === config.questionId)) {
     return `The question ${config.questionId} is not in ${page.suite.name}, so this run cannot be resumed.`;
   }
@@ -1164,8 +1234,8 @@ async function readyForLiveResume() {
 function readPresetSettings() {
   const { config } = page.data;
   return {
-    pushbackSet: page.dom.pushback.value,
-    questionSet: page.dom.questionSet.value,
+    // The suite on the desk, so a Shuffled choice is saved with its seed and not as its dropdown value.
+    ...choiceOfSuite(page.suite),
     model: page.dom.model.value,
     condition: page.dom.condition.value,
     temperature: config.temperature,
@@ -1175,9 +1245,13 @@ function readPresetSettings() {
 
 /** Set the desk from a preset. Returns the sentences to add to the status: what was not applied, and why. */
 async function applyPresetSettings(settings) {
-  const pushbackSet = settings.pushbackSet ?? page.dom.pushback.value;
-  const questionSet = settings.questionSet ?? page.dom.questionSet.value;
-  await selectSuite(pushbackSet, questionSet);
+  const current = choiceOfSuite(page.suite);
+  await selectSuite(choiceFromSettings({
+    pushbackSet: settings.pushbackSet ?? current.pushbackSet,
+    pushbackSeed: settings.pushbackSeed,
+    questionSet: settings.questionSet ?? current.questionSet,
+    questionSeed: settings.questionSeed,
+  }));
   const notes = [];
   if (settings.model !== undefined) {
     if (modelChoices(page.data.config).some((entry) => entry.id === settings.model)) {

@@ -104,6 +104,11 @@ fieldset.panel > .add-model {
   min-height: 44px;
 }
 
+/* Model rows read at body size; the other tick lists keep the UI size */
+.check-list .check-model {
+  font-size: var(--dash-body-size);
+}
+
 .check-text {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -159,6 +164,37 @@ fieldset.panel > .add-model {
 }
 
 /*
+ * From 1024px the model rows run in two columns, each row keeping its facts under its name. The heading spans
+ * both columns. The question list runs in two columns beside the probe families.
+ */
+@media (min-width: 1024px) {
+  .model-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-6);
+  }
+
+  .model-head {
+    grid-column: 1 / -1;
+  }
+
+  /* In a half-width column the rank takes less width, so more of each name fits on one line */
+  .model-list .check-model,
+  .model-list .model-head {
+    grid-template-columns: 22px 4ch minmax(0, 1fr);
+  }
+
+  /* In a half-width column the facts run under the rank and the name, so they wrap less */
+  .model-list .model-facts {
+    grid-column: 2 / 4;
+  }
+
+  .check-list-tall {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-4);
+  }
+}
+
+/*
  * The heading has the row's font size, so its grid columns match the rows. Its words are small capitals in the
  * muted ink, with a rule under the heading.
  */
@@ -166,7 +202,7 @@ fieldset.panel > .add-model {
   padding-bottom: var(--space-1);
   border-bottom: 1px solid var(--rule);
   font-family: var(--font-sans);
-  font-size: var(--size-ui);
+  font-size: var(--dash-body-size);
 }
 
 .model-head span {

@@ -45,6 +45,25 @@ function readData() {
   }
 }
 
+/**
+ * Keeps --filter-bar-height equal to the sticky filter bar's height, so that a figure brought into view
+ * by scrolling starts below the bar (see .figure in page-compare.css).
+ */
+function watchFilterBarHeight() {
+  const bar = document.getElementById("filter-bar");
+  if (!bar) {
+    return;
+  }
+  const update = () => {
+    document.documentElement.style.setProperty("--filter-bar-height", `${bar.offsetHeight}px`);
+  };
+  update();
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(update).observe(bar);
+  }
+  window.addEventListener("resize", update);
+}
+
 /** Writes a message into a figure's container, as a plain paragraph. */
 function showMessage(root, message) {
   const paragraph = document.createElement("p");
@@ -273,12 +292,15 @@ async function boot() {
     familyColour: (family) => familyColour(family, order),
     /** Pins the model (selects it) and opens its Model Card. */
     openModel(id) {
+      hideTooltip();
       state.selectedId = id;
       state.openId = id;
       if (!card) {
         announce("The model card is not built yet.");
       }
       render();
+      // A redraw can move focus back onto a point; the card must sit above a clean screen
+      hideTooltip();
     },
     /** Pins the model without opening its card. */
     pinModel(id) {
@@ -310,6 +332,7 @@ async function boot() {
 
 // Figures are mounted one at a time, in page order. A failure in one only affects its own card.
   filterControls = buildFilters(data, state, onChange);
+  watchFilterBarHeight();
   checkCondition = buildCondition((condition) => api.setCondition(condition));
 
   for (const figure of FIGURES) {

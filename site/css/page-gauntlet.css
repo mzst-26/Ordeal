@@ -19,45 +19,67 @@
   color: var(--ink-soft);
 }
 
-/* 2. Layout: the KPI strip sits above the notices and the dash grid. The desk (span 4) and the spread
-   (span 8) are placed by the dashboard kit, so this file sets no columns. */
+/* 2. Layout: the KPI strip sits above the notices and the dash grid. The desk spans the full row;
+   beneath it the spread (span 7) and the levels (span 5) are placed by the dashboard kit. */
 .gauntlet-kpis {
   margin-bottom: var(--space-6);
 }
 
 .desk,
-.spread {
+.spread,
+.levels {
   min-width: 0;
 }
 
-/* 3. Desk: numbered controls, the Start row, the level cards and the confession question */
+/* 3. Desk: numbered controls in a grid (1 column, 2 from 760px, 3 from 1024px), the Start row and
+   the confession question. The presets row sits above the grid. */
+.controls-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (min-width: 760px) {
+  .controls-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .controls-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 [data-view="gauntlet"] .control {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-width: 0;
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding: 0;
   border: 0;
 }
 
 [data-view="gauntlet"] .control legend {
   padding: 0;
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 .control .field-hint {
   margin: 0;
 }
 
+/* The Start row, the live cap note and the confession question form one group under the controls */
+[data-view="gauntlet"] .desk-run {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
 .desk-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin: var(--space-6) 0;
-}
-
-.levels-heading {
-  margin-top: var(--space-8);
 }
 
 /* One column on phones; two columns from 760px */
@@ -72,7 +94,13 @@
 
 @media (min-width: 760px) {
   .level-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .level-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -135,7 +163,8 @@
   min-width: 7.5rem;
 }
 
-/* The tick is a rotated L drawn from borders; it is hidden until the card is done, but keeps its space so the button does not shift. margin-right auto pushes it left. */
+/* The tick is a rotated L drawn from borders. It is hidden until the card is done, but keeps its
+   space so the button does not shift. margin-right auto pushes it left. */
 .level-tick {
   width: 8px;
   height: 14px;
@@ -153,7 +182,6 @@
 .confession {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-8);
   justify-items: start;
 }
 
@@ -175,11 +203,46 @@
 }
 
 [data-view="gauntlet"] .presets {
-  margin: 0 0 var(--space-6);
+  margin: 0 0 var(--space-4);
 }
 
 [data-view="gauntlet"] .presets > .label {
   margin: 0 0 var(--space-2);
+}
+
+/* Presets: the select, the name box and the four buttons share one row from 1024px; below that they wrap.
+   The hint and the status line always take a full row. */
+[data-view="gauntlet"] .preset-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+[data-view="gauntlet"] .preset-panel .field {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+[data-view="gauntlet"] .preset-panel .button-row {
+  flex: 1 1 100%;
+}
+
+[data-view="gauntlet"] .preset-panel > .field-hint,
+[data-view="gauntlet"] .preset-panel > .preset-status {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+@media (min-width: 1024px) {
+  [data-view="gauntlet"] .preset-panel .field {
+    flex: 1 1 0;
+  }
+
+  [data-view="gauntlet"] .preset-panel .button-row {
+    flex: 0 0 auto;
+  }
 }
 
 /* A segment is one cell of the meter; the state classes below colour it */
