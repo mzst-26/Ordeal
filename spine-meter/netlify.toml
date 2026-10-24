@@ -1,0 +1,45 @@
+# Netlify configuration for the static site. There is no build step: the files in site/ are served as they are.
+
+[build]
+  publish = "site"
+  # No build command: the site is plain HTML, CSS and JavaScript.
+
+# Security headers for every page and asset.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Only load code, styles, fonts and images from this site. Scripts must be our own files, with no inline code.
+    # The browser may call only the Nebius API for model requests. No CDN is allowed; the site ships its own JS.
+    # Custom model endpoints stay blocked until the owner approves widening connect-src (PLAN.md D6).
+    # Frames, form targets and <base> are locked down to stop clickjacking and injected links.
+    Content-Security-Policy = """\
+      default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; \
+      font-src 'self'; connect-src 'self' https://api.tokenfactory.nebius.com; \
+      frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"""
+    # Stop browsers from guessing a file type, so a data file cannot run as a script.
+    X-Content-Type-Options = "nosniff"
+    # Send only the site origin, not full page paths, to other sites.
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Turn off camera, microphone, location and payment features; the site does not use them.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    # Older browsers: refuse to show the site inside another page.
+    X-Frame-Options = "DENY"
+    # Use HTTPS only for one year, including subdomains, once a visitor has reached the site over HTTPS.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+# Experiment data files change when the experiment is re-exported, so they are cached for only 5 minutes.
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
+
+# Our own JavaScript and CSS: a short cache so that a fresh deploy reaches visitors quickly.
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"

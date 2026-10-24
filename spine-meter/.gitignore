@@ -1,0 +1,9 @@
+# Secrets: never commit the API key
+.env
+
+# Saved model replies and generated charts (rebuilt by running the scripts)
+results/
+
+# Python caches
+__pycache__/
+*.pyc
