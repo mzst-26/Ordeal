@@ -3,9 +3,12 @@
 // Colours are CSS values (tokens), set through element.style, never as style attributes.
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+// DEFAULT_SIZE is the svg width and height in px. LABEL_ROOM is the share of the size kept free around the
+// ring for spoke labels. LABEL_OFFSET is the gap in px between the outer ring and a label.
 const DEFAULT_SIZE = 220;
 const LABEL_ROOM = 0.26;
 const LABEL_OFFSET = 8;
+// Radius in px of the dot drawn for a value with no neighbours, then the fill opacity and outline width of a series.
 const MARKER_RADIUS = 2.5;
 const FILL_OPACITY = "0.18";
 const STROKE_WIDTH = "2";
@@ -77,9 +80,11 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
     focusable: "false",
   });
   const centre = size / 2;
+  // Outer ring radius: half the size, less half of the label room (the room is shared between both sides).
   const radius = centre - size * LABEL_ROOM * 0.5;
   const count = axes.length;
 
+  // Two guide rings: the dashed one at 0.5 and the solid outer one at 1.
   for (const ring of [0.5, 1]) {
     const circle = svgNode("circle", {
       cx: centre,
@@ -93,6 +98,7 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
     svg.append(circle);
   }
 
+  // One spoke and one label for each axis.
   axes.forEach((axis, index) => {
     const angle = angleFor(index, count);
     const cos = Math.cos(angle);
@@ -127,6 +133,7 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
     title.textContent = `${entry.name}`;
     group.append(title);
 
+    // One point per axis, or null where the series has no number for that axis (a gap, never zero).
     const points = axes.map((axis, index) => {
       const value = entry.values ? entry.values[axis.id] : null;
       if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -138,6 +145,7 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
     });
 
     for (const run of runsOf(points)) {
+      // A single point has no line to draw, so it gets a dot.
       if (run.length === 1) {
         const dot = svgNode("circle", { cx: run[0].x, cy: run[0].y, r: MARKER_RADIUS });
         paint(dot, "fill", entry.colour);
@@ -145,6 +153,7 @@ export function radarSvg({ axes = [], series = [], size = DEFAULT_SIZE, label = 
         continue;
       }
       const d = run.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+      // Only a run that covers every axis is closed into a filled shape. A run with gaps stays an open line.
       const closed = run.length === count && entry.fill === true;
       const path = svgNode("path", {
         d: closed ? `${d} Z` : d,

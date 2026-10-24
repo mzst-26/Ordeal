@@ -2,12 +2,15 @@
 // with the change against "none". A bar is never drawn for a null value.
 import { isNotRun, pct, rateText } from "./derive.js";
 
+// True minus sign (U+2212), used in signed point changes so negatives read clearly.
 const MINUS = "−";
+// The three experiment conditions, in the order the switch shows them.
 const CONDITIONS = [
   { id: "none", label: "None" },
   { id: "mitigation", label: "Mitigation prompt" },
   { id: "control", label: "Control prompt" },
 ];
+// Lower-case names used inside sentences and the table caption.
 const CONDITION_NAMES = { none: "none", mitigation: "mitigation", control: "control" };
 
 /** The flip rate at the last level for one condition, or null when that condition was not run for the model. */
@@ -48,6 +51,8 @@ export function conditionCaption(condition, prompts = {}) {
   return `The ${label} condition adds this system prompt: "${text}"`;
 }
 
+// Tiny element builder: attrs {text, class, hidden, checked, onXxx handlers, anything else as an attribute};
+// null, undefined and false are skipped. Text goes in via textContent, never as markup.
 function h(tag, attrs = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -65,10 +70,14 @@ function h(tag, attrs = {}, ...kids) {
   return node;
 }
 
+// Mounts FIG 7 into root. The condition (none, mitigation, control) lives in app.js; the radios call api.setCondition and
+// update(view) repaints with the chosen view.condition.
 export function mount(root, api) {
   const prompts = api.data.mitigation_prompts || {};
   const groupName = `${root.id}-condition`;
   const tableId = `${root.id}-table`;
+// rowsSig: ids of the models the bar rows were built for. tableKey: condition plus model ids of the table last built.
+// Each lets update() skip rebuilding DOM that is still correct. rows maps model id to its bar nodes.
   const state = {
     view: { models: [], condition: "none" },
     rowsSig: null,
@@ -76,6 +85,7 @@ export function mount(root, api) {
     rows: new Map(),
   };
 
+// Segmented radio switch for the condition; radios are kept so paint() can tick the right one.
   const radios = new Map();
   const switchOptions = CONDITIONS.map((condition) => {
     const input = h("input", {
@@ -125,6 +135,7 @@ export function mount(root, api) {
     altBox,
   );
 
+// Shows either the bar chart or the accessible table, and hides the toggle when there are no models.
   function applyVisibility() {
     const empty = state.view.models.length === 0;
     if (empty) state.tableOpen = false;
@@ -135,6 +146,7 @@ export function mount(root, api) {
     altBox.hidden = !state.tableOpen;
   }
 
+// Creates one bar row per model (name button, track and fill, value, change). Values are filled in later by paint().
   function buildRows(models) {
     list.replaceChildren();
     state.rows = new Map();
@@ -161,6 +173,7 @@ export function mount(root, api) {
     }
   }
 
+// Accessible table version of the bars. The change column is against the model's "none" rate; for "none" itself it says baseline.
   function buildTable(models, condition) {
     altBox.replaceChildren(
       h(
@@ -201,6 +214,7 @@ export function mount(root, api) {
     );
   }
 
+// Fills the existing rows for the current condition: bar width, value text and change against none.
   function paint() {
     const models = state.view.models || [];
     const condition = state.view.condition || "none";

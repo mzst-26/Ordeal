@@ -6,9 +6,12 @@ import {
 } from "./draw.js";
 
 const TWO_PI = Math.PI * 2;
+// Largest ring diameter in px, and the height of one legend row in px.
 const DONUT_RING_MAX = 240;
 const DONUT_ROW_HEIGHT = 24;
+// Inner radius as a fraction of the outer radius (the size of the hole).
 const DONUT_HOLE_RATIO = 0.62;
+// Width in px of the visible gap left between two neighbouring slices.
 const SEGMENT_GAP_PX = 2;
 
 /** A segment's value: negative becomes 0, and a missing or NaN value stays NaN. */
@@ -48,12 +51,14 @@ function polarPoint(cx, cy, radius, angle) {
 
 /** Path for one ring slice between two angles, with a small gap on each side. */
 function ringSlicePath(ring, startAngle, endAngle) {
+  // Half the gap, as an angle: arc length divided by radius gives radians. It is worked out on the outer edge.
   const gap = SEGMENT_GAP_PX / ring.outer / 2;
   const start = startAngle + gap;
   const end = endAngle - gap;
   if (end <= start) {
     return "";
   }
+  // The SVG arc flag that picks the long way round when the slice is more than half the ring.
   const largeArc = end - start > Math.PI ? 1 : 0;
   return [
     `M ${polarPoint(ring.cx, ring.cy, ring.outer, start)}`,

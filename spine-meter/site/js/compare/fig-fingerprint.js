@@ -2,6 +2,7 @@
 // columns are the fingerprint probe axes. The number in each cell is the signal; the colour is an extra.
 import { isNotRun, pct, rateText } from "./derive.js";
 
+// A cell with fewer than this many probe units is marked as low-sample (hatched, with its n shown).
 const LOW_N = 15;
 const CAPTION =
   "Each cell is the share of probe units where the model flipped its answer, so a darker cell is more pressure-sensitive; " +
@@ -49,6 +50,8 @@ export function bandLabel(bands, id) {
   return band === null || band === undefined ? null : `Band ${band}`;
 }
 
+// Tiny element builder: attrs {text, class, hidden, tabIndex, onXxx handlers, anything else as an attribute};
+// null, undefined and false attributes and children are skipped. Text goes in via textContent, never as markup.
 function h(tag, attrs = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -66,9 +69,12 @@ function h(tag, attrs = {}, ...kids) {
   return node;
 }
 
+// Mounts FIG 2 into root. update(view) receives the filtered models and rank bands from app.js.
 export function mount(root, api) {
   const axes = (api.data.axes || []).filter((axis) => axis.family === "fingerprint");
   const tableId = `${root.id}-table`;
+// sortKey/sortDir: current column sort (null = given order). active: the grid cell that holds the roving tabindex.
+// renderedSig: signature of the last render, to skip needless rebuilds. refocusSort: header button to refocus after a re-sort.
   const state = {
     sortKey: null,
     sortDir: "desc",
@@ -106,6 +112,7 @@ export function mount(root, api) {
     altBox,
   );
 
+// Shows either the heatmap or the accessible table, and hides the toggle when there are no rows.
   function applyVisibility() {
     const empty = state.view.models.length === 0;
     if (empty) state.tableOpen = false;
@@ -116,6 +123,7 @@ export function mount(root, api) {
     altBox.hidden = !state.tableOpen;
   }
 
+// Clicking the same column flips the direction; a new column starts highest-first. Announces the result for screen readers.
   function sortBy(axis) {
     if (state.sortKey === axis.id) {
       state.sortDir = state.sortDir === "desc" ? "asc" : "desc";
@@ -130,6 +138,7 @@ export function mount(root, api) {
     render(true);
   }
 
+// Colour ramp key from 0% to 100% plus a note on the hatched and dotted cell styles.
   function buildLegend() {
     const swatches = [0, 0.25, 0.5, 0.75, 1].map((value) => {
       const swatch = h("span", { class: "fp-swatch", "aria-hidden": "true" });
@@ -146,6 +155,7 @@ export function mount(root, api) {
     );
   }
 
+// Plain table with the same rates (and intervals and units via rateText) as the heatmap, for screen readers and as a text view.
   function buildAltTable(rows) {
     return h(
       "table",
@@ -176,6 +186,7 @@ export function mount(root, api) {
     );
   }
 
+// Builds the heatmap table for the already-sorted rows. Returns {table}. Needs at least one row and one axis (render() guarantees it).
   function buildGrid(rows) {
     const cells = new Map();
     const headerButtons = {};
@@ -183,6 +194,7 @@ export function mount(root, api) {
       state.active = { row: rows[0].id, col: axes[0].id };
     }
 
+// Roving tabindex: exactly one cell is tabbable at a time.
     function setActive(row, col) {
       state.active = { row, col };
       for (const [key, cell] of cells) {
@@ -237,6 +249,7 @@ export function mount(root, api) {
           const cell = h("td", { class: "fp-cell" });
           cell.dataset.row = model.id;
           cell.dataset.col = axis.id;
+// Not-run cells get no colour; low-n cells (n below LOW_N) keep their colour and show n.
           if (isNotRun(rate)) {
             cell.classList.add("fp-cell--none");
             cell.append(h("span", { class: "fp-pct", text: "not run" }));
@@ -288,6 +301,7 @@ export function mount(root, api) {
     return { table };
   }
 
+// Shown when the filters leave no models.
   function emptyState() {
     return h(
       "div",

@@ -7,6 +7,7 @@ import {
 } from "./draw.js";
 import { cornerBoxes, cornerSpots, placeDotLabels } from "./labels.js";
 
+// Chart height in px and dot radius in px.
 const SCATTER_HEIGHT = 360;
 const DOT_RADIUS = 5;
 
@@ -104,12 +105,14 @@ function buildScatter(host, options, numbers) {
   drawValueAxis(frame, ticks, yScale);
   drawXLabels(frame, ticks.map((tick) => xScale(tick)), ticks.map((tick) => formatTick(tick)));
   drawBaseline(frame);
+  // Where the dashed middle lines cross, on the same 0 to 1 scale as the data. Defaults to the centre.
   const middle = Number.isFinite(options.midLines) ? options.midLines : 0.5;
   drawMidLines(frame, xScale(middle), yScale(middle));
   const names = options.quadrantLabels || {};
   drawCornerLabels(frame, names);
   const dots = dotsFor(host, points, numbers, { x: xScale, y: yScale }, middle);
   placeDotLabels(dots, plot, cornerBoxes(plot, names));
+  // Dots first, then labels, so a label is never covered by a dot.
   dots.forEach((dot) => drawDot(frame, dot));
   dots.forEach((dot) => drawDotLabel(frame, dot));
   drawAxisTitles(frame, options.xTitle, options.yTitle);

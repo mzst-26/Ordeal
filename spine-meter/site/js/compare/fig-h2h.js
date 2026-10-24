@@ -70,6 +70,7 @@ export function headlineFormat(rate) {
   return isNotRun(rate) ? "not run" : rateText(rate);
 }
 
+// Formats a Spine Score cell (1 decimal, plus the 95% interval when both bounds exist), or "not run".
 function scoreText(rate) {
   if (isNotRun(rate)) return "not run";
   const mean = rate.rate.toFixed(1);
@@ -78,6 +79,8 @@ function scoreText(rate) {
   return low !== null && high !== null ? `${mean} (95% CI ${low}–${high})` : mean;
 }
 
+// Rows of the comparison table. `get` pulls the value from a model; `text` formats it for display;
+// `higher` says which direction is better (true, false, or null for a row with no winner, which is never bolded).
 export const METRICS = [
   { id: "baseline", label: "Baseline accuracy", higher: true, get: (m) => m.baseline_accuracy, text: headlineFormat },
   { id: "flip", label: "Flip rate at the last level", higher: false, get: (m) => m.flip_rate_last, text: headlineFormat },
@@ -88,6 +91,7 @@ export const METRICS = [
   { id: "recovery", label: "Recovery rate", higher: true, get: (m) => m.recovery_rate, text: headlineFormat },
   { id: "final", label: "Final correct share", higher: true, get: (m) => m.final_correct_share, text: headlineFormat },
   {
+// Informational row only: shows the run size, never a winner.
     id: "units",
     label: "Units",
     higher: null,
@@ -96,6 +100,7 @@ export const METRICS = [
   },
 ];
 
+// Small DOM helper: element with optional class and text (textContent, never markup).
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -115,12 +120,14 @@ function setCaption(root, text) {
   caption.textContent = text;
 }
 
+// Maps each fingerprint axis id of a model to a plain number (or null if not run), the shape radarSvg expects.
 function fingerprintValues(model) {
   const values = {};
   for (const [id, rate] of Object.entries(model.fingerprint || {})) values[id] = numericValue(rate);
   return values;
 }
 
+// Mounts FIG 4. Uses every model in the run (api.allModels), not the filtered view, so update() has nothing to do.
 export function mount(root, api) {
   root.replaceChildren();
   setCaption(root, CAPTION_TEXT);
@@ -129,6 +136,7 @@ export function mount(root, api) {
   const axisIds = axes.map((a) => a.id);
   const modelById = new Map(models.map((m) => [m.id, m]));
 
+// Comparing needs two models; with fewer, show a prompt instead of the controls.
   if (models.length < 2) {
     const note = el("p", "field-hint h2h-single", ADD_MODEL_TEXT);
     root.append(note);
@@ -137,6 +145,7 @@ export function mount(root, api) {
 
   const pickers = el("div", "h2h-pickers");
   const selects = {};
+// Two pickers. A and B start on the first and second models in the run.
   for (const [key, label, defaultIndex] of [["a", "Model A", 0], ["b", "Model B", 1]]) {
     const field = el("div", "field");
     const lab = el("label", "field-label", label);
@@ -157,12 +166,14 @@ export function mount(root, api) {
   const output = el("div", "h2h-output");
   root.append(pickers, output);
 
+// Redraws the radar, legend, metrics table and example button for the two selected models.
   function render() {
     const a = modelById.get(selects.a.value);
     const b = modelById.get(selects.b.value);
     output.replaceChildren();
     if (!a || !b) return;
 
+// Model A uses --cat-1 and model B --cat-2; the legend swatches (h2h-swatch-a/b) must use the same two colours.
     const series = [
       { name: a.display_name || a.id, values: fingerprintValues(a), colour: "var(--cat-1)", fill: true },
       { name: b.display_name || b.id, values: fingerprintValues(b), colour: "var(--cat-2)", fill: true },
@@ -218,6 +229,7 @@ export function mount(root, api) {
     }
     table.append(body);
 
+// The example button is enabled only if some axis has values for both models and the better model has a saved transcript on it.
     const example = el("div", "h2h-example");
     const found = biggestGapAxis(replayableAxes(axisIds, a, b), fingerprintValues(a), fingerprintValues(b));
     const button = el("button", "btn", "Show me a real example");
@@ -235,6 +247,7 @@ export function mount(root, api) {
     output.append(radar, legend, table, example);
   }
 
+// Points FIG 5 at a transcript from the model that is higher on the biggest-gap axis, then scrolls to and focuses FIG 5 (instant if reduced motion is on).
   function openExample(found, a, b, axisName) {
     const winner = found.higher === "a" ? a : b;
     setReplay(winner.id, found.axis);

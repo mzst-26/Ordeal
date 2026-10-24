@@ -8,6 +8,7 @@ import {
   drawXLabels, drawAxisTitles, createChart, DASH_PATTERN,
 } from "./draw.js";
 
+// Total chart height in px, marker radius in px, and the fill opacity of the low-to-high band.
 const LINE_HEIGHT = 300;
 const MARKER_RADIUS = 4;
 const BAND_OPACITY = 0.2;
@@ -123,6 +124,7 @@ function drawLineSeries(frame, drawing) {
   const { xs, yScale, colour, blocks, reveal } = drawing;
   drawBands(frame, xs, yScale, blocks, colour, reveal);
   drawLines(frame, drawing);
+  // Markers wait until the line has finished drawing in, so they do not float ahead of it.
   if (reveal >= 1) {
     drawMarkers(frame, xs, yScale, blocks, colour);
   }

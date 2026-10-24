@@ -7,6 +7,8 @@ export const FAMILY_PALETTE = Object.freeze([
   "var(--sage)", "var(--terracotta)", "var(--plum)", "var(--ochre)",
 ]);
 
+// NOT_RUN is the text shown in place of any value that was never measured. UNKNOWN_COLOUR is the colour for
+// models with no known family. DEFAULT_PCT_DIGITS is how many decimals pct() shows by default.
 const NOT_RUN = "not run";
 const UNKNOWN_COLOUR = "var(--ink-mute)";
 const DEFAULT_PCT_DIGITS = 0;
@@ -48,6 +50,7 @@ export function rateText(rate) {
   const main = pct(rate.rate);
   const parts = [];
   if (isFiniteNumber(rate.ci_low) && isFiniteNumber(rate.ci_high)) {
+    // The low bound drops its "%" so the range reads "55–67%" with one unit sign.
     parts.push(`95% CI ${pct(rate.ci_low).replace("%", "")}–${pct(rate.ci_high)}`);
   }
   if (isFiniteNumber(rate.n)) {
@@ -144,9 +147,11 @@ function passesTriState(choice, value) {
  */
 export function visibleModels(models, filters) {
   const bounds = sizeBounds(models);
+  // True when the size slider covers every size, so models with an unknown size are not filtered out.
   const fullSize = filters.sizeMin <= bounds.min && filters.sizeMax >= bounds.max;
   const query = (filters.search || "").trim().toLowerCase();
   return (models || []).filter((model) => {
+    // An empty or missing family is treated as the null "Unknown" family, matching familyOrder.
     const family = model.family ? model.family : null;
     if (!filters.families.has(family)) {
       return false;
@@ -201,6 +206,8 @@ export function rankBands(models) {
     }
   }
 
+  // Union-find over the ranked models: parent[i] points towards the root of i's band. Each model starts alone.
+  // find(i) returns the root of i's band and shortens i's link to it.
   const parent = ranked.map((_, index) => index);
   const find = (index) => {
     let root = index;
@@ -210,6 +217,8 @@ export function rankBands(models) {
     parent[index] = root;
     return root;
   };
+  // Join two models when their intervals overlap (touching at an end counts). Joins chain, so A-B and B-C
+  // put A, B and C in one band even if A and C do not overlap.
   const intervals = ranked.map(backboneInterval);
   for (let i = 0; i < ranked.length; i += 1) {
     for (let j = i + 1; j < ranked.length; j += 1) {
@@ -221,6 +230,7 @@ export function rankBands(models) {
     }
   }
 
+  // Collect the members of each band under its root.
   const groups = new Map();
   ranked.forEach((model, index) => {
     const root = find(index);
@@ -230,6 +240,8 @@ export function rankBands(models) {
     groups.get(root).push(index);
   });
 
+  // Order bands by their best backbone index, highest first. A tie goes to the band whose earliest
+  // member comes first in the input, so the result is stable.
   const ordered = [...groups.values()].map((members) => ({
     members,
     top: Math.max(...members.map((index) => intervals[index].rate)),
@@ -272,6 +284,7 @@ export function takeaway(allModels, visibleModels) {
   if (scored.length === 0) {
     return `On this run, ${noun}; flip rates are not run yet.`;
   }
+  // The lowest flip rate wins. On a tie the earlier model in the list keeps the place.
   let best = scored[0];
   for (const model of scored) {
     if (model.flip_rate_last.rate < best.flip_rate_last.rate) {

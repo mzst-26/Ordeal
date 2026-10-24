@@ -1,5 +1,6 @@
 // Pure helpers for chart maths. No DOM access, so these also run in Node tests.
 
+// A tiny tolerance so floating-point error (for example 0.30000000000000004) does not add an extra tick.
 const TICK_EPSILON = 1e-9;
 
 // Each series is packed as three blocks of numbers: values, lows, highs.
@@ -40,11 +41,13 @@ export function niceTicks(min, max, count = 5) {
   }
   const low = Math.min(min, max);
   let high = Math.max(min, max);
+  // A zero-width range would give a zero step, so widen it to give the loop below something to span.
   if (high === low) {
     high = low + (low === 0 ? 1 : Math.abs(low));
   }
   const intervals = Math.max(1, Math.round(count) - 1);
   const step = niceStep((high - low) / intervals);
+  // Decimal places the step needs. Rounding each tick to this many removes floating-point noise.
   const decimals = Math.max(0, -Math.floor(Math.log10(step)));
   const firstIndex = Math.floor(low / step + TICK_EPSILON);
   const lastIndex = Math.ceil(high / step - TICK_EPSILON);

@@ -6,6 +6,8 @@ import {
   drawXLabels, drawAxisTitles, createChart, FADED_OPACITY,
 } from "./draw.js";
 
+// All in px: chart height, gap between neighbouring bars in a group, widest a bar may be,
+// corner radius of a bar's top, and half the width of an error bar's end cap.
 const BAR_HEIGHT = 300;
 const BAR_GAP = 2;
 const BAR_MAX_WIDTH = 32;
@@ -84,6 +86,7 @@ function drawBar(frame, bar) {
     return;
   }
   const topY = bar.yScale(bar.value);
+  // A bar of zero height (value 0, or still at 0 at the start of the grow-in) draws no shape.
   if (baseY - topY > 0) {
     frame.svg.appendChild(svgElement("path", {
       d: barPath(bar.x, topY, bar.width, baseY), fill: bar.colour, "fill-opacity": bar.fillOpacity,
@@ -98,6 +101,7 @@ function drawBar(frame, bar) {
 function drawSeriesBars(frame, drawing) {
   const { series, seriesIndex, numbers, count, centres, barWidth, yScale, colour } = drawing;
   const blocks = seriesBlocks(numbers, seriesIndex, count);
+  // Shift from the group centre so the whole set of bars in a group is centred on it.
   const offset = (seriesIndex - (series.length - 1) / 2) * (barWidth + BAR_GAP);
   centres.forEach((centre, groupIndex) => {
     drawBar(frame, {

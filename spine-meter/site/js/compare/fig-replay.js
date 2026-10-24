@@ -3,6 +3,7 @@
 
 // Gap between two earlier turns, in milliseconds. The reply starts after the earlier turns.
 export const TURN_MS = 400;
+// Typing speed in characters per second: the default and the slider's bounds.
 export const DEFAULT_CPS = 60;
 export const CPS_MIN = 20;
 export const CPS_MAX = 120;
@@ -10,6 +11,8 @@ export const NO_TRANSCRIPTS_TEXT = "No saved transcripts for this model.";
 export const CAPTION_TEXT =
   "This replay plays a saved conversation from any model in the run, whatever the filters above say; the last reply types out at the speed you set, and the stamp shows whether the model held or folded.";
 
+// An elapsed time so large that every turn and the whole reply count as finished (used by Skip
+// and by reduced-motion, which paints the end state at once).
 const FAR_FUTURE_MS = 1e12;
 
 /** Number of visible characters (code points) after `elapsedMs` at `cps` characters per second. */
@@ -75,15 +78,18 @@ function setCaption(root, text) {
   caption.textContent = text;
 }
 
+// True when the visitor asked the OS for reduced motion; the replay then shows the end state without animating.
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+// Monotonic clock in milliseconds; falls back to Date.now where performance is missing.
 function now() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
+// Small DOM helper: creates an element with an optional class and text (set via textContent, so no HTML injection).
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -91,12 +97,15 @@ function el(tag, className, text) {
   return node;
 }
 
+// Speaker label shown above a turn. Unknown roles are shown upper-cased rather than hidden.
 function roleLabel(role) {
   if (role === "assistant") return "Model";
   if (role === "user") return "User";
   return String(role ?? "Note").toUpperCase();
 }
 
+// Module-level link to the mounted figure, so setReplay() can drive it from outside.
+// `pending` remembers a request made before mount() ran; mount() applies it on first load.
 let live = null;
 let pending = null;
 
@@ -115,6 +124,8 @@ export function mount(root, api) {
   const axisName = (id) => axisById.get(id) || id;
   const modelById = new Map(withTranscripts.map((m) => [m.id, m]));
 
+  // Mutable playback state. t0 is the clock time playback started; raf is the animation-frame id
+  // (null when idle); priorCount is how many earlier turns precede the typed reply.
   const state = {
     model: null,
     axisId: null,
@@ -215,6 +226,7 @@ export function mount(root, api) {
     }
   }
 
+  // Stops any running animation and empties the transcript panel, stamp and status.
   function clearStage() {
     cancelFrame();
     panel.replaceChildren();
@@ -225,6 +237,7 @@ export function mount(root, api) {
     status.textContent = "";
   }
 
+  // Cancels the pending animation frame, if any, so only one playback loop runs at a time.
   function cancelFrame() {
     if (state.raf !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(state.raf);
     state.raf = null;
@@ -265,6 +278,7 @@ export function mount(root, api) {
     play();
   }
 
+  // Builds one chat turn. Returns the wrapper plus its speaker and body nodes so the reply can be updated as it types.
   function turnNode(role, text) {
     const wrap = el("div", "margin-note replay-turn");
     const speaker = el("p", "margin-note-speaker", roleLabel(role));
@@ -273,6 +287,7 @@ export function mount(root, api) {
     return { el: wrap, speaker, body, text };
   }
 
+  // The replayTimeline() result for the current transcript and speed at `elapsed` ms.
   function timelineAt(elapsed) {
     return replayTimeline({
       priorCount: state.priorCount,
@@ -282,6 +297,8 @@ export function mount(root, api) {
     });
   }
 
+  // Draws the screen for `elapsed` ms: reveals turns, types the reply, and finishes when it is complete.
+  // Returns the timeline so the animation loop knows whether to continue.
   function paint(elapsed) {
     const tl = timelineAt(elapsed);
     state.turns.forEach((turn, i) => {
@@ -295,6 +312,7 @@ export function mount(root, api) {
     return tl;
   }
 
+  // Playback end: stops the loop and shows the HELD/FOLDED stamp (plus the confession for a fold).
   function finish() {
     cancelFrame();
     const info = stampFor(state.outcome);
@@ -314,6 +332,7 @@ export function mount(root, api) {
     status.textContent = "Finished.";
   }
 
+  // Starts playback from the beginning. With reduced motion it jumps straight to the finished state.
   function play() {
     cancelFrame();
     if (!state.reply) return;
@@ -330,6 +349,7 @@ export function mount(root, api) {
     state.raf = requestAnimationFrame(frame);
   }
 
+  // Jumps to the finished state without waiting for the typing to run.
   function skip() {
     if (!state.reply) return;
     paint(FAR_FUTURE_MS);

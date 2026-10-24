@@ -40,6 +40,8 @@ export function tweenNumbers(fromArray, toArray, durationMs, onFrame, onDone) {
     return () => {};
   }
 
+  // frameId lets cancel() drop the pending frame. startTime is set on the first frame, so the clock
+  // starts when the first frame actually runs and not when the tween was requested.
   let frameId = 0;
   let startTime = null;
   let cancelled = false;
@@ -57,6 +59,7 @@ export function tweenNumbers(fromArray, toArray, durationMs, onFrame, onDone) {
       onFrame(blend(fromArray, toArray, easeOut(progress)));
       frameId = requestAnimationFrame(step);
     } else {
+      // The last frame uses the exact target values, not the eased ones, so no rounding error is left over.
       onFrame(toArray.slice());
       if (onDone) {
         onDone();

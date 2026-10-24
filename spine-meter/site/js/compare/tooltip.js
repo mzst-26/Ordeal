@@ -4,9 +4,12 @@
 // which the CSP allows.
 
 const TOOLTIP_ID = "compare-tooltip";
+// GAP is the space in px between the anchor and the tooltip. EDGE is the least space in px kept
+// between the tooltip and the viewport edge.
 const GAP = 8;
 const EDGE = 8;
 
+// The single tooltip element, shared by every caller. It is null until the first showTooltip call.
 let tip = null;
 
 /** The tooltip element, created on first use. */
@@ -25,9 +28,11 @@ function tooltipNode() {
 /** Places the tooltip below the anchor, or above it when there is no room, and keeps it on screen. */
 function place(node, anchorRect) {
   const width = node.offsetWidth;
+  // The tooltip must already be visible (not hidden) here, or offsetWidth and offsetHeight would read 0.
   const height = node.offsetHeight;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
+  // With no anchor, fall back to the top-left corner of the viewport.
   if (!anchorRect) {
     node.style.left = `${EDGE}px`;
     node.style.top = `${EDGE}px`;
@@ -37,6 +42,7 @@ function place(node, anchorRect) {
   if (top + height > viewportHeight - EDGE) {
     top = Math.max(EDGE, anchorRect.top - height - GAP);
   }
+  // Centre on the anchor horizontally, then clamp so the tooltip stays inside the viewport.
   const centred = anchorRect.left + anchorRect.width / 2 - width / 2;
   const left = Math.min(Math.max(EDGE, centred), Math.max(EDGE, viewportWidth - width - EDGE));
   node.style.left = `${Math.round(left)}px`;

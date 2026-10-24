@@ -1,12 +1,17 @@
 // Label placement for the scatter chart. Pure maths, so it also runs in Node tests.
 // Boxes are estimated from text length, not measured, so they keep labels clear of each other.
 
+// All sizes are in px. A label's box reaches LABEL_BOX_ASCENT above its text baseline and is
+// LABEL_BOX_HEIGHT tall in total.
 const LABEL_BOX_ASCENT = 12;
 const LABEL_BOX_HEIGHT = 16;
+// Average character widths used to estimate a box width: point labels, and the wider small-capital corner labels.
 const POINT_CHAR_WIDTH = 7;
 const CORNER_CHAR_WIDTH = 9;
+// Distance from the dot centre to the label, and how far the baseline drops so a side label looks level with the dot.
 const LABEL_DOT_GAP = 10;
 const LABEL_BASELINE_DROP = 4;
+// When a label collides, it moves up or down in steps of LABEL_STEP, at most LABEL_MAX_STEPS times each way.
 const LABEL_STEP = 16;
 const LABEL_MAX_STEPS = 12;
 
@@ -133,6 +138,8 @@ export function placeDotLabels(dots, plot, corners) {
 
 /** The corner labels that have text, each with its spot { text, x, y, anchor }. */
 export function cornerSpots(plot, names) {
+  // Each label sits 8px in from its side edge. Top labels are 16px below the top edge (their baseline),
+  // and bottom labels 8px above the bottom edge.
   const spots = [
     { text: names.topLeft, x: plot.left + 8, y: plot.top + 16, anchor: "start" },
     { text: names.topRight, x: plot.right - 8, y: plot.top + 16, anchor: "end" },

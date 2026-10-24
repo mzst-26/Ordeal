@@ -4,20 +4,26 @@ import { formatTick } from "./scale.js";
 import { tweenNumbers } from "./animate.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+// Hosts narrower than NARROW_WIDTH count as narrow (fewer ticks, no value labels). MIN_WIDTH is the smallest
+// width a chart is drawn at. FALLBACK_WIDTH is used when the host has no layout width yet (for example hidden).
 const NARROW_WIDTH = 560;
 const MIN_WIDTH = 240;
 const FALLBACK_WIDTH = 640;
+// Used when a CSS token cannot be read; a neutral grey that is visible on both themes.
 const FALLBACK_COLOUR = "#808080";
 const FALLBACK_SANS = "Helvetica Neue, Arial, sans-serif";
 const FALLBACK_SERIF = "Georgia, serif";
+// Animation lengths used when the --dur-slow / --dur-base tokens cannot be read.
 const FALLBACK_ENTER_MS = 480;
 const FALLBACK_UPDATE_MS = 240;
+// Estimated width of one legend character in px, used to space legend items (text is not measured).
 const LEGEND_CHAR_WIDTH = 7;
 // Title lines: an average character width for the 18px serif title, the fewest characters per line,
 // and the distance between two title lines, all in px.
 const TITLE_CHAR_WIDTH = 11;
 const MIN_TITLE_CHARS = 16;
 const TITLE_LINE_HEIGHT = 22;
+// The least horizontal room, in px, given to each x-axis label before labels are thinned out.
 const TICK_LABEL_SPACING = 64;
 // A repeat series (series 4 and later) is drawn with this fill opacity, and its lines with this dash.
 export const FADED_OPACITY = 0.45;
@@ -208,8 +214,11 @@ export function startFrame(host, layout) {
   const theme = readTheme(host);
   const svg = createSvg(width, layout.height, layout.label);
   const headerBottom = drawHeader(svg, theme, layout.title, layout.legend, width);
+  // The left margin leaves room for the value labels (34px narrow, 40px wide), plus 20px more when
+  // a rotated y-axis title is shown.
   const left = (layout.yTitle ? 28 : 8) + (narrow ? 34 : 40);
   const top = headerBottom + 8;
+  // The bottom 48px hold the x-axis labels and the x-axis title. The right margin is 16px.
   const bottom = layout.height - 48;
   const plot = {
     left, right: width - 16, top, bottom, width: width - 16 - left, height: bottom - top,
@@ -278,6 +287,8 @@ function paintChart(host, spec, options, numbers, reveal) {
 
 /** The tween that runs on the first draw: lines draw in, bars and donut slices grow, the rest appear. */
 function startEnterTween(state, spec, target, enterMs) {
+  // "dash": the numbers are final from the start and a 0 to 1 reveal value is tweened instead.
+  // Any other value of spec.enter (the scatter uses "none") just shows the target at once.
   if (spec.enter === "dash") {
     state.shown = target;
     return tweenNumbers([0], [1], enterMs, ([progress]) => state.paint(target, progress), state.finish);
@@ -359,6 +370,8 @@ function makeChartState(host, spec, options) {
   return state;
 }
 
+// Entry point used by every chart module. It builds the shared state, redraws on window resize, and
+// starts the first draw through update(). See the comment above stopTween for what spec must provide.
 export function createChart(host, spec, initialOptions) {
   const state = makeChartState(host, spec, initialOptions);
   const onResize = () => redrawChart(state);

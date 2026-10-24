@@ -6,20 +6,27 @@ import { showTooltip, hideTooltip } from "./tooltip.js";
 import { isNotRun, pct, rateText, numberText } from "./derive.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+// Chart size in pixels: width is clamped to this range and height is width * ASPECT.
+// PAD is the margin around the plot area, leaving room for tick labels and axis titles.
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 720;
 const ASPECT = 0.72;
 const PAD = { left: 56, right: 28, top: 22, bottom: 52 };
+// Dot radius range in pixels. Area scales with parameter count between DOT_MIN and DOT_MAX;
+// DOT_NOT_RUN is the fixed small radius used when a model's size is unknown.
 const DOT_MIN = 6;
 const DOT_MAX = 20;
 const DOT_NOT_RUN = 5;
+// Half-length in pixels of the end caps on error bars.
 const CAP = 4;
 // Labels use --size-xs (12px). Their box width is estimated from that size, so LABEL_CHAR is about one 12px glyph.
 const LABEL_LINE = 14;
 const LABEL_CHAR = 6.6;
 const LABEL_GAP = 4;
+// Axis tick positions. Rates run 0 to 1; twin discrimination runs -1 to 1.
 const TICKS = [0, 0.25, 0.5, 0.75, 1];
 const DISCRIMINATION_TICKS = [-1, -0.5, 0, 0.5, 1];
+// Values of the FIG 6 vertical-axis selector (state.yChoice).
 const DISCRIMINATION = "discrimination";
 const ACCEPTANCE = "acceptance";
 
@@ -179,6 +186,8 @@ function boxes(a, b) {
 /** The FIG 1 or FIG 6 instance. */
 export function mount(root, api, options = {}) {
   const mode = modeOf(options);
+// Per-mount state: the latest view from app.js, whether the table is showing, the FIG 6 y-axis
+// choice, the id of the keyboard-focused point (restored after a redraw) and the pending resize frame.
   const state = {
     view: null,
     tableOpen: false,
@@ -222,6 +231,7 @@ export function mount(root, api, options = {}) {
     toggle.focus();
   });
 
+// Redraw on window resize (batched by scheduleRender). This listener is never removed.
   window.addEventListener("resize", scheduleRender);
 
   /** Redraws on the next animation frame, so a burst of resize events draws once. */
@@ -265,6 +275,7 @@ export function mount(root, api, options = {}) {
     });
     const plotWidth = width - PAD.left - PAD.right;
     const plotHeight = height - PAD.top - PAD.bottom;
+// sx maps a 0..1 rate to a pixel x; sy maps a value in yDomain to a pixel y (SVG y grows downward, so it is flipped).
     const yDomain = mode === "map" && state.yChoice === DISCRIMINATION ? [-1, 1] : [0, 1];
     const sx = (value) => PAD.left + value * plotWidth;
     const sy = (value) => PAD.top + ((yDomain[1] - value) / (yDomain[1] - yDomain[0])) * plotHeight;
@@ -311,11 +322,13 @@ export function mount(root, api, options = {}) {
     yAxisTitle.setAttribute("transform", `translate(14 ${PAD.top + plotHeight / 2}) rotate(-90)`);
     svg.append(yAxisTitle);
 
+// Corner caption marking the desirable region of the chart.
     const corner = mode === "map"
       ? textNode("firm and open", PAD.left + 8, PAD.top + 16, "start", "var(--ink-soft)")
       : textNode("accurate and unmovable", PAD.left + plotWidth - 8, PAD.top + plotHeight - 10, "end", "var(--ink-soft)");
     svg.append(corner);
 
+// Largest known parameter count in this plot; the reference for scaling dot radii.
     const maxSize = Math.max(0, ...plot.points.map((point) => (finite(point.model.params_b) ? point.model.params_b : 0)));
     const dotLabels = plot.points.map((point) => ({
       x: sx(point.x),
@@ -325,6 +338,7 @@ export function mount(root, api, options = {}) {
     }));
     const boxesForLabels = placeLabels(dotLabels, width, height);
 
+// Error bars are drawn first so the dots sit on top of them.
     for (const point of plot.points) {
       const cx = sx(point.x);
       const cy = sy(point.y);
@@ -386,9 +400,11 @@ export function mount(root, api, options = {}) {
       "aria-label": labelFor(point, mode, state.yChoice),
       "aria-pressed": selected ? "true" : "false",
     });
+// Class is set after creation; moveTo() and render() find points by it.
     group.setAttribute("class", "scatter-point");
 
     const circle = svgNode("circle", { cx, cy, r: radius, "stroke-width": selected ? 3 : 1.5 });
+// A model with unknown size is drawn as a dashed hollow circle instead of a filled one.
     if (sized) {
       paint(circle, "fill", colour);
       paint(circle, "stroke", selected ? "var(--ink)" : "var(--paper)");
@@ -425,6 +441,7 @@ export function mount(root, api, options = {}) {
         choose(model.id);
         return;
       }
+// Arrow keys walk through the points in plotted order.
       const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1
         : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
       if (step !== 0) {
@@ -553,12 +570,14 @@ export function mount(root, api, options = {}) {
     if (!view) {
       return;
     }
+// Remember which point had keyboard focus; the redraw replaces every node, so focus is restored at the end.
     const focusId = state.focusedId;
     note.textContent = "";
     legend.textContent = "";
     host.replaceChildren();
     tableWrap.replaceChildren();
     if (ySelect) {
+// FIG 6 only: offer the discrimination option only if some model has twin data; fall back to acceptance otherwise.
       const hasTwin = view.allModels.some((model) => model.twin);
       const current = ySelect.value || state.yChoice;
       ySelect.replaceChildren();

@@ -3,7 +3,9 @@
 import { isNotRun, pct, rateText } from "./derive.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+// A model "holds" at a level when its flip rate there is at or below this share (50%).
 const HOLD_LIMIT = 0.5;
+// Play-step length in ms, used when the --dur-base CSS token is missing or zero.
 const FALLBACK_BEAT_MS = 240;
 const CAPTION =
   "A filled green dot means the model held (flip rate at or below 50%), a filled red-brown dot means it flipped past half, " +
@@ -43,11 +45,13 @@ export function survivorSentence(counts, level) {
   return `${counts.holding} of ${total} still holding at level ${level}`;
 }
 
+// Display name without a trailing parenthesised part, e.g. a size note; keeps the strip labels short.
 function shortName(model) {
   const name = model.display_name || model.id || "";
   return name.replace(/\s*\(.*\)\s*$/, "") || name;
 }
 
+// True when the OS asks for reduced motion. Play then becomes a manual Next level button.
 function prefersReducedMotion() {
   return typeof window !== "undefined" && typeof window.matchMedia === "function"
     ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -61,6 +65,8 @@ function beatMs() {
   return Number.isFinite(value) && value > 0 ? value : FALLBACK_BEAT_MS;
 }
 
+// Tiny element builder: attrs {text, class, hidden, onXxx handlers, anything else as an attribute};
+// null, undefined and false are skipped. Text goes in via textContent, never as markup.
 function h(tag, attrs = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -77,16 +83,20 @@ function h(tag, attrs = {}, ...kids) {
   return node;
 }
 
+// Creates an SVG element in the SVG namespace with string attributes.
 function svgEl(tag, attrs = {}) {
   const node = document.createElementNS(SVG_NS, tag);
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
   return node;
 }
 
+// Mounts FIG 3. levelCount comes from the results file; levels run 1..levelCount and the slider starts on the last one.
+// update(view) supplies the visible models.
 export function mount(root, api) {
   const levelCount = Math.max(1, Number(api.data.level_count) || 1);
   const reduced = prefersReducedMotion();
   const sliderId = `${root.id}-level`;
+// timer: the setInterval id while auto-playing (null otherwise). items: per-model dot nodes, rebuilt when the set of models changes.
   const state = {
     level: levelCount,
     playing: false,
@@ -153,17 +163,20 @@ export function mount(root, api) {
     detailsBox,
   );
 
+// Clamps to 1..levelCount, repaints, and optionally announces the new count to screen readers.
   function setLevel(level, announce) {
     state.level = Math.min(levelCount, Math.max(1, Math.round(level) || 1));
     paint();
     if (announce) api.announce(countSentence());
   }
 
+// The live count sentence for the current level, with a closing full stop, for announcements.
   function countSentence() {
     const models = state.view.models || [];
     return `${survivorSentence(countSurvivors(models, state.level), state.level)}.`;
   }
 
+// Stops auto-play and resets the button label; announces the final count when `announce` is true.
   function stopPlaying(announce) {
     if (state.timer !== null) clearInterval(state.timer);
     state.timer = null;
@@ -172,6 +185,7 @@ export function mount(root, api) {
     if (announce) api.announce(countSentence());
   }
 
+// Auto-plays up one level per beat, starting from level 1 if already at the end, and stops itself on the last level.
   function startPlaying() {
     if (state.level >= levelCount) setLevel(1, false);
     state.playing = true;
@@ -195,6 +209,7 @@ export function mount(root, api) {
     else startPlaying();
   }
 
+// One button per model with a small SVG dot. Colours and text are filled in by paint().
   function buildStrip(models) {
     const list = h("ul", { class: "sv-strip" });
     state.items = new Map();
@@ -215,6 +230,7 @@ export function mount(root, api) {
     return list;
   }
 
+// Updates everything that depends on the level: slider, counts, detail table and each dot (green held, red-brown flipped, dashed hollow not run).
   function paint() {
     const models = state.view.models || [];
     const level = state.level;
@@ -250,6 +266,7 @@ export function mount(root, api) {
     }
   }
 
+// Rebuilds the strip only when the set of model ids changes, so a level change keeps focus.
   function render(models) {
     const sig = JSON.stringify(models.map((model) => model.id));
     if (sig === state.renderedSig) return;

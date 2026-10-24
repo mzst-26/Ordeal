@@ -6,10 +6,14 @@ import {
 } from "./derive.js";
 import { hideTooltip } from "./tooltip.js";
 
+// Id of the element holding the embedded results JSON.
 const DATA_ID = "compare-data";
+// Messages shown inside a figure card: NOT_BUILT when its module is missing or has no mount(), FAILED when it throws.
 const NOT_BUILT = "Not built yet";
 const FAILED = "This figure could not start.";
+// The only valid conditions for api.setCondition, with the wording used in the screen-reader announcement.
 const CONDITION_NAMES = { none: "no system prompt", mitigation: "mitigation prompt", control: "control prompt" };
+// Media query watched so figures redraw when the colour scheme changes (their colours come from CSS tokens).
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 /** The figures, in page order. FIG 6 uses the scatter module in its map mode. */
@@ -62,6 +66,7 @@ function buildFilters(data, state, onChange) {
   const lowSample = document.getElementById("filter-lowsample");
   const search = document.getElementById("filter-search");
   const resetButton = document.getElementById("filter-reset");
+// One toggle chip per family, keyed by family (null stands for models with no family).
   const chips = new Map();
 
   for (const family of order) {
@@ -94,6 +99,7 @@ function buildFilters(data, state, onChange) {
     familyBox.append(chip);
   }
 
+// Keep the slider's max above its min even when every size is the same or unknown.
   const sizeMax = Math.max(bounds.max, bounds.min + 1);
   sizeInput.min = String(bounds.min);
   sizeInput.max = String(sizeMax);
@@ -107,6 +113,7 @@ function buildFilters(data, state, onChange) {
       : `Up to ${value} B parameters (models of unknown size are hidden)`;
   }
 
+// Wire each control to the shared filter state, then call onChange to redraw.
   sizeInput.addEventListener("input", () => {
     state.filters.sizeMax = Number(sizeInput.value);
     showSize();
@@ -199,12 +206,15 @@ async function boot() {
   const data = loaded.data;
   const allModels = data.models;
   const order = familyOrder(allModels);
+// Page-wide state. selectedId is the pinned model highlighted in figures; openId is the model whose card is open.
   const state = {
     filters: defaultFilters(allModels),
     condition: "none",
     selectedId: null,
     openId: null,
   };
+// mounted: the figures that started, each with its update(view). card/closeCard: the model card, if it loaded.
+// checkCondition and filterControls are filled in below, once the controls exist.
   const mounted = [];
   let card = null;
   let closeCard = null;
@@ -223,6 +233,7 @@ async function boot() {
     const bands = rankBands(visible);
     countLine.textContent = `${visible.length} of ${allModels.length} models shown`;
     takeawayLine.textContent = takeaway(allModels, visible);
+// The one view object handed to every figure and the card: filtered models, all models, and the derived rank bands.
     const view = {
       models: visible,
       allModels,
@@ -254,6 +265,7 @@ async function boot() {
     render();
   }
 
+// The shared API every figure receives. Figures call it to change shared state; it never draws anything itself.
   const api = {
     data,
     allModels,
@@ -296,6 +308,7 @@ async function boot() {
     },
   };
 
+// Figures are mounted one at a time, in page order. A failure in one only affects its own card.
   filterControls = buildFilters(data, state, onChange);
   checkCondition = buildCondition((condition) => api.setCondition(condition));
 
@@ -334,6 +347,7 @@ async function boot() {
     card = null;
   }
 
+// Escape hides any tooltip and closes the open model card.
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
       return;
