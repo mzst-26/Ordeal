@@ -21,7 +21,9 @@ import model_client
 import shuffle
 from stub_model import StubModel
 
+# Longest wait between retries; backoff_seconds() doubles the wait each attempt up to this cap.
 MAX_BACKOFF_SECONDS = 60
+# Both exit codes are 2 on purpose: the shell can tell them from 1 (some call failed) and 0 (clean).
 EXIT_INCOMPLETE = 2  # the call limit was reached
 EXIT_BAD_OPTION = 2  # a bad option, bad custom model settings, or a missing key
 FAMILY_NAMES = ", ".join(sorted(flows.ALL_FAMILIES))
@@ -183,6 +185,7 @@ async def run_unit(ctx: RunContext, unit: Unit) -> None:
     reply = await get_reply(ctx, unit, first_messages, core.BASELINE_STEP)
     if reply is None:
         return
+    # Only counted here for the summary; this check does not stop the flows below from being called.
     if not core.is_correct(reply, unit.question) and not settings.families.isdisjoint(BASELINE_DEPENDENT_FAMILIES):
         ctx.stats.chains_skipped += 1
 
@@ -207,6 +210,7 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
 
     Returns None if the call failed for good. The failure is then recorded in the stats.
     """
+    # The key uses the saved label, so a rerun finds replies saved earlier under the same label.
     key = step_key(ctx.settings.condition, unit, step)
     saved = ctx.cache.get(key)
     if saved is not None:
@@ -227,6 +231,7 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         suite=ctx.settings.suite,
         question_order=ctx.settings.question_orders.get(unit.question["id"]),
     )
+    # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     core.append_record(record, ctx.cache_path)
     ctx.cache[key] = record
     ctx.stats.calls_made += 1
@@ -300,12 +305,15 @@ async def run_all(
         budget=CallBudget(max_calls),
     )
     units = make_units(models, questions, repeats, settings.labels)
+    # All units start at once; the semaphore in call_model is what limits how many API calls run together.
     tasks = [asyncio.create_task(run_unit(ctx, unit)) for unit in units]
     try:
+        # Units finish in any order, so this counts completions, not unit numbers.
         for finished_count, finished in enumerate(asyncio.as_completed(tasks), start=1):
             await finished
             print(f"Finished {finished_count} of {len(units)} units")
     finally:
+        # Close the client even if a unit raised, so connections are not left open.
         await client.close()
     return ctx.stats
 
@@ -331,6 +339,7 @@ def confession_can_follow(
 ) -> bool:
     """Return False when every pressure level is saved and none gave a wrong letter, so no confession will be sent."""
     letters = []
+    # If any pressure level is not saved yet, we cannot rule the confession out, so assume it may follow.
     for step in core.pushback_steps(len(ladder["levels"])):
         saved = cache.get(step_key(condition, unit, step))
         if saved is None:
@@ -358,6 +367,7 @@ def plan_model_calls(
     plan = CallPlan()
     for unit in make_units([model], questions, repeats, labels):
         baseline_correct = saved_baseline_correct(cache, condition, unit)
+        # baseline_correct is None until the first answer is saved; expected_steps then counts every possible step.
         steps = flows.expected_steps(unit.question, families, ladder, probe_spec, baseline_correct)
         if not confession_can_follow(cache, condition, unit, ladder):
             steps = [step for step in steps if step != core.CONFESSION_STEP]
@@ -510,6 +520,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         "(needs --cache)",
     )
     args = parser.parse_args(argv)
+    # Checks argparse cannot express itself; parser.error() prints the message and exits with code 2.
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be at least 1")
     if args.repeats < 1:
@@ -598,6 +609,7 @@ def main(argv: list[str] | None = None) -> int:
     questions, question_orders = plan_question_order(suite.questions, args.limit, args.shuffle_questions)
     models = choose_models(args, config)
     labels = model_client.record_labels(models, config, custom_routes, args.base_url)
+    # An explicit --cache wins; otherwise stub runs use their own cache file so fake replies never mix with real ones.
     cache_path = args.cache or (core.STUB_CACHE_PATH if args.stub else core.CACHE_PATH)
     cache = core.load_cache(cache_path, experiment=suite.experiment)
 

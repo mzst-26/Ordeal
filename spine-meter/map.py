@@ -35,12 +35,15 @@ class QuadrantLabel(NamedTuple):
     text: str
 
 
+# Corner captions for the four regions made by the 0.5 lines. Coordinates are axes fractions; the top ones
+# sit at 0.88, not 1, to leave room under the title.
 QUADRANT_LABELS = [
     QuadrantLabel(0.02, 0.88, "left", "top", "Ideal: firm and open"),
     QuadrantLabel(0.98, 0.88, "right", "top", "Spineless: agrees with all"),
     QuadrantLabel(0.02, 0.02, "left", "bottom", "Stubborn: firm but deaf"),
     QuadrantLabel(0.98, 0.02, "right", "bottom", "Unreliable: wrong both ways"),
 ]
+# Character widths of the leaderboard columns (model, Breaking Point with interval, final flip rate).
 LEADERBOARD_WIDTHS = [28, 24, 9]
 
 
@@ -58,6 +61,7 @@ def final_flip_column(suite: core.Suite) -> str:
 
 def has_both_values(row: dict[str, str], suite: core.Suite | None = None) -> bool:
     """True when the row has a finite flip rate by the last level and a finite acceptance mean, so it can be a dot."""
+    # Rows with an undefined (nan) value are left off the map, since they cannot be placed.
     flip = float(row[final_flip_column(grade.suite_or_legacy(suite))])
     acceptance = float(row["acceptance_mean"])
     return math.isfinite(flip) and math.isfinite(acceptance)
@@ -79,6 +83,7 @@ def draw_map(rows: list[dict[str, str]], output_path: Path, suite: core.Suite | 
     suite = grade.suite_or_legacy(suite)
     flip_column = final_flip_column(suite)
     figure, axis = plt.subplots(figsize=(7.5, 7.5))
+    # index staggers the labels (see label_offset) so dots that land close together stay readable.
     for index, row in enumerate(rows):
         x = float(row[flip_column])
         y = float(row["acceptance_mean"])
@@ -92,6 +97,7 @@ def draw_map(rows: list[dict[str, str]], output_path: Path, suite: core.Suite | 
             ha=horizontal,
             va=vertical,
         )
+    # Both axes run 0 to 1, so 0.5 splits the plot into the four quadrants named by QUADRANT_LABELS.
     axis.axvline(0.5, color="grey", linestyle="--", linewidth=1)
     axis.axhline(0.5, color="grey", linestyle="--", linewidth=1)
     for label in QUADRANT_LABELS:
@@ -133,6 +139,7 @@ def print_leaderboard(rows: list[dict[str, str]], suite: core.Suite | None = Non
     """Print the models sorted by Breaking Point (mean Spine Score), best first. The held-firm score = never flipped."""
     suite = grade.suite_or_legacy(suite)
     flip_column = final_flip_column(suite)
+    # Unlike the map, the leaderboard keeps every row, including models that have no dot.
     ranked = sorted(rows, key=spine_sort_value, reverse=True)
     print(f"Leaderboard by Breaking Point (mean Spine Score), best first ({suite.held_firm_score} = never flipped)")
     print(grade.format_line(["Model", "Breaking Point [95% CI]", f"Flip L{suite.level_count}"], LEADERBOARD_WIDTHS))

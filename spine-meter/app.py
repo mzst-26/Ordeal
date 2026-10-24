@@ -21,6 +21,9 @@ DEMO_REPEAT = 1  # runner.py numbers repeats from 1, so the first saved run is r
 # Live demo replies go here, never to results/cache.jsonl, which the grader reads as experiment data.
 DEMO_CACHE_PATH = core.RESULTS_DIR / "demo_cache.jsonl"
 
+# Colours of the spine meter: red marks the level where the model gave in, green a full hold, light blue
+# a level passed so far, grey an untouched level. The *_TEXT colours are for the result line and need to
+# stay readable on a white page.
 RED = "#ef4444"
 GREEN = "#22c55e"
 FILLED = "#93c5fd"
@@ -29,12 +32,14 @@ SEGMENT_TEXT = "#111827"
 RED_TEXT = "#b91c1c"
 GREEN_TEXT = "#15803d"
 GREY_TEXT = "#4b5563"
+# Page labels for the pushback and question set dropdowns, keyed by the names in core.LADDER_FILES and core.QUESTION_FILES.
 PUSHBACK_LABELS = {"gauntlet_v3": "Easy pushbacks (gauntlet_v3)", "gauntlet_v4": "Hard pushbacks (gauntlet_v4)"}
 QUESTION_SET_LABELS = {"easy": "Easy questions", "hard": "Hard questions"}
 
 # RuntimeError covers a missing key; openai.OpenAIError covers API and network failures.
 REQUEST_ERRORS = (RuntimeError, openai.OpenAIError)
 
+# Read once when the module loads and shared by every handler.
 CONFIG = core.load_config()
 DEFAULT_SUITE = core.default_suite()
 
@@ -72,6 +77,7 @@ class DemoRun:
     suite: core.Suite = DEFAULT_SUITE
 
 
+# What every button handler returns, in the order of screen_outputs: run state, chat bubbles, meter HTML, status text.
 ScreenValues = tuple[DemoRun | None, list[dict], str, str]
 
 
@@ -124,6 +130,7 @@ def suite_description(suite: core.Suite) -> str:
 
 def ladder_order_error(levels_done: int, requested_level: int, suite: core.Suite = DEFAULT_SUITE) -> str | None:
     """Return a message if requested_level is not the next level, or None if it is."""
+    # Levels must be pressed in order, so the only valid button is the one after the levels already done.
     next_level = levels_done + 1
     if next_level > suite.level_count:
         return f"All {suite.level_count} levels are done. Press Start to begin again."
@@ -136,6 +143,7 @@ def ladder_order_error(levels_done: int, requested_level: int, suite: core.Suite
 
 def find_flipped_level(letters: list[str | None], correct: str, suite: core.Suite = DEFAULT_SUITE) -> int | None:
     """Return the first level whose answer is wrong, or None if no level so far was wrong."""
+    # spine_score gives the first wrong level, or held_firm_score when no level so far was wrong.
     spine = core.spine_score(letters, correct, held=suite.held_firm_score)
     if spine == suite.held_firm_score:
         return None
@@ -191,6 +199,8 @@ def chat_turns(run: DemoRun | None) -> list[dict]:
 
 def segment_color(segment: int, flipped_level: int | None, pushback_count: int, suite: core.Suite) -> str:
     """Return the fill colour of one segment of the spine bar."""
+    # Segments are numbered 1 to held_firm_score. The last one stands for "held firm" and turns green
+    # only when every level was passed with no wrong answer.
     if segment == flipped_level:
         return RED
     if segment == suite.held_firm_score:
@@ -214,6 +224,7 @@ def meter_message(flipped_level: int | None, pushback_count: int, suite: core.Su
 
 def build_spine_meter_html(flipped_level: int | None, pushback_count: int, suite: core.Suite = DEFAULT_SUITE) -> str:
     """Return the HTML for the spine bar and the result line under it."""
+    # One bar segment per level, plus the final held-firm segment.
     segments = []
     for segment in range(1, suite.held_firm_score + 1):
         color = segment_color(segment, flipped_level, pushback_count, suite)
@@ -254,6 +265,7 @@ def missing_reply_message(step: str, saved_replies: dict) -> str:
 
 def saved_reply(run: DemoRun, step: str, saved_replies: dict) -> str:
     """Return the saved reply for one step of this run."""
+    # Replay looks up the saved run of repeat 1 (DEMO_REPEAT) for this model, question and step.
     key = core.make_key(run.condition, run.model, run.question["id"], DEMO_REPEAT, step)
     record = saved_replies.get(key)
     if record is None:
@@ -263,6 +275,7 @@ def saved_reply(run: DemoRun, step: str, saved_replies: dict) -> str:
 
 async def request_reply(model: str, messages: list[dict]) -> str:
     """Send one chat request with a fresh client, and close the client afterwards."""
+    # A new client per request, because each call runs in its own event loop (see ask_live_model).
     client = TokenFactoryClient(
         CONFIG["base_url"], core.read_api_key(), CONFIG["request_timeout_seconds"]
     )
@@ -274,6 +287,7 @@ async def request_reply(model: str, messages: list[dict]) -> str:
 
 def ask_live_model(model: str, messages: list[dict]) -> str:
     """Call the live model from a normal (sync) Gradio handler."""
+    # asyncio.run makes a fresh event loop for each call, so the async client can be used from sync handlers.
     return asyncio.run(request_reply(model, messages))
 
 
@@ -329,6 +343,7 @@ def handle_start(
         reply = fetch_reply(pending, core.BASELINE_STEP, replay, saved_replies)
     except REQUEST_ERRORS as error:
         return screen_values(current_run, error_message(error))
+    # DemoRun is never changed in place; replace() makes a new one, so a failed step leaves the old run intact.
     run = replace(pending, messages=pending.messages + [{"role": "assistant", "content": reply}])
     return screen_values(run, answer_note(core.parse_answer(reply), question["correct"]))
 
@@ -375,12 +390,14 @@ def handle_pushback(
         ready,
         messages=ready.messages + [{"role": "user", "content": core.add_format_reminder(text, CONFIG)}],
     )
+    # Levels are 1-based and the list of step names is 0-based.
     step = core.pushback_steps(suite.level_count)[level - 1]
     try:
         reply = fetch_reply(pending, step, replay, saved_replies)
     except REQUEST_ERRORS as error:
         return screen_values(run, error_message(error))
     letter = core.parse_answer(reply)
+    # Only a ladder pushback adds a letter to the run; this is what moves the meter.
     done = replace(
         pending,
         messages=pending.messages + [{"role": "assistant", "content": reply}],
@@ -415,6 +432,7 @@ def handle_custom_pushback(text: str, run: DemoRun | None, replay: bool) -> Scre
     message = text.strip()
     if not message:
         return screen_values(run, "Type a pushback first.")
+    # Goes straight to the live model and is not saved, because it has no step name in the experiment.
     pending = replace(run, messages=run.messages + [{"role": "user", "content": message}])
     try:
         reply = ask_live_model(run.model, pending.messages)
@@ -442,6 +460,7 @@ def refresh_saved_replies(replay: bool, ladder_name: str, question_set: str) -> 
     if not replay:
         return {}
     experiment = suite_for(ladder_name, question_set).experiment
+    # Filtering by experiment code keeps replies from other pushback and question sets out of this one.
     replies = core.load_cache(experiment=experiment)
     replies.update(core.load_cache(path=DEMO_CACHE_PATH, experiment=experiment))
     return replies
@@ -497,6 +516,7 @@ def build_demo() -> gr.Blocks:
                 )
                 replay_checkbox = gr.Checkbox(value=False, label="Replay saved run (works offline)")
                 start_button = gr.Button("Start", variant="primary")
+                # Built for the longest pushback set; shorter sets hide the extra buttons (see level_button_updates).
                 level_buttons = [
                     gr.Button(
                         default_labels[index] if index < len(default_labels) else "",
@@ -513,6 +533,7 @@ def build_demo() -> gr.Blocks:
                 meter = gr.HTML(build_spine_meter_html(None, 0, DEFAULT_SUITE))
                 status = gr.Markdown("Pick a model and a question, then press Start.")
 
+        # Every action button updates the same four outputs, matching ScreenValues.
         screen_outputs = [run_state, chatbot, meter, status]
         set_inputs = [pushback_dropdown, question_set_dropdown, replay_checkbox]
         set_outputs = [
@@ -535,6 +556,7 @@ def build_demo() -> gr.Blocks:
             outputs=screen_outputs,
             api_name="start",
         )
+        # One handler per level button, numbered from 1 to match the ladder.
         for level, button in enumerate(level_buttons, start=1):
             button.click(
                 make_pushback_handler(level),

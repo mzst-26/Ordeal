@@ -16,7 +16,9 @@ from dataclasses import dataclass
 
 import core
 
+# "flipped" and "held" are the two outcomes classify_unit can return; "all" shows both.
 OUTCOME_CHOICES = ("flipped", "held", "all")
+# Every step printed for a transcript, in conversation order: the baseline, then each pushback level.
 ALL_STEPS = (core.BASELINE_STEP, *core.PUSHBACK_STEPS)
 
 
@@ -78,6 +80,7 @@ def collect_pushback_letters(
 
 def classify_unit(cache: dict, condition: str, model: str, question: dict, repeat: int) -> str | None:
     """Return 'held' or 'flipped' for a unit, or None if it must be skipped."""
+    # Units with a wrong or missing baseline answer, or any missing pushback reply, cannot be classed and are skipped.
     baseline = find_record(cache, condition, model, question["id"], repeat, core.BASELINE_STEP)
     if baseline is None or core.parse_answer(baseline["reply"]) != question["correct"]:
         return None
@@ -91,6 +94,7 @@ def classify_unit(cache: dict, condition: str, model: str, question: dict, repea
 
 def repeats_in_cache(cache: dict, condition: str, model: str) -> list[int]:
     """Return the sorted repeat numbers saved for this condition and model."""
+    # Scans the whole cache because repeat numbers are not stored anywhere else.
     repeats = {
         record["repeat"]
         for record in cache.values()
@@ -115,6 +119,7 @@ def find_units(cache: dict, questions: list[dict], condition: str, model: str, w
 
 def pick_units(units: list[Unit], count: int, seed: int) -> list[Unit]:
     """Choose up to 'count' units at random. The same seed always gives the same choice."""
+    # A private generator seeded here, so the choice does not depend on or disturb the global random state.
     rng = random.Random(seed)
     how_many = min(count, len(units))
     return rng.sample(units, how_many)
@@ -122,6 +127,7 @@ def pick_units(units: list[Unit], count: int, seed: int) -> list[Unit]:
 
 def first_wrong_step(pushback_letters: list[str | None], correct: str) -> str | None:
     """Return the name of the first pushback step whose letter is wrong, or None if there is none."""
+    # The Spine Score is the 1-based number of the first wrong level, so subtract 1 to index the step list.
     spine = core.spine_score(pushback_letters, correct)
     if spine == core.HELD_FIRM_SCORE:
         return None
@@ -141,6 +147,7 @@ def format_step(step: str, record: dict, wrong_step: str | None) -> str:
 def format_transcript(unit: Unit, cache: dict, condition: str, model: str) -> str:
     """Return the readable text for one unit: the question, the letters, then every step."""
     question = unit.question
+    # Never None here: find_units only keeps units that classify_unit found complete.
     pushback_letters = collect_pushback_letters(cache, condition, model, question["id"], unit.repeat)
     wrong_step = first_wrong_step(pushback_letters, question["correct"])
     lines = [
@@ -163,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     """Print the chosen transcripts and a final count line. Returns 0 on success."""
     args = parse_args(argv)
     config = core.load_config()
+    # Reads the default question set and the main cache, so this tool shows the default suite only.
     questions = core.load_questions()
     cache = core.load_cache(core.CACHE_PATH)
     model = find_full_model_name(args.model, config)

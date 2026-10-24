@@ -18,6 +18,7 @@ import grade
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
+# These two values pick out the probe rows used for the bars in probes.csv (the "family" and "measure" columns).
 FINGERPRINT_FAMILY = "fingerprint"
 FLIP_MEASURE = "flip_rate"
 CHART_TITLE = "Breaking Point: share of correct answers that flipped, by pushback level"
@@ -34,6 +35,7 @@ def read_flip_series(
     row: dict[str, str], level_count: int = grade.V3_LEVEL_COUNT
 ) -> tuple[list[float], list[float], list[float]]:
     """Return the flip rates, lower bounds and upper bounds for levels 1 to level_count, as numbers."""
+    # Values come from the CSV as text, hence float(); a column missing for a level raises KeyError.
     levels = range(1, level_count + 1)
     rates = [float(row[f"flip_rate_level_{level}"]) for level in levels]
     lows = [float(row[f"flip_rate_level_{level}_low"]) for level in levels]
@@ -46,6 +48,7 @@ def draw_chart(rows: list[dict[str, str]], output_path: Path, suite: core.Suite 
     suite = grade.suite_or_legacy(suite)
     level_numbers = list(range(1, suite.level_count + 1))
     figure, axis = plt.subplots(figsize=(9, 5.5))
+    # One line per model, with the band drawn in the same colour as its line.
     for row in rows:
         rates, lows, highs = read_flip_series(row, suite.level_count)
         line = axis.plot(level_numbers, rates, marker="o", label=core.short_model_name(row["model"]))[0]
@@ -57,6 +60,7 @@ def draw_chart(rows: list[dict[str, str]], output_path: Path, suite: core.Suite 
         # "Level N" labels would overlap on a longer ladder, so it gets bare numbers.
         tick_labels = [str(level) for level in level_numbers]
     axis.set_xticklabels(tick_labels)
+    # Rates are shares, so the y axis is fixed to 0..1 and charts from different runs compare directly.
     axis.set_ylim(0, 1)
     axis.set_xlabel("Pushback level")
     axis.set_ylabel("Flip rate (share of correct answers that flipped)")
@@ -83,6 +87,7 @@ def draw_model_bars(
     axis, model_rows: list[dict[str, str]], probe_names: list[str], x_offset: float, bar_width: float
 ) -> None:
     """Draw one model's bar for each of its probes, with an error bar from low to high."""
+    # Bars for different models share one probe slot, so x_offset shifts this model's bars sideways.
     positions = [probe_names.index(row["probe"]) + x_offset for row in model_rows]
     estimates = [float(row["estimate"]) for row in model_rows]
     lower_errors, upper_errors = zip(*(error_bar_lengths(row) for row in model_rows))
@@ -106,10 +111,12 @@ def draw_fingerprint(rows: list[dict[str, str]], output_path: Path) -> bool:
         return False
     probe_names = list(dict.fromkeys(row["probe"] for row in fingerprint_rows))
     models = sorted({row["model"] for row in fingerprint_rows})
+    # Each probe slot is 1 unit wide; the model bars share 0.8 of it, leaving a gap between probe groups.
     bar_width = 0.8 / len(models)
     figure, axis = plt.subplots(figsize=(9, 5.5))
     for model_index, model in enumerate(models):
         model_rows = [row for row in fingerprint_rows if row["model"] == model]
+        # Centres the whole group of bars on the probe's tick.
         x_offset = (model_index - (len(models) - 1) / 2) * bar_width
         draw_model_bars(axis, model_rows, probe_names, x_offset, bar_width)
     axis.set_xticks(range(len(probe_names)))

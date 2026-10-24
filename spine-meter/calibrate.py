@@ -25,6 +25,8 @@ import adaptive
 import core
 import model_client
 
+# Retry limits for one API call: at most 6 attempts, waiting 1, 2, 4, ... seconds (plus up to 1 s of
+# random jitter) with each wait capped at 30 seconds.
 MAX_ATTEMPTS = 6
 MAX_BACKOFF_SECONDS = 30
 DEFAULT_OUT_DIR = core.PROJECT_DIR / "scratch" / "calibration"  # not the project root, so saved replies stay out of it
@@ -32,8 +34,10 @@ CACHE_NAME = "calib_cache.jsonl"
 BASELINE_NAME = "calibration.json"
 KEEP_NAME = "calibration_keep.json"
 SCREEN_NAME = "screen.json"
+# Calibration targets one model; this one is used unless --model is given.
 DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 LOCAL_TEST_KEY = "local-test-key"  # placeholder for a localhost --base-url; never sent to a real API
+# If more than this share (10%) of a question's replies has no "Answer: X" letter, the baseline prints a warning.
 UNPARSED_WARNING_SHARE = 0.1
 
 
@@ -84,6 +88,7 @@ class Caller:
     async def ask(self, messages, tag):
         """Return the reply for these messages, from the cache when it is there, else from the API."""
         key = cache_key(self.args.model, self.endpoint, self.args.temperature, tag, messages)
+        # Only a missing reply costs an API call; a rerun with the same inputs is free.
         if key not in self.cache.replies:
             self.cache.add(key, await self._complete(messages))
         return self.cache.replies[key]
@@ -99,6 +104,7 @@ class Caller:
             except Exception as error:
                 if not model_client.is_retryable(error):
                     raise CalibrationError(f"API call failed: {model_client.describe_error(error)}") from None
+                # Jitter keeps parallel workers from all retrying at the same moment.
                 await asyncio.sleep(min(MAX_BACKOFF_SECONDS, 2**attempt + random.random()))
         raise CalibrationError("API kept failing; stopping so you do not burn time.")
 
@@ -115,6 +121,7 @@ async def baseline_replies(caller, questions, repeats):
         messages = [{"role": "user", "content": core.format_question(question)}]
         return (question["id"], repeat), await caller.ask(messages, f"base{repeat}")
 
+    # All questions and repeats are launched together; Caller's semaphore limits how many calls run at once.
     results = await asyncio.gather(*(one(q, r) for q in questions for r in range(repeats)))
     return dict(results)
 
@@ -123,6 +130,7 @@ def summarise_baseline(questions, replies, repeats):
     """Return one (question, accuracy, unparsed share) row per question."""
     rows = []
     for question in questions:
+        # Repeats are numbered from 0 here, matching baseline_replies.
         letters = [core.parse_answer(replies[(question["id"], r)]) for r in range(repeats)]
         accuracy = sum(letter == question["correct"] for letter in letters) / repeats
         unparsed = sum(letter is None for letter in letters) / repeats
@@ -194,6 +202,7 @@ async def probe_axis(caller, job, ladder, config):
     message = probe_text(axis, ladder, question, reply, config)
     if message is None:
         return axis["id"], None
+    # A fresh conversation: the question and the model's own correct baseline reply, then only this one axis.
     history = [
         {"role": "user", "content": core.format_question(question)},
         {"role": "assistant", "content": adaptive.visible(reply) or reply},
@@ -209,6 +218,7 @@ async def probe_axis(caller, job, ladder, config):
 
 def tally_flips(outcomes):
     """Return {axis id: [flips, probes sent]} for the probes that were sent."""
+    # Each value is [flips, probes sent], so a rate is value[0] / value[1].
     stats = defaultdict(lambda: [0, 0])
     for axis_id, flipped in outcomes:
         if flipped is None:
@@ -233,12 +243,14 @@ async def run_screen(caller, args, suite, questions, config):
     kept_ids = kept_question_ids(args.out_dir)
     questions = [question for question in questions if question["id"] in kept_ids]
     replies = await baseline_replies(caller, questions, args.repeats)
+    # tampered_history is skipped by default; it needs a forged earlier turn (see probe_text).
     skipped = set(args.skip.split(","))
     axes = [axis for axis in suite.probe_spec["axes"] if axis["id"] not in skipped]
     jobs = [
         (question, repeat, replies[(question["id"], repeat)], axis)
         for question in questions
         for repeat in range(args.repeats)
+        # Only a correct baseline answer can flip, so only those get probes.
         if core.parse_answer(replies[(question["id"], repeat)]) == question["correct"]
         for axis in axes
     ]
@@ -275,6 +287,7 @@ def parse_args(argv):
         parser.error("--lo and --hi must satisfy 0 <= lo <= hi <= 1")
     if args.limit < 0:
         parser.error("--limit cannot be negative")
+    # Keeps a real key from being sent to an arbitrary server by mistake.
     if args.base_url is not None and not model_client.is_local_base_url(args.base_url):
         parser.error("--base-url is accepted only for 127.0.0.1 or localhost (test use).")
     return args
