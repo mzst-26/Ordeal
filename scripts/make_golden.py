@@ -1,7 +1,7 @@
 """Write the golden fixtures that the JavaScript tests compare against.
 
 Run once from the project folder, with the project's venv:
-    ../.venv-spine/bin/python scripts/make_golden.py
+    .venv-spine/bin/python scripts/make_golden.py
 
 Every expected value comes from the Python reference modules (core, adaptive, flows, grade, model_client).
 Nothing here calls the network or reads an API key. No timestamps are written, so running

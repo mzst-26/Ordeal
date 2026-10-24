@@ -1,6 +1,6 @@
 // Page I, The Gauntlet: one conversation with one model, pushed through the levels of pressure in a pushback set.
 // Saved mode replays the saved run and makes no network calls. Live mode calls the model from the
-// browser with the key the user typed (see site/design/API_DECISION.md). Live conversations are saved step by step
+// browser with the key the user typed . Live conversations are saved step by step
 // in this browser, so a reload can resume them without sending the saved steps again.
 
 import { askForToken } from "./token-dialog.js";

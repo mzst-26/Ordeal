@@ -10,28 +10,28 @@ be checked by hand.
 
 ## Setup
 
-1. Put your Token Factory key in a file named `.env`, either in this folder or in the folder above it.
+1. Put your Token Factory key in a file named `.env` in the project folder, next to this README.
    The line in the file is:
 
    `TOKEN_FACTORY_TOKEN=your-key-here`
 
    The key is read from there and never printed. The `.env` file is listed in `.gitignore`.
 
-2. Create the environment and install the libraries. The environment lives in the folder above this one,
-   at `../.venv-spine`. Use Python 3.10 or newer:
+2. Create the environment and install the libraries. The environment lives in the project folder,
+   at `.venv-spine`. Use Python 3.10 or newer:
 
 ```
-python3.12 -m venv ../.venv-spine
-../.venv-spine/bin/pip install -r requirements.txt
+python3.12 -m venv .venv-spine
+.venv-spine/bin/pip install -r requirements.txt
 ```
 
-3. Run every script from this folder with the environment's Python, `../.venv-spine/bin/python`.
+3. Run every script from this folder with the environment's Python, `.venv-spine/bin/python`.
 
 4. Check the connection with one call. You run this yourself. It is a small paid call to the first
    model in `config.json`:
 
 ```
-../.venv-spine/bin/python hello.py
+.venv-spine/bin/python hello.py
 ```
 
    It should print the model, the raw reply and the letter `B` (17 × 24 = 408).
@@ -44,7 +44,7 @@ calls that are missing.
 1. Plan (free). Prints how many replies are saved and the most new calls a run could make. It makes no calls.
 
 ```
-../.venv-spine/bin/python runner.py --dry-run
+.venv-spine/bin/python runner.py --dry-run
 ```
 
 2. Main run (PAID). Asks every question to every model in `config.json`, with all probe families. The
@@ -52,45 +52,45 @@ calls that are missing.
    cap, so a run can stop early. Run the same command again to continue.
 
 ```
-../.venv-spine/bin/python runner.py --condition none --max-calls 10752
+.venv-spine/bin/python runner.py --condition none --max-calls 10752
 ```
 
 3. Grade (free). Writes `results/results.csv` and `results/probes.csv`, and prints two tables.
 
 ```
-../.venv-spine/bin/python grade.py --condition none
+.venv-spine/bin/python grade.py --condition none
 ```
 
 4. Charts (free). Writes `results/flip_by_level_none.png`, and `results/fingerprint_none.png` when the
    fingerprint probes ran.
 
 ```
-../.venv-spine/bin/python charts.py --condition none
+.venv-spine/bin/python charts.py --condition none
 ```
 
 5. Map (free). Writes `results/map_none.png` and prints the leaderboard.
 
 ```
-../.venv-spine/bin/python map.py --condition none
+.venv-spine/bin/python map.py --condition none
 ```
 
 6. Transcripts (free). Prints saved transcripts for checking the grader by hand.
 
 ```
-../.venv-spine/bin/python transcripts.py --model Qwen/Qwen3-30B-A3B-Instruct-2507 --outcome flipped --count 10
+.venv-spine/bin/python transcripts.py --model Qwen/Qwen3-30B-A3B-Instruct-2507 --outcome flipped --count 10
 ```
 
 7. Demo. Opens the live demo page at http://127.0.0.1:7860. Tick **Replay saved run** for offline use. Live demo
    replies go to `results/demo_cache.jsonl`, not to `results/cache.jsonl`.
 
 ```
-../.venv-spine/bin/python app.py
+.venv-spine/bin/python app.py
 ```
 
 8. Tests (free).
 
 ```
-../.venv-spine/bin/python -m unittest discover -s tests -t .
+.venv-spine/bin/python -m unittest discover -s tests -t .
 ```
 
 Useful options:
@@ -124,7 +124,6 @@ The three models are listed in `config.json`: `Qwen/Qwen3-30B-A3B-Instruct-2507`
 `google/gemma-3-27b-it` and `nvidia/nemotron-3-super-120b-a12b`. All three are called through the
 Token Factory. Each question is asked twice (`repeats` is 2).
 
-For the day-of plan, the costs and the fallbacks, see `RUNBOOK.md`.
 
 ### Costs
 
@@ -179,7 +178,7 @@ Two optional flags change the run order. Both are off by default, so a run witho
 A stub run with a scratch cache (free, offline):
 
 ```
-../.venv-spine/bin/python runner.py --stub --limit 3 --shuffle-questions 3 \
+.venv-spine/bin/python runner.py --stub --limit 3 --shuffle-questions 3 \
   --shuffle-pushbacks 7 --ladder gauntlet_v4 --questions hard \
   --cache /path/to/scratch/shuffle_stub.jsonl
 ```
@@ -187,7 +186,7 @@ A stub run with a scratch cache (free, offline):
 Dry run (free, no calls). With `--shuffle-pushbacks`, it prints the axis in each of the 12 pushback slots:
 
 ```
-../.venv-spine/bin/python runner.py --dry-run --stub --ladder gauntlet_v4 --questions hard \
+.venv-spine/bin/python runner.py --dry-run --stub --ladder gauntlet_v4 --questions hard \
   --shuffle-pushbacks 7 --cache /path/to/scratch/shuffle_dry.jsonl
 ```
 
@@ -253,7 +252,7 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 ## Where the key comes from
 
 - **The command line** reads `TOKEN_FACTORY_TOKEN` from the environment. If it is not set, it reads the `.env`
-  file, first in this folder and then in the folder above. The key is never printed.
+  file, in the project folder. The key is never printed.
 - **The website** asks the visitor to type in their own key. The key is kept in memory only, for that tab.
   It is not saved to browser storage, cookies or the address, and closing the tab removes it. The browser
   sends it only to the Nebius Token Factory. The project's `.env` key is never used on the site.
@@ -284,8 +283,8 @@ paid run, so start it only when you mean to spend those calls. Tests never use i
 The Makefile lines are the same as this, with every flag written out. The output folder is the Makefile's default,
 `scratch/calibration`:
 
-    ../.venv-spine/bin/python calibrate.py baseline --ladder gauntlet_v4 --questions hard --repeats 4 --lo 0.3 --hi 0.9 --model nvidia/nemotron-3-super-120b-a12b --out-dir scratch/calibration
-    ../.venv-spine/bin/python calibrate.py screen --ladder gauntlet_v4 --questions hard --repeats 4 --model nvidia/nemotron-3-super-120b-a12b --out-dir scratch/calibration
+    .venv-spine/bin/python calibrate.py baseline --ladder gauntlet_v4 --questions hard --repeats 4 --lo 0.3 --hi 0.9 --model nvidia/nemotron-3-super-120b-a12b --out-dir scratch/calibration
+    .venv-spine/bin/python calibrate.py screen --ladder gauntlet_v4 --questions hard --repeats 4 --model nvidia/nemotron-3-super-120b-a12b --out-dir scratch/calibration
 
 - `baseline` writes `calibration.json` (accuracy and unparsed share per question) and `calibration_keep.json`
   (the questions with accuracy between `--lo` and `--hi`).
@@ -378,7 +377,6 @@ correct when the run changes.
 | File | What it is |
 | --- | --- |
 | `README.md` | This file. |
-| `RUNBOOK.md` | The day-of plan: commands in order, costs and fallbacks. |
 | `config.json` | Model list, the default `ladder` and `questions`, custom models, repeats, temperature, token limit, concurrency, retries, bootstrap settings, system prompts and correction messages. |
 | `questions.json` | The 32 `easy` questions: correct letter, planted wrong letter, tier, and flags for the correction test and the wrapper test. |
 | `questions_hard.json` | The 59 `hard` questions, in the same form. |
@@ -400,7 +398,6 @@ correct when the run changes.
 | `hello.py` | One small call to the first model, to check the key and the connection. |
 | `requirements.txt` | The libraries: openai, numpy, matplotlib and gradio. |
 | `.gitignore` | Keeps `.env`, `results/` and Python caches out of git. |
-| `presentation/pitch.md` | The three-minute script and likely judge questions. |
 | `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
 | `tests/` | Unit tests for the scripts and the data files. |
 | `archive/` | The earlier designs: the basic and strategic ladders, with their questions and probes. Do not use them. |

@@ -1,4 +1,4 @@
-// The key dialog. It asks for the Nebius key and keeps it in memory only (see site/design/API_DECISION.md).
+// The key dialog. It asks for the Nebius key and keeps it in memory only .
 
 import { el } from "./ui.js";
 import { isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH } from "./engine/token.js";

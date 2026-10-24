@@ -10,7 +10,7 @@
   [headers.values]
     # Only load code, styles, fonts and images from this site. Scripts must be our own files, with no inline code.
     # The browser may call only the Nebius API for model requests. No CDN is allowed; the site ships its own JS.
-    # Custom model endpoints stay blocked until the owner approves widening connect-src (PLAN.md D6).
+    # Custom model endpoints stay blocked until the owner approves widening connect-src.
     # Frames, form targets and <base> are locked down to stop clickjacking and injected links.
     Content-Security-Policy = """\
       default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; \

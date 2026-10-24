@@ -6,7 +6,7 @@ site/data/compare/results.json, and the only file written is the set of screensh
 scratchpad folder. Nothing in the project is changed.
 
 Run from the spine-meter folder:
-    ../.venv-spine/bin/python -m unittest tests.test_compare_browser -v
+    .venv-spine/bin/python -m unittest tests.test_compare_browser -v
 """
 
 import contextlib
