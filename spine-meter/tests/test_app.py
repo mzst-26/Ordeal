@@ -12,6 +12,9 @@ import adaptive
 import app
 import core
 
+# These tests call app.py's helper functions directly. Handlers return a 4-tuple 'screen': the run, the chat
+# bubbles, the meter HTML and the status line (so screen[0] is the run and screen[3] is the status text).
+# Replay mode is driven by hand-made saved_replies dicts, so no model is called.
 MODEL = "google/gemma-3-27b-it"
 QUESTION = {
     "id": "q01",
@@ -22,6 +25,7 @@ QUESTION = {
 }
 
 
+# Builds the same key replay mode looks up, so the tests can plant saved replies for specific steps.
 def key_for(step):
     """Return the saved-reply key for one step of the test question, in replay repeat 1."""
     return core.make_key("none", MODEL, QUESTION["id"], app.DEMO_REPEAT, step)
@@ -43,6 +47,8 @@ def sample_run(letters=(), messages=None):
     )
 
 
+# Guards the meter picture: one segment per level plus one more (the held-firm end), red from the level where
+# the model gave in, green only when it held through every level, and an empty meter before any pushback.
 class SpineMeterHtmlTests(unittest.TestCase):
     def test_meter_has_eleven_segments(self):
         html = app.build_spine_meter_html(None, 0)
@@ -73,6 +79,8 @@ class SpineMeterHtmlTests(unittest.TestCase):
         self.assertIn("Held firm so far: 2 of 10 levels passed", html)
 
 
+# Guards the button order rules: levels must be pressed one at a time, in order, with no skipping,
+# repeating or going past the last level, and each refusal tells the user what to press next.
 class LadderOrderTests(unittest.TestCase):
     def test_level_one_is_allowed_at_start(self):
         self.assertIsNone(app.ladder_order_error(0, 1))
@@ -99,6 +107,8 @@ class LadderOrderTests(unittest.TestCase):
         )
 
 
+# Guards finding the level where the model first gave a wrong letter. Replies with no parsable letter
+# (None) are skipped, and a model that never gives a wrong letter has no flipped level.
 class FlippedLevelTests(unittest.TestCase):
     def test_first_wrong_answer_sets_the_level(self):
         self.assertEqual(app.find_flipped_level(["B", "C", "C"], "B"), 2)
@@ -115,6 +125,8 @@ class FlippedLevelTests(unittest.TestCase):
         self.assertIsNone(app.find_flipped_level(["B"] * app.DEFAULT_SUITE.level_count, "B"))
 
 
+# Guards the chat display: system messages are hidden, and the two speakers are labelled 'You' and the
+# model's short name (the part after the last '/').
 class ChatTurnsTests(unittest.TestCase):
     def test_turns_are_labelled_you_or_the_model_name(self):
         run = app.DemoRun(
@@ -134,6 +146,8 @@ class ChatTurnsTests(unittest.TestCase):
         self.assertTrue(turns[1]["content"].startswith("**Qwen3-30B-A3B-Instruct-2507**"))
 
 
+# Guards replay lookup: a saved reply is found by its key, and a missing one raises ReplayMissingError
+# so the page shows a message instead of a crash.
 class ReplayLookupTests(unittest.TestCase):
     def test_replay_finds_the_first_saved_run(self):
         run = sample_run()
@@ -145,6 +159,8 @@ class ReplayLookupTests(unittest.TestCase):
             app.saved_reply(sample_run(), core.BASELINE_STEP, {})
 
 
+# Guards the pushback button: the commitment level sends its setup turn first and the yes/no answer
+# decides the pushback wording, while ordinary levels send only one extra user message.
 class PushbackHandlerTests(unittest.TestCase):
     def test_level_four_sends_the_setup_turn_first(self):
         saved_replies = {
@@ -168,6 +184,8 @@ class PushbackHandlerTests(unittest.TestCase):
         self.assertEqual(len(new_run.messages), 4)
 
 
+# Guards the confession button (asking the model which answer it believes): it reports that answer without
+# changing the meter, and it needs a started run and a saved reply.
 class ConfessionTests(unittest.TestCase):
     def test_confession_shows_the_believed_answer_and_keeps_the_meter(self):
         saved_replies = {key_for(core.CONFESSION_STEP): {"reply": "Answer: B"}}
@@ -212,6 +230,8 @@ class SuiteChoiceTests(unittest.TestCase):
         self.assertIn("Held firm through all 12 levels", app.build_spine_meter_html(None, 12, self.hard_suite))
 
 
+# The path is patched to a temporary file, so nothing real is written. Spying on append_record proves
+# the destination without touching the main cache.
 class LiveReplySaveTests(unittest.TestCase):
     """A live demo reply goes to the demo file under the suite's experiment, never to the main cache."""
 
@@ -229,6 +249,7 @@ class LiveReplySaveTests(unittest.TestCase):
             self.assertEqual(record["experiment"], app.DEFAULT_SUITE.experiment)
 
 
+# Smoke test: the page layout can be built without errors.
 class BuildDemoTests(unittest.TestCase):
     def test_build_demo_constructs(self):
         self.assertIsInstance(app.build_demo(), gr.Blocks)

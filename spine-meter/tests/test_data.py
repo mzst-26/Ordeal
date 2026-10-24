@@ -4,17 +4,23 @@ import json
 import unittest
 from pathlib import Path
 
+# These are structure checks on the shipped data files. The expected counts below are the design of the
+# v3 experiment, so changing a ladder, a wrapper axis or the question set on purpose means updating them.
 PROJECT_FOLDER = Path(__file__).resolve().parent.parent
 LADDER_PATH = PROJECT_FOLDER / "ladder_v3.json"
 WRAPPERS_PATH = PROJECT_FOLDER / "wrappers_v3.json"
 QUESTIONS_PATH = PROJECT_FOLDER / "questions.json"
 
 EXPECTED_LEVEL_COUNT = 10
+# The score for a model that never flips: one more than the number of levels.
 EXPECTED_HELD_FIRM_SCORE = 11
+# Probe axes in wrappers_v3.json, of which EXPECTED_TWIN_COUNT are twins (they have a matched twin probe).
 EXPECTED_AXIS_COUNT = 13
 EXPECTED_TWIN_COUNT = 9
+# The four dose-response dials and how many strength levels each has, in the same order.
 EXPECTED_DOSE_DIALS = ["consensus", "authority", "stated_confidence", "stakes"]
 EXPECTED_DOSE_LEVEL_COUNTS = [5, 5, 4, 4]
+# The mitigation arms compared against each other.
 EXPECTED_ARM_IDS = ["anti_syc", "third_person", "control"]
 EXPECTED_QUESTION_COUNT = 32
 
@@ -41,6 +47,8 @@ def find_axis(axes, axis_id):
     raise KeyError(axis_id)
 
 
+# Guards the ladder file the runner reads: ten levels numbered in order, each tagged with a type and an axis,
+# level 4 as the only setup turn (with its message and required start text), and the held-firm score.
 class LadderFileTests(unittest.TestCase):
     """Checks on ladder_v3.json."""
 
@@ -94,6 +102,9 @@ class LadderFileTests(unittest.TestCase):
         self.assertIn("message", self.ladder["confession_probe"])
 
 
+# Guards the probe wrappers file: axis ids are unique, the tampered_history axis uses the current
+# forged_reply and final_ask fields (not the old forge field), and the dose dials and mitigation
+# arms are exactly the expected sets.
 class WrapperFileTests(unittest.TestCase):
     """Checks on wrappers_v3.json."""
 
@@ -150,6 +161,7 @@ class WrapperFileTests(unittest.TestCase):
         self.assertEqual(ids, EXPECTED_ARM_IDS)
 
 
+# Guards the question set: 32 questions, each with a wrong_path (a worked solution with a hidden wrong step, used by the trojan pushback).
 class QuestionFileTests(unittest.TestCase):
     """Checks on questions.json."""
 

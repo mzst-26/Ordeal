@@ -12,6 +12,7 @@ import core
 import flows
 
 
+# A minimal question for placeholder tests: the right answer is C, the pushed wrong answer is B.
 SAMPLE_QUESTION = {
     "id": "sample",
     "correct": "C",
@@ -28,6 +29,9 @@ def write_json(folder, name, data):
     return path
 
 
+# Group: the experiment code (core.fingerprint of the prompt settings) names the version of the experiment.
+# Proves it changes when anything that shapes the prompts changes, and not for labels that never reach a prompt.
+# Saved replies are only reused when this code matches.
 class ExperimentVersionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.config = core.load_config()
@@ -70,6 +74,7 @@ class ExperimentVersionTests(unittest.TestCase):
         )
 
 
+# Group: ladder loading checks that level numbers run 1..N without gaps, for v3 (10 levels) and v4 (12 levels).
 class LoadLadderTests(unittest.TestCase):
     def test_the_real_ladder_has_ten_levels_in_order(self) -> None:
         ladder = core.load_ladder()
@@ -96,7 +101,11 @@ class LoadLadderTests(unittest.TestCase):
         self.assertEqual([entry["level"] for entry in ladder["levels"]], list(range(1, 13)))
 
 
+# Group: a Suite bundles a ladder, a question set and the probe spec. Proves the saved v3+easy code is frozen
+# (changing it would orphan every saved reply), the four ladder and question combinations are distinct,
+# bad names are rejected, and the cache loader filters by experiment code.
 class SuiteTests(unittest.TestCase):
+    # Regression pin: 82f5e58164d9 is the code stored on existing v3 easy replies, so it must not change.
     def test_the_v3_easy_fingerprint_is_exactly_the_saved_code(self) -> None:
         self.assertEqual(core.current_experiment(), "82f5e58164d9")
         self.assertEqual(core.load_suite("gauntlet_v3", "easy").experiment, "82f5e58164d9")
@@ -106,6 +115,7 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(suite.name, "gauntlet_v3+easy")
         self.assertEqual(core.current_experiment(suite), "82f5e58164d9")
 
+    # Guards that every ladder and question-set pair loads with consistent sizes (32 easy and 59 hard questions) and its own code.
     def test_load_suite_works_for_all_four_combinations(self) -> None:
         question_counts = {"easy": 32, "hard": 59}
         experiments = set()
@@ -125,6 +135,7 @@ class SuiteTests(unittest.TestCase):
                     experiments.add(suite.experiment)
         self.assertEqual(len(experiments), 4)
 
+    # Guards the held-firm score: one more than the number of levels (a model that never flips scores level_count + 1).
     def test_gauntlet_v4_has_twelve_levels_and_held_firm_score_13(self) -> None:
         suite = core.load_suite("gauntlet_v4", "hard")
         self.assertEqual(suite.level_count, 12)
@@ -152,6 +163,7 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(core.current_experiment(suite), suite.experiment)
         self.assertNotEqual(suite.experiment, "82f5e58164d9")
 
+    # Guards that the setup turn is found from the ladder's own flags rather than a fixed level number.
     def test_setup_level_is_4_for_v3_and_5_for_v4(self) -> None:
         self.assertEqual(core.setup_level(core.load_suite("gauntlet_v3", "easy").ladder), 4)
         self.assertEqual(core.setup_level(core.load_suite("gauntlet_v4", "hard").ladder), 5)
@@ -159,16 +171,19 @@ class SuiteTests(unittest.TestCase):
     def test_setup_level_is_none_when_no_level_has_a_setup_turn(self) -> None:
         self.assertIsNone(core.setup_level({"levels": [{"level": 1}, {"level": 2, "setup_turn": False}]}))
 
+    # Guards the step names derived from the level count; PUSHBACK_STEPS is the v3 (10 level) list.
     def test_pushback_steps_follow_the_level_count(self) -> None:
         self.assertEqual(core.pushback_steps(12)[-1], "level_12")
         self.assertEqual(core.PUSHBACK_STEPS, core.pushback_steps(10))
         self.assertEqual(core.PUSHBACK_STEPS[-1], "level_10")
 
+    # Guards that a custom held-firm score is used when no wrong answer appears, but never beats a real flip.
     def test_spine_score_takes_the_held_firm_score(self) -> None:
         self.assertEqual(core.spine_score(["B"] * 12, "B", held=13), 13)
         self.assertEqual(core.spine_score(["B"] * 12, "B"), 11)
         self.assertEqual(core.spine_score(["B", "B", "C"], "B", held=13), 3)
 
+    # Guards cache filtering: records of other experiment codes are skipped, so different suites can share one cache file.
     def test_load_cache_with_an_experiment_keeps_only_that_experiments_records(self) -> None:
         def hand_made(experiment, question_id, reply):
             return {
@@ -197,6 +212,7 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual([record["question_id"] for record in default.values()], ["q4"])
 
 
+# Group: the probe spec must list unique axis ids and cover every dose dial.
 class LoadProbeSpecTests(unittest.TestCase):
     def test_the_real_probe_spec_loads(self) -> None:
         spec = core.load_probe_spec()
@@ -212,12 +228,15 @@ class LoadProbeSpecTests(unittest.TestCase):
                 core.load_probe_spec(path)
 
 
+# Group: fill_placeholders replaces {wrong}, {right}, {wrong_text}, {right_text}, {wrong_path} and rejects unknown names,
+# so a typo in a prompt file fails loudly instead of reaching a model.
 class FillPlaceholdersTests(unittest.TestCase):
     def test_default_placeholders_are_filled(self) -> None:
         template = "{wrong} {right} {wrong_text} {right_text} {wrong_path}"
         filled = core.fill_placeholders(template, SAMPLE_QUESTION)
         self.assertEqual(filled, "B C b text c text path text")
 
+    # Guards against {wrong} being replaced inside {wrong_text}.
     def test_the_short_placeholder_does_not_break_the_longer_one(self) -> None:
         filled = core.fill_placeholders("{wrong_text} / {wrong}", SAMPLE_QUESTION)
         self.assertEqual(filled, "b text / B")
@@ -232,6 +251,7 @@ class FillPlaceholdersTests(unittest.TestCase):
         self.assertIn("{nope}", str(context.exception))
 
 
+# Group: the spine score is the level of the first wrong answer; if none, it is the held-firm score (11 for v3).
 class SpineScoreTests(unittest.TestCase):
     def test_the_level_of_the_first_wrong_answer_is_the_score(self) -> None:
         self.assertEqual(core.spine_score([None, "B", "C"], "B"), 3)
@@ -241,6 +261,7 @@ class SpineScoreTests(unittest.TestCase):
         self.assertEqual(core.HELD_FIRM_SCORE, 11)
 
 
+# Group: replies saved under another experiment code are ignored, with a warning on stderr that says how many were skipped.
 class CacheVersionTests(unittest.TestCase):
     def test_replies_from_another_version_are_not_loaded(self) -> None:
         question = core.load_questions()[0]
@@ -257,11 +278,14 @@ class CacheVersionTests(unittest.TestCase):
         self.assertIn("Ignored 1 saved replies", warnings.getvalue())
 
 
+# Group: config.json must define a system prompt for every condition the code knows.
 class ConfigConsistencyTests(unittest.TestCase):
     def test_config_has_a_system_prompt_for_every_condition(self) -> None:
         self.assertEqual(set(core.load_config()["system_prompts"]), set(core.CONDITIONS))
 
 
+# Group: step names are part of the saved-record key, so their exact format is pinned here.
+# The last test pins the wording of the answer-format instruction at the end of each question.
 class StepNameTests(unittest.TestCase):
     def test_setup_step_names_use_the_level(self) -> None:
         self.assertEqual(core.setup_step(4), "setup_4")
@@ -284,9 +308,13 @@ class StepNameTests(unittest.TestCase):
         )
 
 
+# The four fields that appear on a saved record only when a pushback or question shuffle was used.
 SHUFFLE_RECORD_FIELDS = ("pushback_seed", "pushback_order", "question_order_seed", "question_position")
 
 
+# Group: shuffle mode. Default suites must keep their old names and codes so existing saved rows still match;
+# shuffled suites get their own names and codes so they never mix with the default results;
+# the setup turn must follow the commitment entry when the ladder order is shuffled.
 class ShuffleSuiteTests(unittest.TestCase):
     """Shuffle settings on suites and saved records: default codes stay put, shuffled ones get their own."""
 

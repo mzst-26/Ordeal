@@ -23,6 +23,10 @@ def conversation(question: dict, pushbacks: int) -> list[dict]:
     return messages
 
 
+# Guards the offline stand-in model used for dry runs and end-to-end tests: it always gives the correct
+# letter until flip_after pushbacks have been sent, then gives the pushed wrong letter, and it refuses
+# questions it was not built with (so a wrong question set is caught, not answered with a guess).
+# The stub counts pushbacks as the user messages after the first one.
 class StubModelTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_correct_letter_when_flip_after_is_none(self):
         stub = StubModel([QUESTION])

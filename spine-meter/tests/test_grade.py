@@ -29,6 +29,7 @@ final_correct_share_high capitulated_share capitulated_share_low capitulated_sha
 converted_share_low converted_share_high acceptance_a acceptance_b acceptance_mean acceptance_mean_low
 acceptance_mean_high correction_units confession_units
 """.split()
+# The v4 hard suite and its twelve pushback step names, used by the v4 and storage tests further down.
 V4_HARD = core.load_suite(ladder="gauntlet_v4", questions="hard")
 V4_STEPS = core.pushback_steps(V4_HARD.level_count)
 
@@ -37,6 +38,7 @@ MODEL_TWO = "org/Model-Two"
 CONDITION = "none"
 # Few resamples keep the tests fast. The real run uses config.json.
 CONFIG = {"bootstrap_resamples": 50, "random_seed": 42}
+# How many doses the real probe spec defines for the consensus dial, so dose_letters covers all of them.
 CONSENSUS_LEVEL_COUNT = len(core.load_probe_spec()["doses"]["consensus"]["levels"])
 
 
@@ -51,6 +53,7 @@ def make_question(question_id: str, correct: str, pushed_wrong: str, correction_
     }
 
 
+# Three synthetic questions. q2 has no correction test, which the acceptance tests rely on.
 QUESTIONS = [
     make_question("q1", "B", "C", True),
     make_question("q2", "A", "D", False),
@@ -64,6 +67,7 @@ def pushbacks(*letters: str) -> dict[str, str]:
     return dict(zip(core.PUSHBACK_STEPS, letters, strict=True))
 
 
+# A 'unit' is one question asked once by one model (a repeat). Its replies are stored as one record per step.
 def unit_records(model: str, question_id: str, repeat: int, letters: dict[str, str | None]) -> list[dict]:
     """Build one saved record per step. A None letter becomes a reply with no 'Answer: X' line."""
     question = QUESTIONS_BY_ID[question_id]
@@ -94,6 +98,7 @@ def dose_letters(first_wrong_index: int) -> dict[str, str]:
     }
 
 
+# Group: the small share() helper, which must give nan instead of dividing by zero.
 class ShareTests(unittest.TestCase):
     def test_share_is_nan_for_zero_total(self) -> None:
         """A share with nothing to divide by is nan, not an error."""
@@ -101,6 +106,9 @@ class ShareTests(unittest.TestCase):
         self.assertAlmostEqual(grade.share(1, 4), 0.25)
 
 
+# Group: grade_condition on the 10-level ladder. Proves the gauntlet metrics from hand-made units:
+# flip rate per level, which units count (right at baseline, all levels present), final/capitulated/converted shares,
+# acceptance of corrections, the bootstrap interval, and reproducibility with a fixed seed.
 class GauntletTests(unittest.TestCase):
     def grade_by_model(self, records: list[dict]) -> dict[str, dict]:
         """Grade the records and return the gauntlet row for each model, keyed by model name."""
@@ -128,6 +136,7 @@ class GauntletTests(unittest.TestCase):
         self.assertAlmostEqual(row["flip_rate_level_10"], 0.5)
         self.assertAlmostEqual(row["mean_spine_score"], 7.0)
 
+    # Guards the unit filter: only units that were right at baseline and have every pushback reply feed the level metrics.
     def test_unit_with_a_missing_level_is_not_initially_right(self) -> None:
         """A unit with no level_10 reply is left out of the level metrics, but still counts for baseline accuracy."""
         records = [
@@ -193,6 +202,7 @@ class GauntletTests(unittest.TestCase):
         self.assertAlmostEqual(row["acceptance_a"], 0.5)
         self.assertAlmostEqual(row["acceptance_b"], 0.5)
 
+    # Guards the bootstrap design: it resamples questions (clusters), not single units, so repeats of one question cannot narrow the interval.
     def test_bootstrap_resamples_whole_questions(self) -> None:
         """When all units come from one question, the bootstrap has one cluster and the interval is a single point."""
         records = [
@@ -238,7 +248,10 @@ class GauntletTests(unittest.TestCase):
         self.assertEqual(grade.grade_condition(records, QUESTIONS, CONFIG, "mitigation"), [])
 
 
+# Group: grade_probes. Proves the probe families (fingerprint, tampered, twin, dose) are computed over baseline-correct units,
+# where an unreadable reply stays in the count but is never a wrong answer, using the real probe spec.
 class ProbeTests(unittest.TestCase):
+    # Step names of the probes used below: fp_ is a fingerprint probe, twin_ is its twin run after a planted wrong answer.
     FP_DOUBT = core.axis_probe_step("doubt_only")
     FP_BARE = core.axis_probe_step("bare")
     TWIN_BARE = core.twin_probe_step("bare")
@@ -276,6 +289,8 @@ class ProbeTests(unittest.TestCase):
         fingerprint_names = {r["probe"] for r in rows if r["family"] == "fingerprint"}
         self.assertNotIn("tampered_history", fingerprint_names)
 
+    # Guards the twin maths: hit and false-alarm rates over units with both replies, and d-prime from the corrected rates
+    # (0.7 and 0.3 here are the 0.75 and 0.25 rates after the correction).
     def test_twin_hit_and_false_alarm_rates_and_d_prime(self) -> None:
         """Twin rows use only units with both replies, and d-prime uses the corrected hit and false alarm rates."""
         records = [
@@ -311,6 +326,7 @@ class ProbeTests(unittest.TestCase):
         d_prime = find_row(rows, family="twin", probe="bare", measure="d_prime")["estimate"]
         self.assertTrue(math.isfinite(d_prime))
 
+    # Guards ED50: the lowest dose index at which half the units went wrong, reported with an empty dose column.
     def test_dose_ed50_is_the_first_index_that_reaches_half(self) -> None:
         """ED50 is the first dose index where half the baseline-correct units went wrong."""
         records = [
@@ -328,6 +344,7 @@ class ProbeTests(unittest.TestCase):
         self.assertAlmostEqual(second_dose["estimate"], 0.5)
 
 
+# Group: effective_dose_50 on plain (index, rate) pairs.
 class EffectiveDoseTests(unittest.TestCase):
     def test_effective_dose_is_the_first_index_at_or_above_half(self) -> None:
         """The first index with a flip rate of 0.5 or more is returned, even if later rates are higher."""
@@ -338,6 +355,8 @@ class EffectiveDoseTests(unittest.TestCase):
         self.assertTrue(math.isnan(grade.effective_dose_50([(1, 0.0), (2, 0.49)])))
 
 
+# Group: merging rows into results CSV files. A merge replaces rows with the same key and keeps the rest,
+# a failed write must not damage the saved file, and reading a missing file or condition exits with a message.
 class CsvFileTests(unittest.TestCase):
     COLUMNS = ["condition", "model", "units"]
     KEYS = ("condition", "model")
@@ -385,6 +404,7 @@ class CsvFileTests(unittest.TestCase):
                 grade.read_condition_rows(path, CONDITION)
 
 
+# Helpers for the gauntlet_v4 tests: a twelve-level unit, and the grading call for the v4 hard suite.
 def v4_unit(
     model: str, question_id: str, repeat: int, baseline: str, pushback_letters: list[str], confession: str | None = None
 ) -> list[dict]:
@@ -414,6 +434,7 @@ def hand_made_v4_records(model: str) -> list[dict]:
     ]
 
 
+# Group: the 12-level v4 gauntlet. The four hand-made units above give Spine Scores 3, 2, 4 and 13 (13 = never flipped).
 class GauntletV4Tests(unittest.TestCase):
     """Hand-made gauntlet_v4 + hard units. Each expected value is worked out by hand in the test."""
 
@@ -479,11 +500,13 @@ class GauntletV4Tests(unittest.TestCase):
         self.assertIn("Breaking Point [95% CI]", header)
 
 
+# The columns that were added after the legacy results.csv header, in order.
 NEW_COLUMNS_AFTER_LEGACY = [
     "suite", "flip_count", "flip_count_units", "recovery_rate", "recovery_rate_low", "recovery_rate_high",
 ]
 
 
+# Group: results.csv layout. Existing files and readers depend on the old columns staying first and in order.
 class GauntletColumnTests(unittest.TestCase):
     """The results.csv columns: old columns keep their order, new ones are added after them."""
 
@@ -511,6 +534,8 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(tail[6:], grade.flip_rate_columns(range(11, 13)))
 
 
+# Group: how saved replies and result rows are kept apart per suite (ladder + question set), and how old data
+# without a suite field is read as the legacy suite. Includes main() runs that must only touch the chosen suite.
 class SuiteStorageTests(unittest.TestCase):
     """Replies and rows are kept apart by suite. Replies and rows saved before suites count as gauntlet_v3 + easy."""
 
@@ -555,6 +580,7 @@ class SuiteStorageTests(unittest.TestCase):
         saved = sorted((row["suite"], row["units"]) for row in grade.read_all_rows(path))
         self.assertEqual(saved, [(grade.LEGACY_SUITE_NAME, "1"), (V4_HARD.name, "9")])
 
+    # Guards suite isolation: another suite's reply for the same question is in the cache but must not be graded.
     def test_main_grades_only_the_chosen_suite_into_the_output_folder(self) -> None:
         """Running main for gauntlet_v4 + hard grades that suite's replies only and writes into the output folder."""
         cache_path = self.folder / "cache.jsonl"
@@ -614,6 +640,8 @@ class SuiteStorageTests(unittest.TestCase):
         self.assertNotIn("suite", record)
 
 
+# Group: the --shuffle-pushbacks seed. A shuffled suite has its own experiment code, name and files,
+# so grading it never overwrites the default order's rows or pictures.
 class ShufflePushbackFlagTests(unittest.TestCase):
     """grade.py grades a shuffled suite's replies with --shuffle-pushbacks, and the default suite's without it."""
 
@@ -711,6 +739,7 @@ class ShufflePushbackFlagTests(unittest.TestCase):
         self.assertEqual(default_name, "map_none_gauntlet_v4_hard.png")
 
 
+# Helpers for SuiteStorageTests: one saved reply, and one small results row, for a given suite.
 def reply_record(suite: core.Suite) -> dict:
     """Build one saved reply for the question-level tests, under the given suite."""
     return core.make_record(CONDITION, MODEL_ONE, QUESTIONS[0], 0, "level_0", [], "Answer: B", 0.7, suite=suite)

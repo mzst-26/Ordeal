@@ -10,12 +10,14 @@ CONFIG_PATH = PROJECT_FOLDER / "config.json"
 EXPORT_PATH = PROJECT_FOLDER / "scripts" / "export_site_data.py"
 
 # The brief said 27 models, but the list it gave has 29 rows, and the endpoint serves all 29 chat models.
+# Pin the catalog size and the default models so an accidental edit to config.json is caught.
 EXPECTED_CATALOG_SIZE = 29
 EXPECTED_DEFAULT_MODELS = [
     "Qwen/Qwen3-30B-A3B-Instruct-2507",
     "google/gemma-3-27b-it",
     "nvidia/nemotron-3-super-120b-a12b",
 ]
+# Fields every catalog entry must carry, because the site pages read them.
 CATALOG_FIELDS = (
     "id",
     "provider",
@@ -38,6 +40,7 @@ def load_config():
         return json.load(handle)
 
 
+# The script is loaded by path (it is not an importable package module) and its main() is not run.
 def load_export_module():
     """Import scripts/export_site_data.py by its file path, without running its main()."""
     spec = importlib.util.spec_from_file_location("export_site_data", EXPORT_PATH)
@@ -46,6 +49,7 @@ def load_export_module():
     return module
 
 
+# Group: structure of config.json's catalog. Each test names one rule the model pickers on the site rely on.
 class CatalogShapeTest(unittest.TestCase):
     """The catalog list in config.json has one object per model, with the fields the pages use."""
 
@@ -86,12 +90,14 @@ class CatalogShapeTest(unittest.TestCase):
         ids = [entry["id"] for entry in self.catalog]
         self.assertEqual(len(ids), len(set(ids)))
 
+    # Guards that the embedding model, which cannot answer chat prompts, is never offered as a choice.
     def test_embedding_model_is_not_in_the_catalog(self):
         ids = [entry["id"] for entry in self.catalog]
         self.assertNotIn(EMBEDDING_MODEL_ID, ids)
         self.assertFalse(any("Embedding" in model_id for model_id in ids))
 
 
+# Group: the default model list is unchanged and every default is also in the catalog.
 class DefaultModelsTest(unittest.TestCase):
     """The default run uses the same three models as before the catalog was added."""
 
@@ -104,6 +110,7 @@ class DefaultModelsTest(unittest.TestCase):
             self.assertIn(model_id, catalog_ids)
 
 
+# Group: the export script's public config keeps the catalog and the default models for the site.
 class PublicExportTest(unittest.TestCase):
     """The public export copies the catalog, so the site can show the model choices."""
 
@@ -114,6 +121,7 @@ class PublicExportTest(unittest.TestCase):
         self.assertEqual(public["models"], EXPECTED_DEFAULT_MODELS)
 
 
+# Group: the extra detail fields (context, reasoning, rank) that the batch page displays.
 class CatalogDetailsTest(unittest.TestCase):
     """Each catalog entry has the context, reasoning and rank fields that the batch page shows."""
 
@@ -125,6 +133,7 @@ class CatalogDetailsTest(unittest.TestCase):
             for field in DETAIL_FIELDS:
                 self.assertIn(field, entry, f"{entry.get('id')} has no {field}")
 
+    # Guards that ranks form exactly 1..N with no gaps or ties (bool is excluded because it is a subclass of int).
     def test_industry_ranks_are_unique_integers_from_1_to_29(self):
         ranks = [entry["industry_rank"] for entry in self.catalog]
         for rank in ranks:

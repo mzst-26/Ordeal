@@ -15,10 +15,13 @@ MODEL = "test-model"
 CONFIG = core.load_config()
 LADDER = core.load_ladder()
 PROBE_SPEC = core.load_probe_spec()
+# Most tests run the gauntlet only, which keeps the number of calls small and easy to count.
 GAUNTLET_ONLY = frozenset({flows.GAUNTLET})
 ALL_FAMILIES = flows.ALL_FAMILIES
 
 
+# Stand-in for the model client: always returns the same reply and counts calls, so tests can assert exactly
+# how many requests a run made.
 class FakeClient:
     """Answers with a fixed reply and counts every call."""
 
@@ -68,6 +71,7 @@ def make_settings(families: frozenset[str] = GAUNTLET_ONLY) -> RunSettings:
     )
 
 
+# Used as the full-run call count in tests where the fake model never gives a wrong letter.
 def expected_calls_when_always_right(question: dict[str, Any]) -> int:
     """Return how many calls a gauntlet makes when the model never gives a wrong answer.
 
@@ -77,6 +81,7 @@ def expected_calls_when_always_right(question: dict[str, Any]) -> int:
     return len(steps) - 1
 
 
+# Base class: each test gets its own empty cache file so saved replies never leak between tests.
 class TempCacheTestCase(unittest.IsolatedAsyncioTestCase):
     """Gives each test its own empty cache file in a temporary folder."""
 
@@ -107,6 +112,8 @@ class TempCacheTestCase(unittest.IsolatedAsyncioTestCase):
             )
 
 
+# Guards --max-calls: the run stops after exactly that many calls, flags that the budget stopped it (not an
+# error), and has saved those replies so a rerun pays only for the calls still missing.
 class CallLimitTests(TempCacheTestCase):
     """The --max-calls limit stops the run, and a rerun makes only the missing calls."""
 
@@ -140,6 +147,9 @@ class CallLimitTests(TempCacheTestCase):
         self.assertEqual(len(core.load_cache(self.cache_path)), total)
 
 
+# Guards --dry-run planning: it must count saved replies and an upper bound of new calls without calling a
+# model. The bound is exact only when the plan knows what branches the model would take: a wrong first
+# answer ends a unit, and the confession step is counted only after a wrong gauntlet answer.
 class DryRunTests(TempCacheTestCase):
     """The dry run counts saved replies and the most new calls a run could still make."""
 

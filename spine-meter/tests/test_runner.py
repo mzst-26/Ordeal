@@ -32,15 +32,19 @@ from runner import (
 )
 from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
+# Runner tests use fakes in place of the model client, the waiting function and the cache file, so each test
+# runs in memory or in a temporary folder with no network and no real sleeping.
 MODEL = "test-model"
 CONFIG = core.load_config()
 LADDER = core.load_ladder()
 PROBE_SPEC = core.load_probe_spec()
 REMINDER = CONFIG["answer_format_reminder"]
 V4_SUITE = core.load_suite(ladder="gauntlet_v4", questions="hard")
+# The axis order that pushback seed 7 gives on the v4 ladder, used to check the dry-run listing.
 V4_SHUFFLED_ORDER = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7).pushback_order
 
 
+# Two made-up error types let the tests control the retry decision without depending on openai error classes.
 class RetryableError(Exception):
     """Stands in for a rate limit or a timeout."""
 
@@ -49,6 +53,8 @@ class FatalError(Exception):
     """Stands in for an error that must not be retried."""
 
 
+# Fake model client: returns scripted replies in order (an Exception in the script is raised instead), then a
+# default reply. It records every request in 'sent' so tests can count and inspect the calls.
 class FakeClient:
     """Answers from 'script' first, then with 'default_reply'. A scripted exception is raised instead."""
 
@@ -83,6 +89,7 @@ def describe_error(error: Exception) -> str:
     return f"{type(error).__name__}: {error}"
 
 
+# Here the planted wrong answer is A and the right one is B, so the default 'Answer: B' reply is a correct one.
 def make_question(question_id: str) -> dict[str, Any]:
     """Return a small question whose right answer is B and whose planted wrong answer is A."""
     return {
@@ -97,6 +104,7 @@ def make_question(question_id: str) -> dict[str, Any]:
     }
 
 
+# Builds RunSettings with a recording wait function, so retry delays can be checked without sleeping.
 def make_settings(
     families: frozenset[str] = frozenset(),
     config: dict[str, Any] | None = None,
@@ -122,6 +130,8 @@ def make_settings(
     )
 
 
+# Guards the --probes parser: names are split on commas, 'all' means every family, and a bad name is
+# rejected with a message that lists the allowed names.
 class ParseFamiliesTests(unittest.TestCase):
     """The --probes argument accepts family names, or 'all'."""
 
@@ -141,6 +151,7 @@ class ParseFamiliesTests(unittest.TestCase):
         self.assertIn(flows.GAUNTLET, str(context.exception))
 
 
+# Guards the unit count: one unit (a model, a question and a repeat) for each combination.
 class MakeUnitsTests(unittest.TestCase):
     """Every model, question and repeat gets one unit."""
 
@@ -151,6 +162,8 @@ class MakeUnitsTests(unittest.TestCase):
         self.assertEqual({unit.repeat for unit in units}, {1, 2, 3})
 
 
+# Guards the retry delay curve: it doubles each attempt and is capped, so a long outage does not give
+# ever longer waits.
 class BackoffTests(unittest.TestCase):
     """The wait between retries doubles and stops at 60 seconds."""
 
@@ -160,6 +173,9 @@ class BackoffTests(unittest.TestCase):
         self.assertEqual(backoff_seconds(10), 60)
 
 
+# Guards the core run loop: one first call per unit, saved replies reused without a call, a wrong first
+# answer skipping the pressure chain, a fatal error recorded once without retries, retryable errors
+# retried with growing waits and then given up on after max_retries, and failed calls never cached.
 class RunnerTests(unittest.IsolatedAsyncioTestCase):
     """Units run through the client, use the cache and record failures."""
 
@@ -243,6 +259,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(stats.failures), 1)
 
 
+# Guards command-line validation that must fail before any call is made.
 class ArgumentTests(unittest.TestCase):
     """Command-line options are checked before the run starts."""
 
@@ -256,6 +273,7 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(parse_args([]).probes, flows.ALL_FAMILIES)
 
 
+# Guards the shuffle flags: they are integer seeds, and absent means no shuffling.
 class ShuffleOptionTests(unittest.TestCase):
     """--shuffle-questions and --shuffle-pushbacks are integer seeds, and None when not given."""
 
@@ -273,6 +291,8 @@ class ShuffleOptionTests(unittest.TestCase):
         self.assertIsNone(args.shuffle_pushbacks)
 
 
+# Guards question ordering: with a seed the shuffle happens before --limit (so a limited run is a random
+# sample with positions 1..N); without a seed the file order is kept and no order fields are added.
 class QuestionOrderTests(unittest.TestCase):
     """plan_question_order shuffles before the limit, and keeps the file order without a seed."""
 
@@ -292,6 +312,8 @@ class QuestionOrderTests(unittest.TestCase):
         self.assertEqual(orders, {})
 
 
+# Guards the dry run end to end through main(): it must print the plan without ever building a client or
+# reading the API key, so it is free and safe to run anywhere.
 class DryRunCommandTests(unittest.TestCase):
     """The --dry-run option prints the upper bound and never needs the API client or key."""
 
@@ -309,6 +331,8 @@ class DryRunCommandTests(unittest.TestCase):
         read_key.assert_not_called()
 
 
+# Fake client that gives a wrong reply only when the latest message contains a trigger text, which lets a test
+# make the model flip at one particular level.
 class ReplyByTextClient(FakeClient):
     """Answers with 'wrong_reply' when the last message contains 'trigger', else with the default reply."""
 
@@ -323,6 +347,9 @@ class ReplyByTextClient(FakeClient):
         return self.wrong_reply if self.trigger in messages[-1]["content"] else self.default_reply
 
 
+# Guards the v4 flow in the runner: all twelve levels run, the setup turn (before level 5) goes out without
+# the answer-format reminder while the pushback after it carries the reminder, and the confession is
+# sent last and only after a flip.
 class GauntletV4RunTests(unittest.IsolatedAsyncioTestCase):
     """The v4 gauntlet through the runner: twelve levels, the level 5 setup turn, and the confession."""
 
@@ -383,6 +410,8 @@ class GauntletV4RunTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client.sent[-2][-1]["content"].endswith(REMINDER))
 
 
+# Guards the suite options: unset means the config decides, named values are passed on, and names not
+# in the registry are refused by the parser.
 class SuiteOptionTests(unittest.TestCase):
     """--ladder, --questions and --cache: default to None so config.json decides."""
 
@@ -408,6 +437,9 @@ class SuiteOptionTests(unittest.TestCase):
                 self.assertEqual(context.exception.code, 2)
 
 
+# Guards the test-only --base-url override: only plain loopback addresses are accepted, so a real or
+# look-alike host (including a user@ trick in the URL) cannot receive requests, and the key. The last test
+# checks that an allowed URL really sends all traffic to the local mock server.
 class BaseUrlOptionTests(unittest.TestCase):
     """--base-url is a test-only override: it is accepted for 127.0.0.1 and localhost and nothing else."""
 
@@ -449,6 +481,8 @@ class BaseUrlOptionTests(unittest.TestCase):
             self.assertIn(core.BASELINE_STEP, {record["step"] for record in core.load_cache(cache_path).values()})
 
 
+# Guards dry runs for non-default suites: the plan names the chosen ladder, nothing is called or written, and
+# with shuffled pushbacks it lists the axis of every slot.
 class SuiteDryRunTests(unittest.TestCase):
     """The dry run works for any suite, makes no calls and writes nothing."""
 
@@ -485,9 +519,13 @@ class SuiteDryRunTests(unittest.TestCase):
             self.assertEqual(slot_lines[0], f"  level 1: {V4_SHUFFLED_ORDER[0]}")
 
 
+# A variable name that is never set, so tests decide when a custom key exists.
 CUSTOM_KEY_VAR = "SPINE_TEST_CUSTOM_KEY_UNSET"
 
 
+# Guards custom models at the command line: unsafe URLs and missing keys stop the run with exit code 2 and
+# an error that never shows a secret, custom models are never part of the default run, and a dry run
+# can list one without needing its key.
 class CustomModelCommandTests(unittest.TestCase):
     """Custom models from config.json, as seen from the command line. No key value is printed."""
 
@@ -566,6 +604,7 @@ class CustomModelCommandTests(unittest.TestCase):
         self.assertNotIn("my-model", seen["models"])
 
 
+# Guards model selection: built-in list by default, --models as given, and --stub means the single model 'stub'.
 class ChooseModelsTests(unittest.TestCase):
     """The default model list is the built-in models; --models and --stub pick others."""
 
@@ -579,6 +618,8 @@ class ChooseModelsTests(unittest.TestCase):
         self.assertEqual(choose_models(parse_args(["--stub"]), CONFIG), ["stub"])
 
 
+# Guards against polluting real data: a run against a test server must name its own cache file, or it exits
+# with code 2 before sending anything.
 class BaseUrlNeedsCacheTests(unittest.TestCase):
     """--base-url without --cache is refused before any call, so test replies never reach the real cache."""
 
@@ -598,6 +639,8 @@ class BaseUrlNeedsCacheTests(unittest.TestCase):
             self.assertNotIn(DEFAULT_KEY, output.getvalue() + errors.getvalue())
 
 
+# Guards cache keys for custom models: same name but a different endpoint gives different keys, so replies
+# from another model are never reused.
 class CustomLabelKeyTests(unittest.TestCase):
     """A custom model's saved replies are keyed by its endpoint and API model id, not only its name."""
 

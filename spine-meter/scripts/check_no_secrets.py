@@ -11,8 +11,11 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 import core  # noqa: E402
 
+# How many bytes at the start of a file are checked for a NUL byte, which marks the file as binary
 BINARY_SNIFF_BYTES = 8000
+# A key shorter than this is not searched for, because it could match ordinary text
 MIN_PROJECT_KEY_LENGTH = 16
+# The folder names and the single file under the root that make up what is deployed
 DEPLOY_FOLDERS = ("site", "netlify")
 DEPLOY_FILE = "netlify.toml"
 
@@ -54,6 +57,8 @@ def read_project_key():
 
 def build_patterns(env_check):
     """Return (name, regex) pairs to search for; project_key_value is added only when env_check is True."""
+    # The first two look for the shape of a key or header value. The third finds the name of the key's
+    # environment variable, which should not appear in deployed files either.
     patterns = [
         ("api_key_shape", re.compile(r"sk-[A-Za-z0-9]{16,}")),
         ("bearer_header", re.compile(r"Bearer\s+[A-Za-z0-9._\-]{16,}")),
@@ -100,6 +105,7 @@ def report_matches(display_name, text, patterns):
 
 def main(argv=None):
     """Run the check and return 0 when nothing is found, 1 when anything is found."""
+    # Findings are reported by path, line number and pattern name only, so this script never prints a secret itself
     args = parse_args(argv)
     root = args.root.resolve()
     patterns = build_patterns(env_check=not args.no_env_check)

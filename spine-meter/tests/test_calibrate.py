@@ -18,17 +18,21 @@ from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 CALIBRATE = PROJECT_DIR / "calibrate.py"
+# Small, fast settings: the v4 hard suite, only 3 questions, 2 repeats.
 LADDER = "gauntlet_v4"
 QUESTIONS = "hard"
 QUESTION_LIMIT = 3
 REPEATS = 2
 
 
+# Used by the responder below to give a reliably wrong reply.
 def wrong_letter(question):
     """Return an option letter that is not the correct one."""
     return next(letter for letter in question["options"] if letter != question["correct"])
 
 
+# Baseline asks (a single message) are right the first time per question and wrong after that; any longer conversation (a probe) is wrong.
+# So the calibration has some questions that look baseline-correct and probes that flip.
 def make_responder(questions):
     """Return a mock responder: the first baseline ask of each question is right, later asks and probes are wrong."""
     by_prompt = {core.format_question(question): question for question in questions}
@@ -72,6 +76,9 @@ def run_calibrate(command, key):
     return subprocess.run(command, cwd=PROJECT_DIR, env=env, capture_output=True, text=True, timeout=300)
 
 
+# Group: runs calibrate.py as a subprocess against the mock. Proves baseline and screen write their files with one row per axis sent,
+# the API key never appears in any output or file, a missing key stops before any call, the cache key depends on the endpoint,
+# the default output folder is scratch/, and a non-local --base-url is refused.
 class CalibrateTests(unittest.TestCase):
     """Baseline and screen modes against the mock, plus the missing-key refusal."""
 
@@ -117,6 +124,7 @@ class CalibrateTests(unittest.TestCase):
         for name in ("calibration.json", "calibration_keep.json", "screen.json", "calib_cache.jsonl"):
             self.assertNotIn(DEFAULT_KEY, (self.out_dir / name).read_text(encoding="utf-8"))
 
+    # Guards that a missing key fails early with the variable name in the message, and nothing is sent or written.
     def test_missing_key_exits_non_zero_without_leaking_anything(self):
         """With no key and the real API URL, the run stops before any call or file write, and prints no key value."""
         result = run_calibrate(calibrate_command("baseline", self.out_dir), None)

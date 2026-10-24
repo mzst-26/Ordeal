@@ -17,8 +17,10 @@ import openai
 from model_client import TokenFactoryClient
 from tests.mock_openai import MockOpenAIServer
 
+# Key the mock accepts by default, and the model name used in the requests below.
 KEY = "test-key-123"
 MODEL = "test-model"
+# Exactly the fields the mock may record. Anything else (such as headers) would risk leaking the key.
 RECORD_KEYS = {"path", "model", "messages", "temperature", "max_tokens"}
 
 
@@ -71,7 +73,10 @@ def loopback_without_proxy():
                 os.environ[name] = value
 
 
+# Test groups: reply shape and custom responder; 401 on a missing or wrong key; queued failures served in order;
+# the record list holds body fields only; the port is released on exit; the project's own client works against the mock.
 class MockOpenAIServerTests(unittest.TestCase):
+    # Guards the default success path: a valid OpenAI chat.completion body with consistent token usage.
     def test_plain_request_returns_responder_text(self):
         with MockOpenAIServer() as mock:
             status, text = post(mock, headers=auth_headers())
@@ -86,6 +91,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         usage = data["usage"]
         self.assertEqual(usage["total_tokens"], usage["prompt_tokens"] + usage["completion_tokens"])
 
+    # Guards that a test's own responder is given the parsed request and its text becomes the reply.
     def test_custom_responder_receives_parsed_request(self):
         seen = []
 
@@ -99,6 +105,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         self.assertEqual(json.loads(text)["choices"][0]["message"]["content"], "PING")
         self.assertEqual(seen[0]["messages"][0]["content"], "ping")
 
+    # Guards authentication: a missing or wrong key is refused with 401 and an OpenAI-style JSON error, like the real API.
     def test_missing_key_gives_401_with_json_error(self):
         with MockOpenAIServer() as mock:
             status, text = post(mock)
@@ -111,6 +118,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         self.assertEqual(status, 401)
         self.assertIn("error", json.loads(text))
 
+    # Guards failure injection: a queued failure is served once, then normal replies resume (used to test retry code).
     def test_queued_429_then_success(self):
         with MockOpenAIServer() as mock:
             mock.add_failure(429, count=1)
@@ -121,6 +129,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         self.assertEqual(second_status, 200)
         self.assertEqual(json.loads(second_text)["choices"][0]["message"]["content"], "Answer: A")
 
+    # Guards the invalid-JSON injection: status 200 with an unparseable body for one request, then normal replies.
     def test_invalid_json_mode_gives_unparseable_body_once(self):
         with MockOpenAIServer() as mock:
             mock.add_invalid_json(count=1)
@@ -132,6 +141,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         self.assertEqual(next_status, 200)
         self.assertEqual(json.loads(next_text)["choices"][0]["message"]["content"], "Answer: A")
 
+    # Guards that recorded requests keep only the body fields and never the Authorization header, even for rejected requests.
     def test_recorded_requests_hold_only_body_fields_and_no_key(self):
         with MockOpenAIServer() as mock:
             post(mock, body=chat_body("first"), headers=auth_headers())
@@ -147,6 +157,7 @@ class MockOpenAIServerTests(unittest.TestCase):
         self.assertEqual(records[0]["temperature"], 0)
         self.assertEqual(records[0]["max_tokens"], 16)
 
+    # Guards cleanup: after the with block the socket is closed, so tests cannot leak servers or ports.
     def test_port_is_closed_after_with_block(self):
         with MockOpenAIServer() as mock:
             port = mock.port
@@ -155,6 +166,8 @@ class MockOpenAIServerTests(unittest.TestCase):
         with self.assertRaises(OSError):
             socket.create_connection(("127.0.0.1", port), timeout=2)
 
+    # Guards the integration with model_client.TokenFactoryClient: a real SDK call round-trips through the mock,
+    # and a queued 429 surfaces as openai.RateLimitError.
     def test_project_client_talks_to_mock(self):
         async def run_once():
             client = TokenFactoryClient(base_url=mock.base_url, api_key=KEY, timeout_seconds=10)

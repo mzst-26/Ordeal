@@ -18,10 +18,13 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# Bearer key the mock accepts unless a test passes a different api_key.
 DEFAULT_KEY = "test-key-123"
 CHAT_SUFFIX = "/chat/completions"
 INVALID_JSON = "invalid_json"
+# OpenAI-style error type strings by status code. Any other status is reported as api_error.
 ERROR_TYPES = {401: "authentication_error", 429: "rate_limit_error", 500: "server_error"}
+# The only request body fields that are recorded. Keeping this list short is what stops the key leaking.
 RECORDED_FIELDS = ("model", "messages", "temperature", "max_tokens")
 
 
@@ -56,6 +59,7 @@ class _Server(ThreadingHTTPServer):
 
     def __init__(self, owner):
         self.owner = owner
+        # Port 0 asks the OS for a free port, so parallel test runs never collide.
         super().__init__(("127.0.0.1", 0), _Handler)
 
 
@@ -68,9 +72,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Record the request, then check the path, the key, injected failures and the body."""
+        # Every request is recorded first, even ones that are then rejected, so tests can assert on what was sent.
         owner = self.server.owner
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length)
+        # A body that is not valid JSON is recorded with all fields as None and rejected further down.
         try:
             body = json.loads(raw)
         except ValueError:
@@ -80,6 +86,8 @@ class _Handler(BaseHTTPRequestHandler):
             fields[name] = body.get(name) if isinstance(body, dict) else None
         owner._record({"path": self.path, **fields})
 
+        # Checks run in this order: path (404), API key (401), queued failure, body shape (400), responder.
+        # A queued failure is only used up by a request that passed the path and key checks.
         if self.path != owner.chat_path:
             self._send(404, _error_body(404, "Unknown path."))
             return
@@ -171,6 +179,7 @@ class MockOpenAIServer:
         with self._lock:
             self._injected.clear()
 
+    # Append one record. The lock is needed because the server handles each request in its own thread.
     def _record(self, record):
         with self._lock:
             self._records.append(record)

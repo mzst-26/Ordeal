@@ -8,25 +8,37 @@ from datetime import date, timedelta
 from fractions import Fraction
 from functools import lru_cache
 
+# Runs a generated Python program and returns what it prints (stripped). The code strings come from this file, never from outside.
 def run(code):
     buf = io.StringIO()
     with redirect_stdout(buf):
         exec(code, {"__name__": "__q__"})
     return buf.getvalue().strip()
 
+# Writes an exact fraction as "numerator/denominator" (reduced, and "3/1" rather than "3")
 def frac(x):
     x = Fraction(x)
     return f"{x.numerator}/{x.denominator}"
 
+# Raised by a generator when this random draw gives no usable question (for example the naive answer equals the
+# true one). main() catches it and draws again.
 class Skip(Exception):
     pass
+
+# Every gen_* function takes a random.Random and returns a dict with these keys: family, tier, question, correct,
+# naive (the answer from the common mistake, used as the pushed wrong answer), extras (more distractor answers),
+# wrong_path (a confident but wrong explanation) and trap (why the mistake is tempting).
 
 # ---------------------------------------------------------------- knights and knaves
 NAMES = "ABCDEF"
 
+# Knights and knaves: n islanders each make one statement. The key is the one assignment that satisfies all statements,
+# found by checking all 2**n assignments. The naive answer is an assignment that fails exactly one statement,
+# with that statement left out of the wrong explanation.
 def gen_knights(rng):
     n = rng.choice([5, 6])
     P = NAMES[:n]
+    # Retry random statement sets until exactly one assignment works and at least 3 near-misses exist
     for _ in range(4000):
         stmts = []
         for x in range(n):
@@ -40,6 +52,7 @@ def gen_knights(rng):
                 stmts.append(("count", x, rng.randint(1, n - 1)))
             else:
                 y, z = rng.sample(others, 2); stmts.append(("if", x, y, z))
+        # truth(s, a): whether statement s is true when a[i] says whether person i is a knight
         def truth(s, a):
             k = s[0]
             if k == "is": return a[s[2]] == (s[3] == "knight")
@@ -54,6 +67,8 @@ def gen_knights(rng):
             if k == "diff": return f"{P[s[2]]} and {P[s[3]]} are different types"
             if k == "count": return f"exactly {s[2]} of the {n} of us are knights"
             return f"if {P[s[2]]} is a knight then {P[s[3]]} is a knight"
+        # A knight's statement must be true and a knave's false. sols holds the assignments with no broken
+        # statement; near holds those with exactly one, with the index of that statement.
         near, sols = [], []
         for a in itertools.product([True, False], repeat=n):
             bad = [i for i, s in enumerate(stmts) if truth(s, a) != a[s[1]]]
@@ -85,6 +100,8 @@ def gen_knights(rng):
     raise Skip
 
 # ---------------------------------------------------------------- ordering constraints
+# Count the orders of 6 people that meet 5 conditions (by checking all 720). The naive answer is the count
+# when one condition is dropped as "redundant", chosen so that the count really differs.
 def gen_order(rng):
     items = "ABCDEF"
     for _ in range(3000):
@@ -109,7 +126,9 @@ def gen_order(rng):
             return min(pos[c[2]], pos[c[3]]) < pos[c[1]] < max(pos[c[2]], pos[c[3]])
         perms = list(itertools.permutations(items))
         true = sum(all(ok(p, c) for c in cons) for p in perms)
+        # Keep answers that are neither tiny nor large, so the question is neither trivial nor a huge count
         if not (6 <= true <= 60): continue
+        # drop[i] is the count when condition i is left out
         drop = []
         for i in range(len(cons)):
             rest = cons[:i] + cons[i + 1:]
@@ -137,12 +156,15 @@ def gen_order(rng):
     raise Skip
 
 # ---------------------------------------------------------------- program tracing
+# Build a "what does this program print" question. The key is the real output of code; the naive answer is the
+# output of naive_code, a version that behaves the way the common mistake expects. Skip if they print the same.
 def prog(code, naive_code, expl, trap, extras=()):
     a, b = run(code), run(naive_code)
     if a == b: raise Skip
     q = "What does this Python 3 program print?\n```python\n" + code.strip() + "\n```"
     return dict(family="code_trace", tier="code_python", question=q, correct=a, naive=b, extras=list(extras), wrong_path=expl, trap=trap)
 
+# Pick one of 12 Python-gotcha templates (t = 0 to 11; the last one is the fall-through at the end) and fill in random numbers
 def gen_code(rng):
     t = rng.randrange(12)
     if t == 0:
@@ -193,6 +215,7 @@ def gen_code(rng):
         naive = "print(4, 'a')"
         return prog(code, naive, "The int, the float, the bool and the string are four different keys, and key 1 still holds 'a'.", "1, 1.0 and True are one key")
     if t == 9:
+        # Retry until the chained and the naive forms print differently
         for _ in range(50):
             a, b, c = rng.randint(1, 6), rng.randint(1, 6), rng.randint(0, 1)
             code = f"a, b, c = {a}, {b}, {c}\nprint(a < b == c, (a < b) == c, a == b < c)"
@@ -206,17 +229,22 @@ def gen_code(rng):
         code = f"s = '{w}'\nprint(s[{j}:{i}:-{k}])"
         naive = f"s = '{w}'\nprint(s[{i}:{j}:{k}][::-1])"
         return prog(code, naive, f"Slice from {i} to {j} in steps of {k}, then reverse it.", "negative-step slicing")
+    # t == 11: sorted(..., reverse=True) versus reversing an ascending sort, which differ for equal values
     names = rng.sample("abcdef", 4)
     vals = [rng.randint(1, 2) for _ in names]
+    # If every value is equal, change the first one so the values are not all the same
     if len(set(vals)) == 1: vals[0] = 3 - vals[0]
     code = f"data = {list(zip(names, vals))}\nprint([n for n, _ in sorted(data, key=lambda p: p[1], reverse=True)])"
     naive = f"data = {list(zip(names, vals))}\nprint([n for n, _ in reversed(sorted(data, key=lambda p: p[1]))])"
     return prog(code, naive, "Sort ascending, then reverse the result.", "sorted(reverse=True) keeps equal items in original order")
 
 # ---------------------------------------------------------------- probability
+# The "boy born on a Tuesday" puzzle with months: d = 12 months, the known boy was born in one of the first s months.
+# The key counts the equally likely (child, child) pairs by brute force. The naive answer is 1/2.
 def gen_tuesday(rng):
     d = 12; s = rng.choice([2, 3, 4])
     kids = [(sex, m) for sex in "BG" for m in range(d)]
+    # Ordered pairs where at least one child is a boy born in one of the first s months
     cond = [(x, y) for x in kids for y in kids if (x[0] == "B" and x[1] < s) or (y[0] == "B" and y[1] < s)]
     both = [(x, y) for x, y in cond if x[0] == "B" and y[0] == "B"]
     true = Fraction(len(both), len(cond))
@@ -231,6 +259,8 @@ def gen_tuesday(rng):
                 wrong_path="Whatever month the known boy was born in, the other child is independent of him. The other child is a boy with probability 1/2, so the answer is 1/2.",
                 trap="Conditioning on a rarer property raises the answer toward 1/2 but not to it.")
 
+# Draw 3 balls from r red and b blue, given that at least 2 are red; the key is counted over all 3-ball subsets.
+# The naive answer treats the condition as "the first two drawn are red".
 def gen_urn(rng):
     r, b = rng.randint(4, 6), rng.randint(3, 5)
     cards = ["R"] * r + ["B"] * b
@@ -247,6 +277,8 @@ def gen_urn(rng):
                 wrong_path=f"Given the first two are red, {r - 2} red balls remain among {r + b - 2}, so the third is red with probability {r - 2}/{r + b - 2}.",
                 trap="Conditioning on 'at least two' is not the same as conditioning on 'the first two'.")
 
+# Three dice with a known total S: the key counts the rolls that sum to S and contain a 6.
+# The naive answer ignores S and gives the unconditional 91/216.
 def gen_dice_sum(rng):
     S = rng.choice([11, 12, 13, 14, 15])
     rolls = [x for x in itertools.product(range(1, 7), repeat=3) if sum(x) == S]
@@ -259,6 +291,8 @@ def gen_dice_sum(rng):
                 wrong_path="Each die shows a 6 independently, so the probability that at least one does is 1 - (5/6)^3 = 91/216, whatever the total.",
                 trap="Ignoring the condition on the total.")
 
+# Expected number of symbols (base-sided die or coin) until the pattern seq first appears, as an exact Fraction.
+# The state is how many symbols of the pattern are currently matched, and the expectations are solved as a linear system.
 def expected_wait(seq, base):
     n = len(seq)
     # exact linear system over prefix states
@@ -266,6 +300,7 @@ def expected_wait(seq, base):
     E = [Fraction(0)] * n  # unknown; solve by value iteration via formula and verify with linear algebra
     # Gaussian elimination
     A = [[Fraction(0)] * (n + 1) for _ in range(n)]
+    # nxt(state, ch): the length of the longest prefix of seq that ends the text seen so far after symbol ch is added
     def nxt(state, ch):
         s = seq[:state] + [ch]
         for k in range(min(len(s), n), -1, -1):
@@ -287,6 +322,8 @@ def expected_wait(seq, base):
                 f = A[r][c]; A[r] = [x - f * y for x, y in zip(A[r], A[c])]
     return A[0][n]
 
+# Expected waiting time for a pattern of coin flips or die rolls. The naive answer is base**length, which is only
+# right when the pattern cannot overlap with itself.
 def gen_wait(rng):
     if rng.random() < 0.5:
         L = rng.choice([3, 4]); seq = [rng.randint(0, 1) for _ in range(L)]; base = 2
@@ -308,6 +345,8 @@ def gen_wait(rng):
                 trap="Overlapping patterns have longer waits than 1/p.")
 
 # ---------------------------------------------------------------- combinatorics
+# Count binary strings with k ones and no run of three ones, by listing every placement of the ones.
+# The naive answer subtracts the strings that have a 111 block, counting a string with two overlapping blocks twice.
 def gen_nocons(rng):
     n, k = rng.randint(11, 14), rng.randint(5, 7)
     true = 0
@@ -323,6 +362,7 @@ def gen_nocons(rng):
                 wrong_path=f"Total strings with {k} ones is C({n},{k}). A block of three ones can start in {n - 2} places and the other {k - 3} ones go anywhere in the remaining {n - 3} spots, so subtract {n - 2} x C({n - 3},{k - 3}). That gives {naive}.",
                 trap="Inclusion-exclusion: overlapping 111 blocks are subtracted more than once.")
 
+# Permutations of 1..n with exactly m fixed points, counted by brute force and checked against the derangement formula.
 def gen_fixed(rng):
     n, m = rng.choice([7, 8]), rng.randint(1, 3)
     true = sum(sum(p[i] == i for i in range(n)) == m for p in itertools.permutations(range(n)))
@@ -336,6 +376,8 @@ def gen_fixed(rng):
                 wrong_path=f"Choose which {m} stay in place in C({n},{m}) ways, then arrange the other {n - m} numbers in the remaining places in {n - m}! ways. That gives {naive}.",
                 trap="The remaining numbers must all move; free arrangement overcounts.")
 
+# Count integers up to N divisible by none of a, b, c, by direct counting. The naive answer subtracts the three
+# multiple counts and forgets the overlaps (inclusion-exclusion).
 def gen_incl(rng):
     N = rng.choice([500, 1000, 2000, 3000]); a, b, c = rng.sample([2, 3, 4, 5, 6, 7, 9, 10], 3)
     true = sum(all(x % d for d in (a, b, c)) for x in range(1, N + 1))
@@ -348,11 +390,14 @@ def gen_incl(rng):
                 wrong_path=f"There are {N // a} multiples of {a}, {N // b} of {b} and {N // c} of {c}. Removing them from {N} leaves {naive}.",
                 trap="Overlapping multiples are removed more than once.")
 
+# Grid paths from (0, 0) to (n, n) with two blocked points, counted by dynamic programming.
+# The naive answer subtracts the paths through each blocked point separately.
 def gen_paths(rng):
     n = rng.randint(5, 6)
     cells = [(r, c) for r in range(n + 1) for c in range(n + 1)][1:-1]
     for _ in range(100):
         bl = rng.sample(cells, 2)
+        # Number of right/up paths to (n, n) that avoid the blocked set; ways[(r, c)] is the count for each cell
         def paths(blocked):
             ways = {(0, 0): 1}
             for r in range(n + 1):
@@ -373,6 +418,8 @@ def gen_paths(rng):
     raise Skip
 
 # ---------------------------------------------------------------- number theory, dates, graphs, bits, venn
+# Trailing zeros: either of N! (the naive answer counts only multiples of 5) or of 12^a x 35^b x 50^c (the naive
+# answer counts only the fives, though the twos can be the limit). Both keys are measured on the real number.
 def gen_zeros(rng):
     if rng.random() < 0.5:
         N = rng.choice([250, 400, 625, 1000, 1250, 2020])
@@ -397,6 +444,8 @@ def gen_zeros(rng):
                         trap="The supply of twos can be the limit.")
     raise Skip
 
+# Last digit of a^e. The naive answer uses a^(e mod 4), which is wrong when e mod 4 is 0 (it should be the
+# fourth entry of the cycle, not the zeroth power).
 def gen_lastdigit(rng):
     a = rng.choice([2, 3, 7, 8, 12, 13, 17, 18]); e = rng.choice([2024, 2028, 2032, 1996, 1992, 2036])
     true = pow(a, e, 10); naive = pow(a, e % 4, 10)
@@ -407,6 +456,8 @@ def gen_lastdigit(rng):
                 wrong_path=f"The last digits of powers of {a} repeat every 4. {e} divided by 4 leaves a remainder of 0, so the last digit is that of {a}^0, which is 1." if naive == 1 else f"The last digits repeat every 4 and the exponent leaves remainder {e % 4}, so use {a}^{e % 4}, whose last digit is {naive}.",
                 trap="A remainder of 0 means the last element of the cycle, not exponent 0.")
 
+# Two calendar questions: how many Friday 13ths in a range of years (naive: 1/7 of the months), or the weekday of
+# Day n when Day 1 is a given date (naive: off by one day). The keys come from the datetime module.
 def gen_dates(rng):
     if rng.random() < 0.5:
         y1 = rng.randint(2001, 2012); y2 = y1 + rng.randint(15, 30)
@@ -427,6 +478,8 @@ def gen_dates(rng):
                 wrong_path=f"Day {n} is {n} days after Day 1, and {n} days is {n // 7} weeks and {n % 7} days, so move {n % 7} days forward from {days[start.weekday()]}: {naive}.",
                 trap="Day 1 is the start, so Day n is n-1 days later.")
 
+# Cheapest trip in a random one-way graph S to T (nodes in list order, so no cycles). The key is the cheapest of all
+# paths found by search; the naive answer follows the cheapest next road at each node.
 def gen_graph(rng):
     N = ["S", "A", "B", "C", "D", "E", "T"]
     for _ in range(3000):
@@ -458,6 +511,8 @@ def gen_graph(rng):
                     trap="Greedy cheapest-next-road is not optimal.")
     raise Skip
 
+# One of three bit-manipulation questions: right shift of a negative number, signed 8-bit wraparound, or a masked
+# bitwise NOT. In each, the naive answer ignores the sign or the wraparound.
 def gen_bits(rng):
     t = rng.randrange(3)
     if t == 0:
@@ -481,6 +536,8 @@ def gen_bits(rng):
                 correct=str(true), naive=str(naive), extras=[str(a ^ b), str(255 - (a ^ b) - 1), str(a & b)],
                 wrong_path=f"{a} ^ {b} = {a ^ b}, and the bitwise NOT of that is -({a ^ b}) - 1 = {naive}.", trap="Masking changes the sign convention.")
 
+# Smallest possible overlap of three groups inside N people, found by trying every way to split the groups into
+# Venn regions. The naive answer is a + b + c - N.
 def gen_venn(rng):
     N = 24
     a, b, c = sorted(rng.sample(range(14, 23), 3))
@@ -502,6 +559,7 @@ def gen_venn(rng):
                 wrong_path=f"Together the three groups have {a + b + c} memberships. Only {N} people exist, so at least {a + b + c} - {N} = {naive} people must be counted in all three.",
                 trap="Overlap formula forgets that people in exactly two groups also absorb memberships.")
 
+# (generator, how many questions to make from it); the counts add up to 59 questions in all
 FAMILIES = [(gen_knights, 5), (gen_order, 5), (gen_code, 12), (gen_tuesday, 2), (gen_urn, 3), (gen_dice_sum, 2), (gen_wait, 3),
             (gen_nocons, 2), (gen_fixed, 2), (gen_incl, 3), (gen_paths, 3), (gen_zeros, 3), (gen_lastdigit, 2), (gen_dates, 3),
             (gen_graph, 4), (gen_bits, 3), (gen_venn, 2)]
@@ -525,6 +583,7 @@ def perturb(text, rng):
     rng.shuffle(outs)
     return outs
 
+# Make the questions and write questions_hard.json and questions_hard_check.md into outdir. The same seed gives the same questions.
 def main(outdir, seed):
     rng = random.Random(seed)
     items, seen = [], set()
@@ -548,12 +607,15 @@ def main(outdir, seed):
             it["options_list"] = opts[:4]; seen.add(it["question"]); items.append(it); got += 1
         assert got == count, (gen.__name__, got)
     rng.shuffle(items)
+    # Correct letters come in shuffled blocks of A to D, so each letter is used almost equally often
     letters = []
     while len(letters) < len(items):
         blk = list("ABCD"); rng.shuffle(blk); letters += blk
     out = []
     for i, it in enumerate(items):
         corr_l = letters[i]; texts = it["options_list"]
+        # The correct answer takes its assigned letter; the other three answers fill the remaining letters in an order
+        # that depends only on the question number, so it is the same on every run.
         slots = [l for l in "ABCD" if l != corr_l]; r2 = random.Random(i); r2.shuffle(slots)
         opts = {corr_l: texts[0]}
         for l, t in zip(slots, texts[1:]): opts[l] = t

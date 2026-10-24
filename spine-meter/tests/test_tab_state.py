@@ -23,8 +23,10 @@ from playwright.sync_api import expect, sync_playwright
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SITE_DIR = PROJECT_DIR / "site"
 LOCAL_HOST = "127.0.0.1"
+# Port 8791 is tried first so the address is predictable; any free port is used if it is taken.
 PREFERRED_PORT = 8791
 DESKTOP = {"width": 1280, "height": 800}
+# Playwright wait limits in milliseconds: short for UI that reacts at once, long for loading the page data and a finished batch run.
 SHORT_MS = 5000
 LONG_MS = 10000
 # Models and a question that have saved replies in site/data/sample_run.json, so the run needs no new calls.
@@ -32,6 +34,7 @@ SAVED_MODELS = ["Qwen/Qwen3-30B-A3B-Instruct-2507", "google/gemma-3-27b-it"]
 SAVED_QUESTION = "c01"
 FAKE_KEY = "tab-state-test-" + "k" * 13  # 30 characters, with no real key in it
 
+# Module-level handles, set by setUpModule and cleared by tearDownModule, so one server and one browser serve every test.
 _SERVER = None
 _SERVER_THREAD = None
 _PLAYWRIGHT = None
@@ -120,6 +123,7 @@ class Session:
         self.blocked = []
 
 
+# The network guard: nothing but 127.0.0.1 may be reached, so the page can never contact the real API.
 def guard_route(route, session):
     """Aborts every http, https, ws or wss request whose host is not 127.0.0.1, and records it."""
     parsed = urlparse(route.request.url)
@@ -131,6 +135,8 @@ def guard_route(route, session):
 
 
 @contextlib.contextmanager
+# Each test gets its own browser context, so storage and history never leak between tests.
+# On exit it fails the test if the guard blocked any outside request.
 def open_page(path="/index.html"):
     """A fresh browser context and page for one test, with the network guard, opened at the given path."""
     context = _BROWSER.new_context(viewport=DESKTOP)
@@ -186,9 +192,12 @@ def press_batch_start(page):
     confirm.click()
 
 
+# Test names start with a_, b_, c_, and unittest runs them in that order. Group proves the site is a single page whose views
+# (Gauntlet, Batch, Live) keep their data and the URL hash in step while the visitor switches between them.
 class TabStateTests(unittest.TestCase):
     """Checks that switching views keeps the batch run, the key status and the history in step."""
 
+    # Guards against losing the batch selection and run status when the visitor leaves the Batch view and returns.
     def test_a_batch_state_survives_view_switch(self):
         """Ticked models and the batch status line are the same after switching to Gauntlet and back."""
         with open_page("/index.html#batch") as session:
@@ -216,6 +225,7 @@ class TabStateTests(unittest.TestCase):
             self.assertEqual(checked_models(page), ticked, "Ticked models changed after a view switch")
             self.assertEqual(status.text_content(), status_before, "Batch status line changed after a view switch")
 
+    # Guards the key status across views, and that the key itself is never written into the page HTML.
     def test_b_key_status_survives_view_switch(self):
         """Key status reads Key saved after a view switch, and the fake key is not in the page HTML."""
         with open_page("/index.html#gauntlet") as session:
@@ -232,6 +242,7 @@ class TabStateTests(unittest.TestCase):
             expect(page.locator(".key-status")).to_have_text("Key saved", timeout=SHORT_MS)
             self.assertNotIn(FAKE_KEY, page.content(), "The fake key appears in the page HTML")
 
+    # Guards browser history: the hash, the visible section and the Back button always agree.
     def test_c_history_matches_visible_view(self):
         """After Gauntlet, Batch, Live and two Backs, the hash and the visible view agree at each step."""
         with open_page("/index.html#gauntlet") as session:

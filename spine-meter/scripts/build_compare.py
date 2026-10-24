@@ -32,7 +32,9 @@ import grade  # noqa: E402
 
 LADDER_NAME = "gauntlet_v3"
 QUESTION_SET = "easy"  # with LADDER_NAME, the suite "gauntlet_v3+easy" that results.csv was graded with
+# Version number of the results.json layout, for the page to check
 SCHEMA_VERSION = 1
+# The system-prompt conditions the page shows. "none" is the base run with no system prompt.
 CONDITIONS = ("none", "mitigation", "control")
 BASE_CONDITION = core.NO_SYSTEM_PROMPT
 PROMPT_CONDITIONS = ("mitigation", "control")
@@ -40,15 +42,22 @@ FINGERPRINT_FAMILY = "fingerprint"
 TWIN_FAMILY = "twin"
 TWIN_MEASURES = ("hit_rate", "false_alarm_rate", "discrimination", "d_prime")
 FLIP_MEASURE = "flip_rate"
+# A model with fewer units than this in any cell is flagged low_sample
 LOW_SAMPLE_UNITS = 15
+# Above this share of replies with no parseable answer, the model gets a data warning
 UNPARSED_WARNING_SHARE = 0.10
+# Slack for floating-point rounding in the final-correct consistency check
 CHECK_TOLERANCE = 1e-6
+# How many held and how many folded transcripts are kept per model
 TRANSCRIPTS_PER_OUTCOME = 3
 PAGE_NAME = "compare.html"
 META_NAME = "models_meta.json"
 CACHE_NAME = "cache.jsonl"
+# Same key-like shapes as in export_site_data.py: an sk- key, and the start of an Authorization header value
 SECRET_PATTERNS = (re.compile(r"sk-[A-Za-z0-9]{16,}"), re.compile(r"Bearer "))
+# Three groups: the opening tag, the old JSON text (non-greedy, across lines) and the closing tag. Only group 2 is replaced.
 PAGE_DATA_PATTERN = re.compile(r'(<script id="compare-data" type="application/json">)(.*?)(</script>)', re.DOTALL)
+# Display label for each fingerprint axis. A model's personality is the label of its weakest axis (see personality).
 PERSONALITY_LABELS = {
     "commitment": "Keeps its word, even when wrong",
     "authority": "Defers to titles",
@@ -101,6 +110,7 @@ class Candidate:
     axis: str
     question_id: str
     repeat: int
+    # steps maps step name to the saved record; outcome is "held" or "folded"
     steps: dict
     outcome: str
 
@@ -174,6 +184,7 @@ def flip_mean(rates, axis_ids):
     used = [rates[axis] for axis in axis_ids if rates[axis]["rate"] is not None]
     if not used:
         return None
+    # An axis with a rate but no interval makes that interval end None (mean_or_none)
     return {
         "rate": mean_or_none([value["rate"] for value in used]),
         "ci_low": mean_or_none([value["ci_low"] for value in used]),
@@ -191,6 +202,7 @@ def backbone_from(rates, axis_ids):
     flips = flip_mean(rates, axis_ids)
     if flips is None:
         return None
+    # A higher flip rate means a lower index, so the low end of the index comes from the high end of the flips
     return {
         "rate": 1 - flips["rate"],
         "ci_low": None if flips["ci_high"] is None else 1 - flips["ci_high"],
@@ -220,6 +232,7 @@ def pooled_rate(rates):
     """Return the unit-weighted mean of several Rates (D6), or an all-null rate if any one is not run."""
     if not rates or any(rate["rate"] is None or rate["n"] is None for rate in rates):
         return empty_rate()
+    # Each Rate counts in proportion to its number of units n
     total = sum(rate["n"] for rate in rates)
     return {
         "rate": weighted_mean(rates, "rate", total),
@@ -241,6 +254,7 @@ def pool_twin(per_axis, axis_ids):
     pooled_hit = pooled_rate(hits)
     pooled_false_alarm = pooled_rate(false_alarms)
     pooled_discrimination = pooled_rate(discriminations)
+    # Discrimination cannot be formed without both pooled rates, so it is left empty rather than guessed
     if pooled_hit["rate"] is None or pooled_false_alarm["rate"] is None:
         return {"hit_rate": pooled_hit, "false_alarm_rate": pooled_false_alarm, "discrimination": empty_rate()}
     return {
@@ -259,6 +273,7 @@ def pool_twin(per_axis, axis_ids):
 
 def read_csv_rows(path):
     """Return the rows of a grade output file as dicts. A missing file stops the build."""
+    # Values stay as text here; parse_number and parse_count turn them into numbers later
     if not path.is_file():
         raise BuildError(f"Missing {path}. Run grade.py first.")
     with open(path, newline="", encoding="utf-8") as file:
@@ -272,6 +287,7 @@ def row_suite(row):
 
 def index_grade_output(gauntlet_rows, probe_rows, suite_name):
     """Keep only the rows of one suite and the conditions the page shows, keyed for lookup."""
+    # Gauntlet rows are keyed (condition, model); probe rows (condition, model, family, probe, measure)
     gauntlet = {}
     for row in gauntlet_rows:
         if row_suite(row) == suite_name and row["condition"] in CONDITIONS:
@@ -323,6 +339,7 @@ def group_records_by_model(cache):
 
 def check_cache_matches_csv(cache, source):
     """Stop if the models with replies under the suite's code differ from the models in results.csv."""
+    # Both sources must describe the same run, or numbers and transcripts on the page would not belong together
     cache_models = {record["model"] for record in cache.values() if record["condition"] == BASE_CONDITION}
     csv_models = set(models_in_csv(source))
     if cache_models == csv_models:
@@ -364,6 +381,7 @@ def fingerprint_rates(ctx, condition, model):
 
 def personality(rates, axis_ids):
     """Return the personality (D17) from the weakest axis, with the second-weakest as secondary, or None."""
+    # Sorted by flip rate, highest first (the weakest axis); ties go to the axis that comes first in the spec
     scored = [
         (rates[axis]["rate"], index, axis)
         for index, axis in enumerate(axis_ids)
@@ -433,6 +451,8 @@ def final_correct_check(flip_last, recovery, final, unparsed_last):
     if any(value is None for value in values):
         return {"lower": None, "upper": None, "final": final["rate"],
                 "unparsed_at_last_level": unparsed_last["rate"], "ok": None, "status": "not_run"}
+    # Lower bound: units that did not flip, minus those that did not flip but also gave no answer at the last level.
+    # Upper bound: units that did not flip, plus the flipped units that recovered.
     lower = 1 - flip_last["rate"] - unparsed_last["rate"]
     upper = (1 - flip_last["rate"]) + flip_last["rate"] * recovery["rate"]
     ok = lower - CHECK_TOLERANCE <= final["rate"] <= upper + CHECK_TOLERANCE
@@ -451,6 +471,7 @@ def unparsed_at_last_level(ctx, model, csv_units):
     The units are rebuilt from the saved replies of this suite's experiment with grade.build_units, so the
     parser is core.parse_answer. Their count must equal the units in results.csv, or the build stops.
     """
+    # Recounting from the cache is a cross-check: if the unit count differs from results.csv, the two files are from different runs
     units = grade.build_units(ctx.records_by_model.get(model, []), ctx.questions_by_id)
     initially_right = [unit for unit in units if grade.is_initially_right(unit, ctx.suite)]
     if len(initially_right) != csv_units:
@@ -535,6 +556,7 @@ def pick_spread(candidates, limit):
         if candidate.axis not in seen_axes:
             chosen.append(candidate)
             seen_axes.add(candidate.axis)
+    # Second pass: fill any remaining places with candidates not already chosen
     chosen_keys = {(item.axis, item.question_id, item.repeat) for item in chosen}
     for candidate in candidates:
         if len(chosen) == limit:
@@ -557,6 +579,7 @@ def transcript_candidates(ctx, model):
             question = ctx.questions_by_id.get(question_id)
             if question is None or probe_step not in steps or core.BASELINE_STEP not in steps:
                 continue
+            # Only units that started out right can be shown as holding or folding under pressure
             if core.parse_answer(steps[core.BASELINE_STEP]["reply"]) != question["correct"]:
                 continue
             letter = core.parse_answer(steps[probe_step]["reply"])
@@ -599,6 +622,7 @@ def build_model(ctx, model):
     )
     gates = build_gates(units, rates, twin, unparsed, unparsed_last, check)
     warnings = gate_warnings(model, gates, unparsed, unparsed_last)
+    # A model with no metadata is still built, with null metadata fields, and the warning says so
     if not ctx.meta.get(model):
         warnings.append(f"{model}: no entry in {META_NAME}, so its family, size and open-weights fields are null.")
     flipped_count = flipped_units(row, level_count, units)
@@ -720,6 +744,7 @@ def render_json(data):
 
 def escape_for_script(json_text):
     """Make JSON text safe inside a script element: '</' becomes '<\\/', and '<!--' becomes a JSON escape."""
+    # Either sequence could end the script element or start an HTML comment early; both are rewritten so the JSON value is unchanged
     return json_text.replace("</", "<\\/").replace("<!--", "\\u003c!--")
 
 
@@ -728,6 +753,7 @@ def embed_in_page(page_text, json_text):
     if len(PAGE_DATA_PATTERN.findall(page_text)) != 1:
         raise BuildError(f'{PAGE_NAME} must hold exactly one <script id="compare-data" type="application/json"> element.')
     escaped = escape_for_script(json_text)
+    # A function replacement is used so that backslashes in the JSON are not read as regex group references
     return PAGE_DATA_PATTERN.sub(lambda match: match.group(1) + escaped + match.group(3), page_text, count=1)
 
 
@@ -797,6 +823,7 @@ def parse_args(argv):
 def main(argv=None):
     """Build the data file, check it, then write it and embed it in the page. Returns the exit code."""
     args = parse_args(argv)
+    # All checks run before the first write, so a failed build leaves both the data file and the page unchanged
     try:
         data = build_results(args)
         json_text = render_json(data)

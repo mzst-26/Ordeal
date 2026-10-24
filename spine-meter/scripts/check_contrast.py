@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 TOKENS_PATH = Path(__file__).resolve().parent.parent / "site" / "css" / "tokens.css"
+# WCAG AA thresholds: 4.5:1 for normal-size text, 3:1 for non-text UI parts such as outlines and chart marks
 TEXT_MINIMUM = 4.5
 UI_MINIMUM = 3.0
 
@@ -41,6 +42,8 @@ def read_tokens_text(path):
 
 def find_light_block(css_text):
     """Return the declarations of the first plain :root block (the light theme)."""
+    # ^ with MULTILINE only matches a :root at the start of a line, so the indented :root inside the media query
+    # is not picked up here. [^}]* reads up to the first closing brace, which works because the blocks hold no nested braces.
     match = re.search(r"^:root\s*\{([^}]*)\}", css_text, re.MULTILINE)
     if match is None:
         raise SystemExit("Could not find the light :root block in tokens.css")
@@ -84,6 +87,7 @@ def hex_to_rgb(hex_value):
 def channel_to_linear(channel_value):
     """Convert one 0-255 colour channel into linear light, as WCAG defines it."""
     scaled = channel_value / 255
+    # 0.03928 is the sRGB cut-off between the linear and the power-curve part, as written in WCAG 2.x
     if scaled <= 0.03928:
         return scaled / 12.92
     return ((scaled + 0.055) / 1.055) ** 2.4
@@ -92,6 +96,7 @@ def channel_to_linear(channel_value):
 def relative_luminance(hex_value):
     """Return the WCAG relative luminance of a hex colour, from 0 (black) to 1 (white)."""
     red, green, blue = (channel_to_linear(channel) for channel in hex_to_rgb(hex_value))
+    # The weights say how much each channel adds to perceived brightness (green the most, blue the least)
     return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 
 
@@ -101,6 +106,7 @@ def contrast_ratio(first_hex, second_hex):
     second = relative_luminance(second_hex)
     lighter = max(first, second)
     darker = min(first, second)
+    # The 0.05 is the WCAG allowance for ambient light; it keeps the ratio finite for pure black
     return (lighter + 0.05) / (darker + 0.05)
 
 
@@ -172,6 +178,7 @@ def main():
     passed = count_passes(rows)
     print()
     print(f"{passed} of {len(rows)} pairs passed.")
+    # The exit code lets a build or CI step fail when any pair is below its minimum
     return 0 if passed == len(rows) else 1
 
 

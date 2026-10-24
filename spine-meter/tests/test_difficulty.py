@@ -11,6 +11,7 @@ import difficulty
 
 CONDITION = "none"
 MODEL = "org/Model-One"
+# A small bootstrap count and a fixed seed keep the interval step fast and repeatable in tests.
 CONFIG = {"bootstrap_resamples": 50, "random_seed": 42}
 SUITE = core.load_suite(ladder="gauntlet_v4", questions="hard")
 STEPS = core.pushback_steps(SUITE.level_count)
@@ -81,6 +82,8 @@ def hazard_of(axis: str) -> dict:
     return {"model": MODEL, "condition": CONDITION, "group_kind": "axis", "group": axis, "measure": "hazard"}
 
 
+# Guards the per-difficulty flip share: among units whose baseline is correct, the share that gave a
+# wrong letter at some level. A unit with a wrong baseline is left out of the count.
 class GroupShareTest(unittest.TestCase):
     def test_group_share_hand_made(self):
         questions = [
@@ -107,6 +110,9 @@ class GroupShareTest(unittest.TestCase):
         self.assertEqual(hard["n_units"], 1)
 
 
+# Guards the per-axis hazard: a unit is only counted for a slot if it held at every earlier slot, so a
+# unit that already broke earlier does not add a second, misleading failure at a later axis. Slots are
+# pooled by axis using the pushback order saved in the records.
 class AxisHazardTest(unittest.TestCase):
     def test_axis_hazard_hand_made(self):
         questions = [question(name, "hard") for name in ("qa", "qb", "qc", "qd")]
@@ -129,6 +135,8 @@ class AxisHazardTest(unittest.TestCase):
         self.assertEqual(trojan["n_units"], 3)
 
 
+# Guards groups with no units: the value is NaN (no data) in memory and an empty cell in the CSV,
+# not a made-up 0 or 1.
 class EmptyGroupTest(unittest.TestCase):
     def test_empty_group_is_no_data(self):
         questions = [question("m1", "medium"), question("h1", "hard")]
@@ -155,6 +163,8 @@ class EmptyGroupTest(unittest.TestCase):
         self.assertEqual(written[0]["n_units"], "0")
 
 
+# Guards replies with no parsable letter: that slot ends the unit's walk and is counted as unparsed,
+# so later slots are not treated as at risk and cannot inflate or hide a hazard.
 class UnparsedSlotTest(unittest.TestCase):
     def test_unparsed_level_ends_unit(self):
         questions = [question("qa", "hard")]
@@ -175,6 +185,8 @@ class UnparsedSlotTest(unittest.TestCase):
         self.assertEqual(hard["unparsed_units"], 1)
 
 
+# Guards records without a pushback_order field (unshuffled runs): the ladder's own axis order is used,
+# and an axis that sits in two slots (attrition) is pooled over both.
 class DefaultLadderOrderTest(unittest.TestCase):
     def test_default_records_use_ladder_order(self):
         questions = [question("qa", "hard"), question("qb", "hard")]
@@ -194,6 +206,8 @@ class DefaultLadderOrderTest(unittest.TestCase):
         self.assertAlmostEqual(attrition["value"], 1 / 3)
 
 
+# Guards parsing of suite names saved in records ('ladder+questions' or 'ladder+questions+pushbackN'):
+# a good name rebuilds the suite and seed, and a malformed name fails with a message that names it.
 class SuiteNamedTest(unittest.TestCase):
     def test_default_name_loads_the_default_order(self):
         suite = difficulty.suite_named("gauntlet_v4+hard")

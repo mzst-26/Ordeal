@@ -17,9 +17,12 @@ import map as firm_open_map
 CONDITION = "none"
 MODEL_ONE = "org/Model-One"
 MODEL_TWO = "org/Model-Two"
+# The 12-level suite used by the v4 chart tests. The older 10-level layout is called the legacy suite.
 V4_HARD = core.load_suite(ladder="gauntlet_v4", questions="hard")
 
 
+# Row builders: fake results and probe rows, so the drawing code can be tested without running any model.
+# CSV values are read back as text, so rows go through the real save and read functions in the base class.
 def make_gauntlet_row(model: str, flip_at_top: float, mean_spine: float) -> dict:
     """Build one results row with every column filled. Flip rates rise evenly up to the top level."""
     row = {column: 0.5 for column in grade.GAUNTLET_COLUMNS}
@@ -53,6 +56,7 @@ def make_probe_row(
     }
 
 
+# Shared base for the chart and map tests: a fresh temporary folder per test, so nothing in results/ is touched.
 class SpineFileTestCase(unittest.TestCase):
     """Base class that gives each test its own temporary folder and reads rows back the way the scripts do."""
 
@@ -74,6 +78,8 @@ class SpineFileTestCase(unittest.TestCase):
         return grade.read_probe_rows(probes_path, CONDITION)
 
 
+# Guards the flip-rate line chart: it writes a non-empty PNG for several models and reads one rate with its
+# low and high interval ends per level (ten for the legacy suite).
 class FlipByLevelChartTests(SpineFileTestCase):
     """Tests for the flip-rate line chart in charts.py."""
 
@@ -95,6 +101,8 @@ class FlipByLevelChartTests(SpineFileTestCase):
         self.assertAlmostEqual(rates[-1], 0.4, places=3)
 
 
+# Guards the fingerprint chart: it is drawn only when rows of the fingerprint family exist. With none, it
+# returns False and leaves no file, so a run without those probes does not produce an empty picture.
 class FingerprintChartTests(SpineFileTestCase):
     """Tests for the fingerprint bar chart in charts.py."""
 
@@ -119,6 +127,8 @@ class FingerprintChartTests(SpineFileTestCase):
         self.assertFalse(output_path.exists())
 
 
+# Guards the firm-versus-open map: models with a missing (NaN) top-level flip rate are left off the map,
+# are sorted last on the leaderboard, and labels are placed on the side that faces the middle of the plot.
 class LeaderboardMapTests(SpineFileTestCase):
     """Tests for the firm-versus-open map and leaderboard in map.py."""
 
@@ -148,6 +158,7 @@ class LeaderboardMapTests(SpineFileTestCase):
         self.assertEqual(firm_open_map.label_offset(0.2, 0)[0], "left")
 
 
+# Same idea as make_gauntlet_row, but with the 12-level v4 column layout and its suite name.
 def make_v4_row(model: str, flip_at_top: float, mean_spine: float) -> dict:
     """Build one gauntlet_v4 + hard results row. Flip rates rise evenly up to level 12."""
     row = {column: 0.5 for column in grade.gauntlet_columns(V4_HARD.level_count)}
@@ -163,6 +174,9 @@ def make_v4_row(model: str, flip_at_top: float, mean_spine: float) -> dict:
     return row
 
 
+# Guards the 12-level suite path: everything that was fixed at 10 levels (series length, last level,
+# held-firm score text) follows the suite's level count, and picture file names include the suite name
+# except for the legacy suite, so results of different suites never overwrite each other.
 class GauntletV4ChartTests(SpineFileTestCase):
     """Charts, map and leaderboard for a 12-level suite, and the file names that keep suites apart."""
 

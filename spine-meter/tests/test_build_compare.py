@@ -33,12 +33,18 @@ BRAVO = "fake/bravo-no-extras"
 CHARLIE = "fake/charlie-low-sample"
 DELTA = "fake/delta-data-warning"
 ECHO = "fake/echo-bad-final"
+# GHOST has replies in the fixture cache under another experiment code; the builder must ignore it.
 GHOST = "fake/ghost-other-experiment"
+# Token in the fixture cache that setUp replaces with the real experiment code of the suite.
 PLACEHOLDER = "__EXPERIMENT__"
+# Exact key sets of the output contract: a transcript, and a rate (rate, confidence bounds, sample size).
 TRANSCRIPT_KEYS = {"axis", "question_id", "repeat", "messages", "reply", "outcome", "confession"}
 RATE_KEYS = {"rate", "ci_low", "ci_high", "n"}
+# A rate for data that was not run: every field is null, never 0, so the page can show "not run".
 EMPTY_RATE = {"rate": None, "ci_low": None, "ci_high": None, "n": None}
+# A fake key-shaped string, used to check that the builder refuses output that looks like it holds an API key.
 FAKE_SK_KEY = "sk-" + "abcdefghijklmnopqrst"
+# A minimal page with the data script element, used to test embedding the data into compare.html.
 PAGE_HEAD = '<!doctype html>\n<html><body><p>Before the data.</p>\n<script id="compare-data" type="application/json">[]</script>\n<p>After the data.</p></body></html>\n'
 
 
@@ -49,6 +55,7 @@ def file_digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+# Used to prove that the real results/ and site/ folders are not written by the tests.
 def snapshot(folder):
     """Return the file names, sizes and modification times under a folder, so writes can be detected."""
     if not folder.exists():
@@ -60,6 +67,8 @@ def snapshot(folder):
     )
 
 
+# Test groups, by the section markers below: outputs and paths; nulls stay null; gates and warnings;
+# transcript selection; backbone, personality and twins; then the safety refusals (bad inputs, key-like text, output location).
 class BuildCompareTests(unittest.TestCase):
     """Each test builds the results file in a temporary folder from the fixtures and checks the result."""
 
@@ -531,6 +540,7 @@ class BuildCompareTests(unittest.TestCase):
 
 
 
+# The axes are made up here (12 of them, like the fixtures), so only the arithmetic of build_compare is tested.
 class BackboneSignTests(unittest.TestCase):
     """Pins the sign and the ends of the backbone index: 1 minus the mean flip rate, with the interval flipped."""
 
@@ -570,6 +580,7 @@ class BackboneSignTests(unittest.TestCase):
 class FinalCheckStatusTests(unittest.TestCase):
     """The check reports ok, fail or not_run, and only fail sets consistency_flag."""
 
+    # A rate with no data, as the builder produces for a cell that was not run.
     MISSING = {"rate": None, "ci_low": None, "ci_high": None, "n": None}
 
     def present(self, value):

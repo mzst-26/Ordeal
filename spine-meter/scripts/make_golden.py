@@ -37,6 +37,7 @@ import grade  # noqa: E402
 import model_client  # noqa: E402
 import numpy as np  # noqa: E402
 
+# A suite name is "<ladder>+<question set>". SUITE_PARTS splits each name back into the two arguments of core.load_suite.
 DEFAULT_SUITE = "gauntlet_v3+easy"
 HARD_SUITE = "gauntlet_v4+hard"
 SUITE_PARTS = {DEFAULT_SUITE: ("gauntlet_v3", "easy"), HARD_SUITE: ("gauntlet_v4", "hard")}
@@ -45,8 +46,10 @@ SUITE_ROLE_IDS = {
     DEFAULT_SUITE: {"m01": "m01", "c05": "c05", "f02": "f02", "c01": "c01", "f01": "f01"},
     HARD_SUITE: {"m01": "h01", "c05": "h05", "f02": "h04", "c01": "h02", "f01": "h06"},
 }
+# Sorted so that the family list written to the fixtures has a fixed order
 ALL_FAMILIES = sorted(flows.ALL_FAMILIES)
 TAMPERED_AXIS_ID = "tampered_history"
+# Which roles each fixture covers. A role is resolved to a real question id through SUITE_ROLE_IDS.
 ADAPTIVE_ROLES = ("m01", "c05", "f02")
 FLOW_ROLE = "m01"
 PLANNER_ROLES = ("m01", "f01")
@@ -122,9 +125,14 @@ BRACE_REPLIES = [
     ("hedge sentence has a brace token", "It might be {x}. Answer: A"),
     ("a later sentence is quoted after a brace one", "It might be {x}. I think it is B. Answer: B"),
 ]
+# Probabilities for the inverse normal fixture, spread from the extreme tails to the median
 NORMAL_PROBABILITIES = [0.0005, 0.001, 0.02, 0.0242, 0.0243, 0.05, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95,
                         0.975, 0.99, 0.999, 0.9995]
+# (seed, high, count) for numpy's default_rng(seed).integers(0, high, size=count). The large "high" values
+# (3000000000 and 2**32) are above the 32-bit signed range, so they exercise the bounded-draw code on big ranges.
 DRAW_CASES = [(42, 5, 20), (7, 3000000000, 6), (42, 1, 3), (0, 10, 12), (123456, 97, 30), (42, 2**32, 4)]
+# (case name, custom model entry, names already used by other models). Each case is run through
+# model_client.load_custom_models; the fixture records only whether it was accepted.
 CUSTOM_MODEL_CASES = [
     ("valid https model", {"name": "my-model", "base_url": "https://example.com/v1/", "model": "org/model",
                            "api_key_env": "MY_MODEL_KEY"}, []),
@@ -156,6 +164,7 @@ FLOW_SCENARIOS = [
     ("commitment setup answered No", "correct", "wrong", {"setup": "No"}),
     ("baseline wrong, so only corrections are sent", "wrong", "wrong", {}),
 ]
+# Named sets of probe families that the planner fixture passes to flows.expected_steps
 FAMILY_SETS = {
     "all": ALL_FAMILIES,
     "gauntlet": ["gauntlet"],
@@ -163,6 +172,7 @@ FAMILY_SETS = {
     "corrections": ["corrections"],
     "dose": ["dose"],
 }
+# Baseline reply for the units in HEDGED_UNITS: a correct letter wrapped in a hedge, so the text functions have a hedge to find
 HEDGED_BASELINE = "It is probably {letter}, since the percent changes roughly cancel. Answer: {letter}"
 # (model, role, repeat) -> (flip level, baseline correct, level with no answer).
 # NEVER_FLIPS means the unit never flips.
@@ -194,6 +204,7 @@ def case(name, inputs, output):
 
 def clean_numbers(value):
     """Return the value with every NaN replaced by None, so the JSON stays valid."""
+    # Python's json module would write NaN, which is not valid JSON and which JavaScript's JSON.parse rejects
     if isinstance(value, float) and math.isnan(value):
         return None
     if isinstance(value, dict):
@@ -452,6 +463,8 @@ def slot_text_cases(settings):
 
 def recording_ask(reply_for_step, sent):
     """Return an ask function that answers with reply_for_step and appends each call to 'sent'."""
+    # run_flows awaits ask(step, messages); this stand-in replaces the model and keeps a deep copy of the messages,
+    # so later changes to the conversation do not alter what was recorded.
     async def ask(step, messages):
         reply = reply_for_step(step)
         sent.append({"step": step, "messages": copy.deepcopy(messages), "reply": reply})
@@ -576,10 +589,13 @@ def scripted_reply(settings, plan, step):
     if step == core.CONFESSION_STEP:
         return correct if plan.model == "org/alpha" else wrong
     if step in core.CORRECTION_STEPS:
+        # Each correction step is accepted by exactly one repeat: repeat 1 for the first step, repeat 2 for the other
         accepting_repeat = 1 if step == core.CORRECTION_STEPS[0] else 2
         return correct if plan.repeat == accepting_repeat else wrong
+    # The setup turn is always answered "Yes" (the commitment setup)
     if "setup" in step:
         return "Yes"
+    # Susceptible units give the wrong letter on every fingerprint and twin probe, the others stay correct
     if step.startswith(("fp_", "twin_")):
         return wrong if plan.susceptible else correct
     if step.startswith("dose_"):
@@ -595,6 +611,7 @@ def unit_steps(settings, plan):
         "messages": flows.build_first_messages(plan.question, None),
         "reply": plan.baseline_reply,
     }
+    # run_flows does not send the baseline itself, so it is recorded here first and the flow steps follow it
     sent = [baseline]
     ask = recording_ask(lambda step: scripted_reply(settings, plan, step), sent)
     run_all_flows(settings, plan.question, plan.baseline_reply, ask)
@@ -705,6 +722,7 @@ def strip_suite(row):
 
 def build_numerics():
     """Return numerics.json: the inverse normal, and numpy's bounded integer draws for a few seeds and ranges."""
+    # These two lists are what the JavaScript statistics code must reproduce exactly
     normal = [case(f"p = {probability}", {"p": probability}, grade.STANDARD_NORMAL.inv_cdf(probability))
               for probability in NORMAL_PROBABILITIES]
     draws = []
@@ -748,6 +766,7 @@ FIRST_FIXTURES = ("rules.json", "adaptive.json", "flows.json", "planner.json", "
 def write_fixture(name, payload):
     """Write one fixture file and return the SHA-256 of its bytes."""
     path = FIXTURE_DIR / name
+    # Only the first fixtures use sorted keys (see FIRST_FIXTURES); the others keep the order they were built in
     path.write_text(render(payload, sort_keys=name in FIRST_FIXTURES), encoding="utf-8")
     return hashlib.sha256(path.read_bytes()).hexdigest()
 

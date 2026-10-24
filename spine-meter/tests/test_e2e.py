@@ -27,9 +27,14 @@ RUNNER = PROJECT_DIR / "runner.py"
 GRADER = PROJECT_DIR / "grade.py"
 FAKE_KEY = "test-key-123"
 NO_PROXY_VALUE = "127.0.0.1,localhost"
+# Suite fingerprints saved in every record. They are computed from the ladder and question wording, so these
+# values must be updated on purpose whenever that wording changes (old saved replies then stop being reused).
 V4_HARD_EXPERIMENT = "96efc1daaa50"
 V3_EASY_EXPERIMENT = "82f5e58164d9"
+# The real results/ files. They are only read; setUpModule and tearDownModule fail the module if any
+# of them changes, which proves the tests never wrote to the real results.
 RESULTS_FILES = ("cache.jsonl", "results.csv", "probes.csv")
+# Matches the per-level flip-rate column names, so the tests can count how many levels a results file has.
 FLIP_COLUMN_PATTERN = re.compile(r"flip_rate_level_\d+")
 RESULTS_BEFORE: dict[str, tuple[int, int] | None] = {}
 
@@ -87,6 +92,8 @@ def setup_level_of(ladder: dict[str, Any]) -> int:
     return next(entry["level"] for entry in ladder["levels"] if entry.get("setup_turn"))
 
 
+# The mock decides which request gets a wrong letter by counting user messages in it. This turns a level
+# number into that count: levels from the setup level onward carry one extra user message (the setup turn).
 def level_user_turns(level: int, setup_level: int) -> int:
     """Return how many user messages the request for this level holds: question, earlier levels, setup, this level."""
     return level + 1 + (1 if level >= setup_level else 0)
@@ -117,6 +124,9 @@ def read_csv_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(file))
 
 
+# Scripted fake model for the mock server. It answers correctly (so every unit passes its baseline)
+# except on the one request that has wrong_turn_count user messages, which makes the flip level exact.
+# With baseline_correct=False the first request is wrong, which ends the unit early.
 class PressureResponder:
     """Answers with the correct letter, except for the pushed wrong letter on the chosen request."""
 
@@ -145,6 +155,9 @@ class PressureResponder:
         return question["correct"]
 
 
+# Guards the full 12-level path through the real runner.py and grade.py processes: every step is saved
+# under the v4 fingerprint with one request per saved row, and grading a copy of the cache gives numeric
+# flip_rate_level_12 values and the Breaking Point table.
 class GauntletV4HardTests(unittest.TestCase):
     """A v4 hard run with a flip at level 11, and grade.py on its cache."""
 
@@ -200,6 +213,8 @@ class GauntletV4HardTests(unittest.TestCase):
             self.assertTrue(math.isfinite(float(csv_row["flip_rate_level_12"])))
 
 
+# Guards backward compatibility: with no suite arguments the runner and grader still use the 10-level v3
+# ladder and easy questions, with their own fingerprint and ten flip columns.
 class GauntletV3EasyDefaultTests(unittest.TestCase):
     """The default v3 easy run with a flip at level 9, and grade.py with its default suite."""
 
@@ -248,6 +263,8 @@ class GauntletV3EasyDefaultTests(unittest.TestCase):
         self.assertEqual(len(flip_columns), 10)
 
 
+# Guards retries: one injected 429 (rate limit) is retried, so the run still finishes with no failures
+# and makes exactly one request more than the number of saved replies.
 class RetryTests(unittest.TestCase):
     """A rate-limited first request is retried, and the run still finishes."""
 
@@ -276,6 +293,8 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(request_count, len(rows) + 1)
 
 
+# Guards the safety rule that --base-url may only point at this machine: a remote URL is refused with exit
+# code 2 before any request is made or any cache file is created, so a key can never be sent elsewhere.
 class LocalhostRuleTests(unittest.TestCase):
     """A base URL that is not localhost is refused before any request is made."""
 
@@ -295,6 +314,9 @@ class LocalhostRuleTests(unittest.TestCase):
         self.assertFalse(cache_path.exists())
 
 
+# Guards shuffle bookkeeping with the offline stub model: records store the question's position in the
+# seeded order (taken before --limit is applied), both seeds, and the 12-slot pushback order, so a
+# shuffled run can be analysed and resumed later.
 class ShuffledStubRunTests(unittest.TestCase):
     """A stub run with both shuffles: each record carries its question position and its pushback order."""
 

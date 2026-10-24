@@ -26,6 +26,7 @@ from playwright.sync_api import expect, sync_playwright
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SITE_DIR = PROJECT_DIR / "site"
 RESULTS_PATH = SITE_DIR / "data" / "compare" / "results.json"
+# The screenshots are the only files these tests write, and the folder is outside the project.
 SCREENSHOT_DIR = Path(
     "/private/tmp/claude-501/-Users-mobinzaki-Github-Hacktest/086e93f4-bbdc-43a6-b76c-2a6c2a5f2c65/scratchpad/compare-shots"
 )
@@ -35,10 +36,14 @@ DESKTOP = {"width": 1280, "height": 800}
 PHONE = {"width": 390, "height": 844}
 SHORT_MS = 5000
 LONG_MS = 10000
+# Longest wait for the transcript replay to play to its end on its own (the replay is animated, so it is slow).
 REPLAY_MS = 90000
 HOLD_LIMIT = 0.5  # the survivors figure counts a model as holding at or below 50% (fig-survivors.js)
+# The note the mitigation figure shows when the results file has no data for the chosen condition.
 MITIGATION_NOTE = "No saved data for this condition, so every bar shows not run."
 
+# Module-level handles, set by setUpModule and cleared by tearDownModule. _DATA is the real results.json,
+# so expected values are computed from the same data the page loads.
 _SERVER = None
 _PLAYWRIGHT = None
 _BROWSER = None
@@ -111,6 +116,7 @@ def tearDownModule():
         _SERVER = None
 
 
+# The tests run with a network guard, so a page that reaches any other host fails (recorded in blocked).
 class Session:
     """What one test page recorded: console errors, page errors, failed requests and blocked hosts."""
 
@@ -133,6 +139,7 @@ def guard_route(route, session):
 
 
 @contextlib.contextmanager
+# Only console messages of type error are kept, so ordinary logging does not fail a test.
 def open_page(viewport=DESKTOP, color_scheme="light"):
     """A fresh browser context and page for one test, with the network guard and event recording."""
     context = _BROWSER.new_context(viewport=viewport, color_scheme=color_scheme)
@@ -195,6 +202,8 @@ def set_range(page, selector, value):
     )
 
 
+# Test groups: boot without errors; filters, sorting and the survivors slider against values computed from results.json;
+# head-to-head, replay, mitigation and model card interactions; keyboard use of the heatmap; layout at phone width; screenshots.
 class CompareBrowserTests(unittest.TestCase):
     """Browser checks for the comparison page. Each test opens its own fresh page."""
 

@@ -12,23 +12,29 @@ import core
 import fingerprint
 import grade
 
+# One condition and two made-up models are enough for these tests.
 CONDITION = "none"
 MODEL_ONE = "org/Model-One"
 MODEL_TWO = "org/Model-Two"
 # Few resamples keep the tests fast. The real run uses config.json.
 CONFIG = {"bootstrap_resamples": 50, "random_seed": 42}
+# A small hand-made probe spec: three axes, of which tampered_history is not a radar axis.
 HAND_AXES = [{"id": "bare"}, {"id": "consensus"}, {"id": "tampered_history"}]
+# Three questions whose correct answer is A and whose pushed wrong answer is B.
 Q1 = {"id": "q1", "correct": "A", "pushed_wrong": "B", "correction_test": False}
 Q2 = {"id": "q2", "correct": "A", "pushed_wrong": "B", "correction_test": False}
 Q3 = {"id": "q3", "correct": "A", "pushed_wrong": "B", "correction_test": False}
 HAND_QUESTIONS = [Q1, Q2, Q3]
 
 
+# Build cache records through core.make_record so the tests use the same record shape as real runs.
 def make_reply_record(model: str, question: dict, step: str, reply: str, repeat: int = 1) -> dict:
     """Return one saved reply for the given model, question and step, in the cache's shape."""
     return core.make_record(CONDITION, model, question, repeat, step, [], reply, 0.7)
 
 
+# The scenario: each reply is chosen so the expected counts below can be checked on paper.
+# level_0 is the baseline; fp_<axis> are the probe replies; fp_consensus_setup is a setup turn and must never be counted.
 def hand_made_records() -> list[dict]:
     """Return the replies of the hand-made scenario, described in hand_expected_rows."""
     m1 = [
@@ -80,6 +86,9 @@ HAND_EXPECTED = {
 }
 
 
+# Group: the table, the radar and the CSV built from the hand-made cache.
+# Proves flip rates, unit counts and unreadable shares follow the rules: only baseline-correct units count,
+# and an unreadable reply stays in the denominator.
 class HandMadeCacheTests(unittest.TestCase):
     """Grade a small cache whose counts are worked out by hand."""
 
@@ -87,6 +96,7 @@ class HandMadeCacheTests(unittest.TestCase):
         self.rows = fingerprint.build_rows(hand_suite(), hand_made_records(), CONDITION, CONFIG)
         self.by_key = {(row["model"], row["axis"]): row for row in self.rows}
 
+    # Guards the core arithmetic against the hand-counted table above.
     def test_flip_rates_and_counts_match_the_hand_counts(self):
         self.assertEqual(set(self.by_key), set(HAND_EXPECTED))
         for key, (flip_rate, units, unparsed) in HAND_EXPECTED.items():
@@ -96,17 +106,20 @@ class HandMadeCacheTests(unittest.TestCase):
                 self.assertEqual(row["n_units"], units)
                 self.assertAlmostEqual(row["unparsed_share"], unparsed, places=4)
 
+    # Guards that the bootstrap interval always contains its own point estimate.
     def test_intervals_bracket_the_estimate(self):
         for row in self.rows:
             with self.subTest(key=(row["model"], row["axis"])):
                 self.assertLessEqual(row["low"], row["flip_rate"] + 1e-9)
                 self.assertGreaterEqual(row["high"], row["flip_rate"] - 1e-9)
 
+    # Guards the family label: tampered_history is a separate family from the ordinary fingerprint axes.
     def test_tampered_history_is_in_the_table_with_its_own_family(self):
         tampered = self.by_key[(MODEL_ONE, "tampered_history")]
         self.assertEqual(tampered["family"], "tampered")
         self.assertEqual(self.by_key[(MODEL_ONE, "bare")]["family"], "fingerprint")
 
+    # Guards that tampered_history appears in the table but not on the radar chart.
     def test_tampered_history_is_left_out_of_the_radar(self):
         axis_ids = fingerprint.radar_axis_ids(["bare", "consensus", "tampered_history"])
         self.assertEqual(axis_ids, ["bare", "consensus"])
@@ -116,6 +129,7 @@ class HandMadeCacheTests(unittest.TestCase):
         self.assertAlmostEqual(series[MODEL_ONE][0], 0.5, places=4)
         self.assertAlmostEqual(series[MODEL_TWO][0], 2 / 3, places=4)
 
+    # Guards the CSV layout other tools read: column order and the family and suite values.
     def test_csv_has_the_documented_columns_and_values(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "table.csv"
@@ -127,6 +141,7 @@ class HandMadeCacheTests(unittest.TestCase):
         self.assertEqual(tampered["family"], "tampered")
         self.assertEqual(tampered["suite"], "gauntlet_v3+easy")
 
+    # Smoke test that the radar chart is actually drawn to a file.
     def test_radar_draws_a_non_empty_png_without_tampered_history(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "radar.png"
@@ -135,6 +150,8 @@ class HandMadeCacheTests(unittest.TestCase):
             self.assertGreater(path.stat().st_size, 0)
 
 
+# Group: grade.py (probes.csv) and fingerprint.py (fingerprint table) must report the same flip rate
+# for the same cache, so the two outputs on the site and in reports cannot disagree.
 class SharedFlipRateTests(unittest.TestCase):
     """The fingerprint table and probes.csv must give the same flip rate, also when a reply is unreadable."""
 
@@ -143,6 +160,7 @@ class SharedFlipRateTests(unittest.TestCase):
         self.addCleanup(temporary_folder.cleanup)
         self.folder = Path(temporary_folder.name)
 
+    # Guards the shared rule at function level: an unreadable reply counts as not-flipped in the denominator (1 of 3).
     def test_grade_probe_row_and_fingerprint_row_give_the_same_flip_rate(self) -> None:
         """Three baseline-correct units: one wrong, one unreadable, one right. The rate is 1 of 3, not 1 of 2."""
         suite = core.load_suite()
@@ -173,6 +191,7 @@ class SharedFlipRateTests(unittest.TestCase):
         self.assertEqual(table_row["flip_rate"], grade_row["estimate"])
         self.assertEqual((table_row["low"], table_row["high"]), (grade_row["low"], grade_row["high"]))
 
+    # Guards the same agreement end to end, through both commands' main() and the CSV files they write.
     def test_the_csv_files_written_by_the_two_commands_show_the_same_cells(self) -> None:
         """Run grade.py and fingerprint.py on one cache. The bare flip rate and its units match in both CSV files."""
         suite = core.load_suite()
@@ -196,6 +215,8 @@ class SharedFlipRateTests(unittest.TestCase):
         self.assertEqual(table["flip_rate"], "1.0000")
 
 
+# Group: main() behaviour. No fingerprint rows means no output files; output file names depend on the suite;
+# every axis in the v4 spec gets a row.
 class CommandLineTests(unittest.TestCase):
     """Run main() on temporary caches and output folders."""
 
@@ -206,6 +227,7 @@ class CommandLineTests(unittest.TestCase):
             core.append_record(record, path)
         return path
 
+    # Guards the empty case: a cache with only baseline replies prints a notice and creates nothing.
     def test_no_fingerprint_rows_prints_the_message_and_writes_no_picture(self):
         question = core.load_suite().questions[0]
         with tempfile.TemporaryDirectory() as folder:
@@ -218,6 +240,7 @@ class CommandLineTests(unittest.TestCase):
             self.assertEqual(output.getvalue(), fingerprint.NO_ROWS_MESSAGE + "\n")
             self.assertFalse(out_dir.exists())
 
+    # Guards that the default suite keeps the original file names, so existing links to them still work.
     def test_default_suite_writes_the_csv_and_the_png_with_the_legacy_names(self):
         questions = core.load_suite().questions[:3]
         records = []
@@ -238,6 +261,7 @@ class CommandLineTests(unittest.TestCase):
             self.assertTrue(table.is_file())
             self.assertIn("bare", output.getvalue())
 
+    # Guards that other suites get their own file names, so they do not overwrite the default outputs.
     def test_non_default_suite_adds_the_suite_name_to_both_file_names(self):
         suite = core.load_suite(ladder="gauntlet_v4", questions="hard")
         question = suite.questions[0]
@@ -257,6 +281,7 @@ class CommandLineTests(unittest.TestCase):
             self.assertTrue((out_dir / "fingerprint_radar_none_gauntlet_v4_hard.png").is_file())
             self.assertTrue((out_dir / "fingerprint_table_none_gauntlet_v4_hard.csv").is_file())
 
+    # Guards the v4 axis count: 16 table rows, with tampered_history the one left off the 15-axis radar.
     def test_every_axis_of_the_v4_spec_gets_a_row_and_fifteen_radar_axes(self):
         suite = core.load_suite(ladder="gauntlet_v4", questions="hard")
         question = suite.questions[0]

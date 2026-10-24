@@ -17,6 +17,8 @@ import model_client
 from model_client import ModelRoute, describe_error, is_retryable
 from tests.mock_openai import MockOpenAIServer
 
+# A key variable name that is never set in the environment, so tests control exactly when a key exists.
+# CUSTOM_ENTRY is a valid config.json custom_models entry; tests change one field at a time to break it.
 CUSTOM_KEY_VAR = "SPINE_TEST_ROUTE_KEY_UNSET"
 CUSTOM_ENTRY = {
     "name": "my-model",
@@ -25,6 +27,7 @@ CUSTOM_ENTRY = {
     "api_key_env": CUSTOM_KEY_VAR,
 }
 
+# The .invalid top-level domain never resolves, so these fake requests cannot reach a real server.
 API_URL = "https://example.invalid/v1/chat/completions"
 
 
@@ -39,6 +42,9 @@ def fake_request() -> httpx2.Request:
     return httpx2.Request("POST", API_URL)
 
 
+# Guards the retry policy: only temporary failures (rate limit, timeout, connection, server error) are
+# retried. Permanent client errors (bad key, bad request, unknown model) must fail at once, because
+# repeating them cannot succeed and would only waste the call budget.
 class IsRetryableTests(unittest.TestCase):
     def test_rate_limit_error_is_retryable(self):
         error = openai.RateLimitError("slow down", response=fake_response(429), body=None)
@@ -70,6 +76,7 @@ class IsRetryableTests(unittest.TestCase):
         self.assertFalse(is_retryable(error))
 
 
+# Guards the error text written to logs: it names the error class and is capped at 200 characters.
 class DescribeErrorTests(unittest.TestCase):
     def test_starts_with_class_name_and_message(self):
         self.assertEqual(describe_error(ValueError("boom")), "ValueError: boom")
@@ -80,6 +87,10 @@ class DescribeErrorTests(unittest.TestCase):
         self.assertTrue(text.startswith("ValueError: "))
 
 
+# Guards the safety rules for user-supplied models in config.json. Unsafe URLs (plain http, embedded
+# login, query string, fragment, control characters) are refused so that a key is never sent over an
+# insecure link and secrets in a URL never end up in error messages. Names and key variables are also
+# validated, and a custom entry may not reuse the main Token Factory key.
 class CustomModelRuleTests(unittest.TestCase):
     """config.json custom models: https only, no user name or password, no query string, a key from a named variable."""
 
@@ -145,6 +156,9 @@ class CustomModelRuleTests(unittest.TestCase):
         self.assertEqual(model_client.load_custom_models({"models": ["a"], "custom_models": []}), [])
 
 
+# Guards key handling: a missing key is reported by variable name only, and a key value never appears
+# in repr output (so it cannot leak into logs). The environment and .env loading are patched in setUp
+# so the developer's real keys cannot affect the result.
 class CustomKeyTests(unittest.TestCase):
     """Keys come from the named variable. A missing key is reported by name, and no value is ever shown."""
 
@@ -184,6 +198,9 @@ class CustomKeyTests(unittest.TestCase):
         self.assertEqual(keyed["built-in"].api_key, "token-value-456")
 
 
+# Guards per-model routing: one router must send each model's request with that model's own key and
+# API model id. The server accepts only key-a, so the call for 'bad' (key-b) must fail with an
+# authentication error. NO_PROXY keeps the local mock server from being sent through a proxy.
 class ModelRouterTests(unittest.TestCase):
     """Each model's requests carry its own API model id and its own key, and go to its own endpoint."""
 
@@ -211,6 +228,9 @@ class ModelRouterTests(unittest.TestCase):
         self.assertEqual([request["model"] for request in server.requests], ["org/good-model", "org/bad-model"])
 
 
+# Guards the label saved with each reply, which becomes part of the resume key. A custom model's label
+# includes a digest of its endpoint and API model id, so changing either one cannot silently reuse
+# replies saved from a different model under the same name.
 class RecordLabelTests(unittest.TestCase):
     """The name saved with each reply: built-in models keep their name, custom models add a digest."""
 

@@ -8,17 +8,23 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+# scripts/ is not a package, so it is added to the import path to make check_no_secrets importable.
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_no_secrets  # noqa: E402
 
+# Each fake secret is joined from two parts so this file never contains a complete key-like string
+# (so no scanner or reader of the repo mistakes the test file for a leaked secret).
 FAKE_SK_KEY = "sk-" + "abcdefghijklmnopqrst"
 FAKE_BEARER = "Bearer " + "abcdefghijklmnopqrstuvwxyz"
 FAKE_TOKEN_NAME = "TOKEN_" + "FACTORY_TOKEN"
 FAKE_PROJECT_KEY = "project-" + "0123456789abcdef"
 
 
+# Guards the pre-publish secrets scan of site/: each secret shape (API key, token variable name, Bearer
+# header, the project key from .env) is detected and gives exit code 1, a clean folder gives 0, the
+# output gives only file, line and pattern name and never the matched text, and binary files are skipped.
 class CheckNoSecretsTests(unittest.TestCase):
     """Run the check on a temporary folder so the real site/ is never touched."""
 

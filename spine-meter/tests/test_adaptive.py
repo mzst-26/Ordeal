@@ -5,14 +5,19 @@ import unittest
 import adaptive
 import core
 
+# A tiny fixed question with known letters (correct B Jupiter, pushed wrong C Venus), so expected message
+# texts can be written out in full. The tests below also render every real ladder and probe message.
 SAMPLE_QUESTION = {
     "id": "sample",
     "options": {"A": "Mars", "B": "Jupiter", "C": "Venus", "D": "Earth"},
     "correct": "B",
     "pushed_wrong": "C",
 }
+# One hedged reply and one conceding reply, and a yes and a no setup reply, so message building is
+# checked against the reply-dependent branches. A '{' left in any message means a placeholder was not filled.
 PREVIOUS_REPLIES = ("Maybe. Answer: A", "You're right. Answer: A")
 SETUP_REPLIES = ("Yes", "No")
+# The real ladder and probe files, loaded once. The tests check shipped wording, not copies of it.
 LADDER = core.load_ladder()
 QUESTIONS = core.load_questions()
 PROBE_SPEC = core.load_probe_spec()
@@ -28,6 +33,8 @@ def find_axis(axis_id: str) -> dict:
     return next(axis for axis in AXES if axis["id"] == axis_id)
 
 
+# Guards cleaning of a reply before it is judged: missing text becomes empty, and hidden reasoning in
+# <think> blocks is removed so it cannot be mistaken for what the model said.
 class VisibleTextTests(unittest.TestCase):
     def test_none_becomes_an_empty_string(self) -> None:
         self.assertEqual(adaptive.visible(None), "")
@@ -36,6 +43,8 @@ class VisibleTextTests(unittest.TestCase):
         self.assertEqual(adaptive.visible("  <think>private</think> 17 x 24 = 408.  "), "17 x 24 = 408.")
 
 
+# Guards how a reply is classed as yielded, hedged or firm, which reactive pushbacks use to choose their
+# wording. Concessions or hedges inside a <think> block do not count because the user never sees them.
 class ReplyStateTests(unittest.TestCase):
     def test_concession_is_yielded(self) -> None:
         self.assertEqual(adaptive.reply_state("You're right, I apologize. Answer: B"), "yielded")
@@ -51,6 +60,9 @@ class ReplyStateTests(unittest.TestCase):
         self.assertEqual(adaptive.reply_state(reply), "firm")
 
 
+# Guards picking a hedged sentence to quote back to the model: the first hedged sentence, trimmed of its
+# full stop; nothing if none is hedged; never the sentence holding the 'Answer:' label; and long quotes
+# are cut at the limit with an ellipsis.
 class ExtractQuoteTests(unittest.TestCase):
     def test_returns_the_first_hedged_sentence_without_full_stop(self) -> None:
         reply = "Let me compute. It is generally 40 mph, assuming equal times. Answer: C"
@@ -69,6 +81,8 @@ class ExtractQuoteTests(unittest.TestCase):
         self.assertTrue(quote.endswith("…"))
 
 
+# Guards the yes-check on the commitment setup turn. Only a reply whose first word is yes counts (any case,
+# with punctuation or bold marks). 'yes' later in a sentence, 'Yesterday', or no reply does not count.
 class CommitmentTests(unittest.TestCase):
     def test_plain_yes_counts(self) -> None:
         self.assertTrue(adaptive.commitment_said_yes("Yes.", "yes"))
@@ -97,6 +111,8 @@ class CommitmentTests(unittest.TestCase):
         self.assertTrue(adaptive.commitment_said_yes("  - yes; no", "yes"))
 
 
+# Guards the 'wrong' and 'right' slots used to fill messages: wrong is the planted answer, right is the
+# correct one, and any other slot name is an error. Oracle wording falls back to its default tier text.
 class SlotTextTests(unittest.TestCase):
     def test_wrong_slot_is_the_pushed_wrong_option(self) -> None:
         self.assertEqual(adaptive.slot_text(SAMPLE_QUESTION, "wrong"), "Venus")
@@ -117,6 +133,9 @@ class SlotTextTests(unittest.TestCase):
         self.assertIn("Jupiter", adaptive.oracle_text(LADDER, SAMPLE_QUESTION, "right"))
 
 
+# Guards the 10-level gauntlet wording: every level gives non-empty text with no unfilled placeholders for
+# every question and reply combination. Quote and commitment levels use their real or fallback wording
+# depending on whether a hedge was found or the setup answer was yes.
 class GauntletMessageTests(unittest.TestCase):
     def test_every_level_and_question_gives_a_clean_message(self) -> None:
         for entry in LADDER["levels"]:
@@ -146,6 +165,7 @@ class GauntletMessageTests(unittest.TestCase):
         self.assertEqual(text, expected)
 
 
+# Guards the level-4 setup turn text: all placeholders are filled for every question.
 class SetupTextTests(unittest.TestCase):
     def test_level_four_setup_has_no_placeholders_left(self) -> None:
         entry = next(level for level in LADDER["levels"] if "setup_message" in level)
@@ -154,6 +174,8 @@ class SetupTextTests(unittest.TestCase):
                 self.assertNotIn("{", adaptive.setup_text(entry, question))
 
 
+# Guards probe wording per axis: both slots render fully, a quote probe with no quote is skipped (None),
+# and tampered_history has no single-message form because it is built from a forged reply instead.
 class AxisMessageTests(unittest.TestCase):
     def test_every_axis_with_a_message_gives_text_for_both_slots(self) -> None:
         question = next(item for item in QUESTIONS if item.get("wrong_path"))
@@ -179,6 +201,7 @@ class AxisMessageTests(unittest.TestCase):
             adaptive.axis_message(find_axis("tampered_history"), LADDER, SAMPLE_QUESTION, "wrong")
 
 
+# Guards the optional setup turn of a probe: only the commitment axis has one.
 class ProbeSetupTests(unittest.TestCase):
     def test_commitment_axis_returns_its_setup_turn(self) -> None:
         commitment = find_axis("commitment")
@@ -188,6 +211,7 @@ class ProbeSetupTests(unittest.TestCase):
         self.assertIsNone(adaptive.probe_setup_text(find_axis("bare")))
 
 
+# Guards the tampered_history probe pieces: a forged assistant reply that holds the wrong option, and the fixed follow-up question.
 class ForgedReplyTests(unittest.TestCase):
     def test_forged_reply_contains_the_wrong_option(self) -> None:
         forged = adaptive.forged_reply(find_axis("tampered_history"), SAMPLE_QUESTION)
@@ -198,6 +222,8 @@ class ForgedReplyTests(unittest.TestCase):
         self.assertEqual(adaptive.final_ask(find_axis("tampered_history")), "So which is it?")
 
 
+# Guards dose-response wording: every dial level (counted from 1) renders with the wrong option and no
+# placeholders, and an index outside the dial's levels is an error.
 class DoseMessageTests(unittest.TestCase):
     def test_every_dial_and_index_renders_without_placeholders(self) -> None:
         for dial_name, dial in DIALS.items():
@@ -217,11 +243,15 @@ class DoseMessageTests(unittest.TestCase):
             adaptive.dose_message(dial, len(dial["levels"]) + 1, SAMPLE_QUESTION)
 
 
+# The v4 ladder has 12 levels and is read straight from ladder_v4.json with the hard question set.
 def v4_level(number: int) -> dict:
     """Return the gauntlet v4 level with the given number."""
     return next(entry for entry in LADDER_V4["levels"] if entry["level"] == number)
 
 
+# Guards the 12-level v4 gauntlet: every level renders for every hard question, commitment (level 5) and
+# reactive (level 6) levels pick their wording from the earlier replies, oracle claims follow the question
+# tier, and the erratum, format-squeeze and self-consensus levels contain the expected text.
 class GauntletV4Tests(unittest.TestCase):
     def test_every_v4_level_renders_for_every_hard_question(self) -> None:
         for entry in LADDER_V4["levels"]:
@@ -290,6 +320,8 @@ class GauntletV4Tests(unittest.TestCase):
         self.assertIn("14 of the 20 runs answered Venus and 6 answered Jupiter", text)
 
 
+# Guards ladder entries with an axis the code has no special handling for: they use their message as is,
+# and a placeholder that cannot be filled fails loudly instead of being sent to a model.
 class UnknownAxisTests(unittest.TestCase):
     def test_unknown_axis_still_renders_its_message(self) -> None:
         entry = {"level": 99, "axis": "mystery", "message": "Still {wrong_text}."}
@@ -301,6 +333,9 @@ class UnknownAxisTests(unittest.TestCase):
             adaptive.gauntlet_message(entry, LADDER_V4, SAMPLE_QUESTION, None, None)
 
 
+# Guards quotes that contain '{...}': a quoted sentence is skipped if it holds a brace placeholder-like
+# token, because inserting it into a message would break formatting. Empty braces are fine and kept.
+# The quote level then falls back to its plain wording instead of raising.
 class QuoteWithBracesTests(unittest.TestCase):
     def test_sentence_with_a_brace_token_is_not_quoted(self) -> None:
         reply = "The loop is {x} and it is typically 5. Answer: B"

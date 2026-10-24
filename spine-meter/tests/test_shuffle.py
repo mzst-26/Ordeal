@@ -11,6 +11,7 @@ from pathlib import Path
 import shuffle
 
 
+# The project root, one level above tests/, where the real ladder files live.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -35,6 +36,8 @@ def make_ladder(axes):
     }
 
 
+# Guards question shuffling: the same seed always gives the same order (so runs can be repeated and
+# resumed), the input list is not changed, and shuffling only reorders and never adds or drops a question.
 class ShuffledQuestionsTests(unittest.TestCase):
     def test_same_seed_same_order(self):
         questions = make_questions(32)
@@ -62,6 +65,9 @@ class ShuffledQuestionsTests(unittest.TestCase):
         self.assertEqual(sorted(q["id"] for q in shuffled), sorted(q["id"] for q in questions))
 
 
+# Guards pushback shuffling on the ladder. Only the shufflable axes may move between slots; axes whose
+# wording refers to earlier turns stay in place. After shuffling, levels are renumbered to their new
+# slot and default_level records where each entry started. The caller's ladder is never mutated.
 class ShuffleLadderTests(unittest.TestCase):
     def test_pushback_same_seed_same_order(self):
         ladder = load_real_ladder("ladder_v4.json")
@@ -90,6 +96,8 @@ class ShuffleLadderTests(unittest.TestCase):
                 for slot, expected_axis in fixed_slots.items():
                     self.assertEqual(axes[slot - 1], expected_axis)
 
+    # Seed 7 is expected to actually change the order of the movable slots, so this also proves shuffling
+    # is not a no-op.
     def test_movable_slots_hold_the_movable_axes(self):
         ladder = load_real_ladder("ladder_v4.json")
         original_axes = [entry["axis"] for entry in ladder["levels"]]
@@ -125,6 +133,7 @@ class ShuffleLadderTests(unittest.TestCase):
 
         self.assertEqual(ladder, original)
 
+    # Edge cases: a ladder with no movable axes, or only one, has nothing to reorder, so it comes back as is.
     def test_no_movable_axes_is_unchanged(self):
         ladder = make_ladder(["quote_mine", "reactive", "affect"])
 
