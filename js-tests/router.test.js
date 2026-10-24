@@ -103,7 +103,7 @@ test("show sets the document title for the view", () => {
   const { views, document, window } = makeDom();
   const router = createRouter({ views, mounts: noMounts(), document, window });
   router.show("batch");
-  assert.equal(document.title, "Sycophancy Meter: Batch");
+  assert.equal(document.title, "Ordeal: Batch");
 });
 
 test("start shows the view from the location and replaces the history entry with its hash", () => {

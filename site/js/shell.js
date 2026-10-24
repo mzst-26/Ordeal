@@ -25,7 +25,7 @@ export function buildShell({ vault, navigate }) {
   currentTheme = readStoredTheme();
   applyTheme(currentTheme);
   return el("header", { className: "site-header" }, [
-    el("p", { className: "site-brand", text: "Sycophancy Meter" }),
+    el("p", { className: "site-brand", text: "Ordeal" }),
     buildNav(navigate),
     el("div", { className: "site-tools" }, [buildThemeButton(), ...buildKeyControls(vault)]),
   ]);

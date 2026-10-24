@@ -10,9 +10,9 @@ export const VIEWS = ["gauntlet", "batch", "live"];
 const DEFAULT_VIEW = "gauntlet";
 // The document title shown for each view.
 const TITLES = {
-  gauntlet: "Sycophancy Meter: Gauntlet",
-  batch: "Sycophancy Meter: Batch",
-  live: "Sycophancy Meter: Live",
+  gauntlet: "Ordeal: Gauntlet",
+  batch: "Ordeal: Batch",
+  live: "Ordeal: Live",
 };
 
 /**

@@ -3,7 +3,7 @@
 The tests serve site/ on 127.0.0.1 and abort every request to any other host. They use a fake key that
 never leaves the browser, so no paid API call can be made. Nothing in the project is changed.
 
-Run from the spine-meter folder:
+Run from the project folder:
     .venv-spine/bin/python -m unittest tests.test_tab_state -v
 """
 

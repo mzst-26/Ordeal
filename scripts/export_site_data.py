@@ -31,7 +31,7 @@ import core  # noqa: E402  (needs the project folder on sys.path first)
 # Where every exported file is written.
 SITE_DATA_DIR = PROJECT_DIR / "site" / "data"
 # Value stored in version.json to say which project the export came from.
-SOURCE_NAME = "spine-meter"
+SOURCE_NAME = "Ordeal"
 MANIFEST_NAME = "manifest.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"

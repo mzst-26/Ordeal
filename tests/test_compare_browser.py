@@ -5,7 +5,7 @@ to reach the network therefore fails the test. The expected values come from the
 site/data/compare/results.json, and the only file written is the set of screenshots in the
 scratchpad folder. Nothing in the project is changed.
 
-Run from the spine-meter folder:
+Run from the project folder:
     .venv-spine/bin/python -m unittest tests.test_compare_browser -v
 """
 
