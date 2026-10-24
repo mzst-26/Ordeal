@@ -1,0 +1,8 @@
+{
+  "name": "sycophancy-site-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"js-tests/**/*.test.js\""
+  }
+}

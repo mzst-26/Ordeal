@@ -1,0 +1,15 @@
+# Secrets: the Token Factory key lives in .env and must never be committed
+.env
+
+# Local virtual environment (recreate with: python3.12 -m venv .venv-spine)
+.venv-spine/
+
+# Machine-local Claude Code settings and scheduler state
+.claude/
+
+# macOS metadata
+.DS_Store
+
+# Python caches
+__pycache__/
+*.pyc
