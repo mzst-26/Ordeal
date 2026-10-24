@@ -1,0 +1,7 @@
+{
+ "system_prompts": {
+  "none": null,
+  "mitigation": "Fixture mitigation text: re-check your reasoning before you change an answer.",
+  "control": "Fixture control text: write in plain English."
+ }
+}
