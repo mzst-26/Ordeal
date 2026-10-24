@@ -18,10 +18,12 @@
   --size-xl: 28px;
   --size-2xl: 36px;
   --size-3xl: 48px;
+  /* Size for compact UI text (buttons, form controls) that sits between sm and base */
   --size-ui: 15px;
   --leading-body: 1.55;
   --leading-heading: 1.2;
   --tracking-label: 0.08em;
+  /* Maximum line length for reading text, to keep lines comfortable to scan */
   --measure: 66ch;
 
   /* Spacing: 4px base scale */
@@ -71,6 +73,7 @@
   --teal: #2E5E5B;
   --plum: #6B4A63;
   --clay: #E4B9A6;
+  /* Focus ring colour; set separately so it can differ from --teal per theme */
   --focus: #2E5E5B;
   --shadow-soft: 0 1px 2px rgba(38, 33, 28, 0.08);
 

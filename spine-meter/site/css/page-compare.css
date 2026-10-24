@@ -42,6 +42,7 @@
 }
 
 /* 3. Sticky filter bar: paper-raised, a rule underneath, full width of the page */
+/* Negative inline margins pull the bar out to the viewport edges, cancelling the page gutter; the padding puts the content back */
 .filter-bar {
   position: sticky;
   top: 0;
@@ -92,6 +93,7 @@
   margin: 0;
 }
 
+/* Anchors the visually-hidden checkbox from base.css inside its label */
 .check {
   position: relative;
 }
@@ -118,6 +120,7 @@
   border-color: var(--ink);
 }
 
+/* Square box with a tick drawn from the ::after border below; shows state beyond colour */
 .chip-box {
   position: relative;
   flex: 0 0 auto;
@@ -199,6 +202,7 @@
   height: auto;
 }
 
+/* Forces the sans stack on text inside figure SVGs */
 .figure-svg text {
   font-family: var(--font-sans);
 }
@@ -221,6 +225,7 @@
 }
 
 /* 5. Data tables for the accessible fallback: hairline row rules, label left, values right */
+/* Tables follow charts as the text alternative; the wrapper scrolls instead of widening the page */
 .table-wrap {
   max-width: 100%;
   overflow-x: auto;
@@ -266,6 +271,7 @@
 }
 
 /* 6. Tooltip: a bordered panel, no shadow, never takes the pointer */
+/* position fixed with top/left 0: script moves it, and the width is capped to stay inside narrow screens */
 .compare-tooltip {
   position: fixed;
   z-index: 50;
@@ -353,6 +359,7 @@
 }
 
 /* 8. Model Card position (its motion and content are styled in compare-figs-b.css) */
+/* Side panel pinned to the right edge, full height, above the filter bar (z-index 40 vs 10) */
 .model-card {
   position: fixed;
   top: 0;

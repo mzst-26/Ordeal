@@ -25,6 +25,7 @@
 /* 3. KPI strip: one row of 4 to 6 cards from 1024px, two per row from 560px, one per row below */
 .dash-kpis {
   display: grid;
+  /* Column flow with equal-width auto columns puts every card in one row, whatever the count (4 to 6) */
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: var(--space-4);
@@ -33,6 +34,7 @@
 
 @media (min-width: 560px) and (max-width: 1023px) {
   .dash-kpis {
+    /* Switch from column flow to an explicit 2-column grid; auto-columns reset so no stray implicit columns appear */
     grid-auto-flow: row;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-auto-columns: auto;
@@ -67,6 +69,7 @@
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
   color: var(--ink-mute);
+  /* anywhere (not break-word) lets long labels shrink the grid track instead of overflowing */
   overflow-wrap: anywhere;
 }
 

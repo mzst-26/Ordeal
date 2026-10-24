@@ -6,6 +6,7 @@
   display: none !important;
 }
 
+/* Hides content visually but keeps it available to screen readers (unlike display:none) */
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -35,6 +36,7 @@
   max-width: var(--measure);
 }
 
+/* min-width 0 lets this grid item shrink below its content width instead of overflowing */
 .margin-notes {
   min-width: 0;
 }
@@ -93,8 +95,10 @@
   }
 }
 
+/* Wide screens: the header turns into a full-height sticky sidebar */
 @media (min-width: 1024px) {
   /* The body becomes two columns: the sidebar on the left, the page on the right */
+  /* :has() limits the two-column layout to pages that have a direct-child site header */
   body:has(> .site-header) {
     display: grid;
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
@@ -106,6 +110,7 @@
     max-width: var(--dashboard-max);
   }
 
+  /* 100vh plus overflow-y keeps the sidebar in view and scrollable on short screens; .site-tools is pushed to the bottom */
   .site-header {
     position: sticky;
     top: 0;
@@ -130,6 +135,7 @@
   }
 }
 
+/* min-height 44px is a touch-target size; the underline is transparent until hover or current page */
 .site-nav-link {
   display: inline-flex;
   align-items: center;
@@ -170,6 +176,7 @@
 }
 
 /* 4. Typography: serif for headings and reading text, sans for UI text and labels */
+/* text-wrap: balance evens out line lengths in short headings */
 h1,
 h2,
 h3 {
@@ -377,6 +384,7 @@ p {
   cursor: pointer;
 }
 
+/* Same hiding pattern as .visually-hidden, applied to the real checkbox so it stays focusable and keyboard operable */
 .check-input {
   position: absolute;
   width: 1px;
@@ -399,6 +407,7 @@ p {
   border-radius: var(--radius-sm);
 }
 
+/* The tick is a rotated L made from two borders of a 6px by 12px box, turned 45 degrees */
 .check-input:checked + .check-box::after {
   content: "";
   position: absolute;
@@ -432,6 +441,7 @@ p {
   background: var(--edge);
 }
 
+/* margin-top -9px centres the 20px thumb on the 2px track in WebKit/Blink (Firefox centres it itself); the -webkit and -moz rules are separate because the engines share no selectors */
 .range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -479,6 +489,7 @@ p {
   border-left: 1px solid var(--rule);
 }
 
+/* Radio input hidden the same way as .check-input; the sibling .segmented-text is styled by its state */
 .segmented-input {
   position: absolute;
   width: 1px;
@@ -506,6 +517,7 @@ p {
   text-underline-offset: 4px;
 }
 
+/* Negative offset draws the focus ring inside the segment so neighbouring segments do not clip it */
 .segmented-input:focus-visible + .segmented-text {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: calc(var(--focus-offset) * -1);
@@ -596,6 +608,7 @@ p {
   transform: none;
 }
 
+/* @starting-style gives the opening dialog a state to transition from, so it fades and rises in */
 @starting-style {
   .token-dialog[open] {
     opacity: 0;
@@ -603,6 +616,7 @@ p {
   }
 }
 
+/* color-mix tints the theme ink colour at 40% so the backdrop works in both themes */
 .token-dialog::backdrop {
   background: color-mix(in srgb, var(--ink) 40%, transparent);
 }
@@ -627,11 +641,13 @@ p {
   margin-top: var(--space-6);
 }
 
+/* auto margin pushes the danger button to the far left, away from the other actions */
 .dialog-actions .btn-danger {
   margin-right: auto;
 }
 
 /* 10. Toast: one line at the bottom of the screen; it never blocks the page */
+/* pointer-events none lets clicks pass through the region between toasts */
 .toast-region {
   position: fixed;
   left: var(--page-gutter);
@@ -678,6 +694,7 @@ p {
   color: var(--ink-soft);
 }
 
+/* Single-line ellipsis: long messages are cut off rather than wrapped */
 .toast-message {
   min-width: 0;
   overflow: hidden;
@@ -719,6 +736,7 @@ p {
 }
 
 /* 8. Presets, resume notices and the Saved runs list. Shared by the Gauntlet and Batch pages (added in T16). */
+/* Empty containers are removed so their grid gap leaves no blank space */
 .notice-region:empty,
 .notice-list:empty {
   display: none;

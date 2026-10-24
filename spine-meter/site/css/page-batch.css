@@ -24,6 +24,7 @@
 }
 
 /* 2. Numbered blocks: each fieldset is a panel. Its legend is the panel title, set inside the card */
+/* Fieldsets default to odd box behaviour; display block and min-width 0 make them behave like the other panels */
 fieldset.panel {
   display: block;
   min-width: 0;
@@ -41,6 +42,7 @@ fieldset.panel > legend.panel-title {
   margin: 0 0 var(--space-4);
 }
 
+/* clear left stops the first child sitting beside the floated legend */
 fieldset.panel > legend.panel-title + * {
   clear: left;
   margin-top: 0;
@@ -82,6 +84,7 @@ fieldset.panel > .add-model {
   min-width: 0;
 }
 
+/* Long lists (the model catalogue) scroll inside their panel at about 26rem tall */
 .check-list-tall {
   max-height: 26rem;
   overflow-y: auto;
@@ -120,6 +123,7 @@ fieldset.panel > .add-model {
   align-items: center;
 }
 
+/* Rank column is 8ch wide in the grid above, right-aligned, so names line up */
 .model-rank {
   color: var(--ink);
   font-weight: 600;
@@ -182,6 +186,7 @@ fieldset.panel > .add-model {
   border-bottom: 0;
 }
 
+/* Indent equals the tick box (22px) plus the column gap, so hint text lines up under the rank and name */
 .family .field-hint {
   margin: 0 0 0 calc(22px + var(--space-3));
 }
@@ -214,6 +219,7 @@ fieldset:disabled .check-box {
 }
 
 /* 5. The run panel: plan, confirmation, controls, progress and log */
+/* The run panel is a card in its own right, not a .panel, so it repeats the card styling */
 .run-panel {
   display: grid;
   align-content: start;
@@ -305,6 +311,7 @@ fieldset:disabled .check-box {
 }
 
 /* One width class per step of 5%, so the page never writes an inline style. */
+/* Steps 0 to 100 in fives, one class per value */
 .progress-0 { width: 0%; }
 .progress-5 { width: 5%; }
 .progress-10 { width: 10%; }
@@ -367,6 +374,7 @@ fieldset:disabled .check-box {
   border-bottom: 0;
 }
 
+/* Fixed 5.5rem label column keeps log messages aligned */
 .log-kind {
   flex: 0 0 5.5rem;
   font-size: var(--size-xs);
@@ -397,6 +405,7 @@ fieldset:disabled .check-box {
   margin-bottom: 0;
 }
 
+/* One table per model; from 760px they flow into as many columns as fit, each at least 18rem (or the full width if narrower) */
 .model-tables {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

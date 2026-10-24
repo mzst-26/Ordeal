@@ -23,6 +23,7 @@
   margin: var(--space-4) 0;
 }
 
+/* Radar capped at 320px wide and centred; height follows the SVG viewBox */
 .h2h-radar {
   display: block;
   width: 100%;
@@ -56,6 +57,7 @@
   border-radius: var(--radius-sm);
 }
 
+/* Swatch colours use the first two categorical series so they match the chart */
 .h2h-swatch-a {
   background: var(--cat-1);
 }
@@ -146,6 +148,7 @@
   gap: var(--space-2) var(--space-4);
 }
 
+/* Slider grows from a 160px basis, sharing the row with its output */
 .replay-speed-row .range {
   flex: 1 1 160px;
 }
@@ -174,11 +177,13 @@
   margin-bottom: var(--space-4);
 }
 
+/* pre-wrap keeps line breaks in transcript text; anywhere breaks long unbroken strings */
 .replay-turn .margin-note-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
+/* min-height reserves space so the page does not jump when the result appears */
 .replay-result {
   display: grid;
   gap: var(--space-3);
@@ -199,6 +204,7 @@
   transition: opacity var(--dur-base) var(--ease-out);
 }
 
+/* Fades the stamp in when it is first added to the page */
 @starting-style {
   .replay-stamp {
     opacity: 0;
@@ -220,6 +226,7 @@
 
 /* Model Card: position and width come from page-compare.css (full width on phones, a side panel above 760px).
    Here: the slide in from the right, which is instant under reduced motion because the durations are 0ms. */
+/* Starts off-screen to the right and hidden; .is-open slides it in. visibility is transitioned too so the closed card is not focusable or readable once the slide ends. */
 .model-card {
   display: flex;
   flex-direction: column;
@@ -235,6 +242,7 @@
   visibility: visible;
 }
 
+/* Sticky header and footer keep the title and actions visible while the body scrolls */
 .mc-head {
   position: sticky;
   top: 0;
@@ -274,6 +282,7 @@
   min-width: 0;
 }
 
+/* Overrides the global paragraph measure cap so text fills the card */
 .mc-section > p,
 .mc-section > ul,
 .mc-section > dl,
@@ -303,6 +312,7 @@
   min-height: 44px;
 }
 
+/* Hidden by default; shown on hover, keyboard focus inside .info, or the .is-open class */
 .info-note {
   display: none;
   position: absolute;
@@ -345,6 +355,7 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* SVG chart pieces: gridlines in rule colour, curve and band in the first categorical colour */
 .mc-radar {
   max-width: 260px;
   margin: 0 auto;
@@ -391,6 +402,7 @@
   fill: var(--ink-mute);
 }
 
+/* Two-column text list of the curve's values */
 .mc-curve-values {
   margin: var(--space-3) 0 0;
   padding: 0;
@@ -401,6 +413,7 @@
   columns: 2;
 }
 
+/* Stacked bar: capitulated (plum) and converted (clay) segments; the edge border on converted separates the two */
 .mc-bar {
   display: flex;
   height: 14px;
@@ -441,6 +454,7 @@
   list-style: none;
 }
 
+/* Warning chip: ochre left edge, with text colour kept as ink */
 .chip-warn {
   color: var(--ink);
   border-color: var(--ochre);

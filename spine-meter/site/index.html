@@ -6,16 +6,22 @@
   <title>Sycophancy Meter: Gauntlet</title>
   <meta name="description"
     content="One conversation with one model, pushed level by level, to find its Breaking Point.">
+  <!-- Stylesheets: shared tokens and base first, then the dashboard layout, then one file per view. -->
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/dashboard.css">
   <link rel="stylesheet" href="/css/page-gauntlet.css">
   <link rel="stylesheet" href="/css/page-batch.css">
   <link rel="stylesheet" href="/css/page-live.css">
+  <!-- Classic (non-module) script on purpose: it still runs if the ES modules fail, and shows a -->
+  <!-- message when a [data-loading-status] line is still on its loading text after a few seconds. -->
   <script src="/js/load-fallback.js"></script>
 </head>
 <body>
+  <!-- All three views live in this one document. /js/app.js shows one section at a time (chosen by the -->
+  <!-- URL hash: #gauntlet, #batch or #live) and builds the site header at the start of body. -->
   <main class="page">
+    <!-- VIEW I: Gauntlet. One model, one question, pressed level by level. -->
     <section data-view="gauntlet">
       <header class="masthead">
         <p class="section-label"><span class="section-number">I.</span> Gauntlet</p>
@@ -25,6 +31,7 @@
         </p>
       </header>
 
+      <!-- Summary figure cards. They start empty (is-empty) and the page script fills them. -->
       <div class="dash-kpis gauntlet-kpis">
         <div class="kpi-card is-empty" id="gauntlet-kpi-breaking">
           <p class="kpi-label">Breaking Point</p>
@@ -48,14 +55,17 @@
         </div>
       </div>
 
+      <!-- Empty container: the page script puts notices about resuming a saved run here. -->
       <div class="notice-region" id="gauntlet-resume-notices"></div>
 
       <div class="dash">
+        <!-- Left column: controls for setting up the run. -->
         <section class="desk panel span-4" aria-labelledby="desk-heading">
           <h2 class="panel-title" id="desk-heading">Set up the run</h2>
 
           <div class="presets">
             <h3 class="label">Presets</h3>
+            <!-- Empty: preset buttons are rendered here by the script. -->
             <div id="gauntlet-preset-panel"></div>
           </div>
 
@@ -109,6 +119,7 @@
 
           <div class="desk-actions">
             <button type="button" class="btn btn-primary" id="gauntlet-start-button">Start</button>
+            <!-- Stop is hidden until a live run is under way. -->
             <button type="button" class="btn btn-danger" id="gauntlet-stop-button" hidden>Stop</button>
           </div>
 
@@ -120,6 +131,7 @@
           </div>
         </section>
 
+        <!-- Right column: the conversation and the ladder of levels. -->
         <section class="spread panel span-8" aria-labelledby="spread-heading">
           <h2 class="panel-title" id="spread-heading">The conversation</h2>
 
@@ -136,6 +148,7 @@
         </section>
       </div>
 
+      <!-- Saved runs: the storage note and the list are filled in by the script. -->
       <section class="saved-runs" aria-labelledby="gauntlet-saved-heading">
         <h2 id="gauntlet-saved-heading">Saved runs</h2>
         <p class="field-hint" id="gauntlet-storage-note" role="status"></p>
@@ -149,6 +162,7 @@
         </p>
       </footer>
     </section>
+    <!-- VIEW II: Batch. Hidden until the router shows it; its script is loaded the first time it is shown. -->
     <section data-view="batch" hidden>
       <header class="masthead">
         <p class="section-label"><span class="section-number">II.</span> Batch</p>
@@ -159,6 +173,7 @@
         </p>
       </header>
 
+      <!-- Summary figure cards, filled by the script. -->
       <div class="dash-kpis">
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models ticked</p>
@@ -184,6 +199,7 @@
 
       <div class="notice-region" id="batch-resume-notices"></div>
 
+      <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
       <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
           <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
 
@@ -225,6 +241,7 @@
             </div>
           </fieldset>
 
+          <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
           <section class="run-panel panel span-4" aria-labelledby="plan-heading">
             <h2 class="panel-title" id="plan-heading">The plan</h2>
             <ul class="plan-list" id="plan-models"></ul>
@@ -232,6 +249,7 @@
             <p class="plan-cost" id="plan-cost"></p>
             <p class="plan-problem" id="plan-problem"></p>
 
+            <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
             <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
               <p class="confirm-text" id="confirm-text"></p>
               <div class="button-row">
@@ -377,6 +395,7 @@
           </fieldset>
       </form>
 
+      <!-- Results: tables, the fingerprint chart and its table. -->
       <section class="results panel" aria-labelledby="results-heading">
         <h2 class="panel-title" id="results-heading">Results</h2>
         <p class="field-hint" id="results-message">Tick models and questions to see results.</p>
@@ -386,6 +405,7 @@
           <figcaption class="label chart-label">Fig. 1 · Fingerprint flip rates</figcaption>
           <p class="field-hint" id="chart-message"></p>
           <div class="chart-host" id="fingerprint-chart"></div>
+          <!-- Hidden text-table version of the chart above, shown by the script as an alternative to the chart. -->
           <div class="table-scroll" id="fingerprint-table" hidden></div>
           <p class="chart-caption">
             The share of baseline-right answers that moved to a wrong letter under one message. Error bars show
@@ -393,6 +413,7 @@
           </p>
         </figure>
 
+        <!-- Collapsible table of the same fingerprint numbers; rows are filled in by the script. -->
         <details class="probe-details">
           <summary>Table of fingerprint flip rates</summary>
           <div class="table-scroll">
@@ -414,12 +435,14 @@
         </details>
       </section>
 
+      <!-- Saved runs for the Batch view. -->
       <section class="saved-runs panel" aria-labelledby="batch-saved-heading">
         <h2 class="panel-title" id="batch-saved-heading">Saved runs</h2>
         <p class="field-hint" id="batch-storage-note" role="status"></p>
         <div id="batch-runs-list"></div>
       </section>
 
+      <!-- Export buttons. They start disabled and are enabled by the script once results exist. -->
       <section class="export panel" aria-labelledby="export-heading">
         <h2 class="panel-title" id="export-heading">Export</h2>
         <p class="field-hint">Exports hold only the results and replies on this page. The key is never included.</p>
@@ -437,6 +460,7 @@
         </p>
       </footer>
     </section>
+    <!-- VIEW III: Live (the Theatre). Watch models hold or give way level by level. Hidden until shown by the router. -->
     <section data-view="live" class="theatre" hidden>
       <header class="masthead">
         <p class="section-label"><span class="section-number">III.</span> Live</p>
@@ -447,6 +471,7 @@
         </p>
       </header>
 
+      <!-- Summary figure cards, filled by the script. -->
       <div class="dash-kpis live-kpis">
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models</p>
@@ -471,6 +496,7 @@
       </div>
 
       <div class="dash">
+      <!-- Left column: run controls, either replay of the saved run or a live run with the visitor's key. -->
       <section class="panel span-4 stage-controls" aria-labelledby="controls-heading">
         <h2 class="visually-hidden" id="controls-heading">Run controls</h2>
 
@@ -502,6 +528,7 @@
           </div>
         </div>
 
+        <!-- Live-mode options, shown only when the Live mode is selected (the replay options above are for the other mode). -->
         <div class="live-panel" id="live-panel" hidden>
           <div class="live-fields">
             <div class="field">
@@ -567,12 +594,14 @@
         </p>
       </section>
 
+      <!-- Right column: one lane per model, filled by the script. -->
       <section class="panel span-8 lanes-section" aria-labelledby="lanes-heading">
         <h2 class="panel-title" id="lanes-heading"><span class="section-number">1.</span> Lanes</h2>
         <div class="lanes" id="lanes"></div>
         <p class="pip-key label">Sage: passed the level. Terracotta: gave way there. Empty: not yet passed.</p>
       </section>
 
+        <!-- Charts: four figures, each with a hidden text-table twin (table-scroll) that the script can show in place of the chart. -->
         <h2 class="section-label span-12" id="charts-heading"><span class="section-number">2.</span> Charts</h2>
           <figure class="panel span-6 figure">
             <figcaption class="label figure-label panel-title">
@@ -617,7 +646,9 @@
               Confession answers from models that flipped under pressure, summed over the models.
             </p>
           </figure>
+        <!-- End-of-run message, hidden until the script has something to say. -->
         <p class="finale span-12" id="finale" hidden></p>
+      <!-- Events: running list of recent events, newest first. -->
       <section class="panel span-12 ticker-section" aria-labelledby="ticker-heading">
         <h2 class="panel-title" id="ticker-heading"><span class="section-number">3.</span> Events</h2>
         <ol class="ticker" id="ticker" aria-label="Recent events, newest first"></ol>
@@ -625,6 +656,7 @@
       </div>
     </section>
   </main>
+  <!-- Entry point: builds the header, routes between the three views and loads each view's script on first use. -->
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

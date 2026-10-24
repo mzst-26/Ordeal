@@ -65,6 +65,7 @@
   gap: var(--space-3);
 }
 
+/* Shows the current speed value beside the slider label */
 .speed-output {
   font-family: var(--font-sans);
   color: var(--ink);
@@ -98,6 +99,7 @@
   color: var(--ink-soft);
 }
 
+/* Resets the label-style capitals and tracking in case the element also carries a .label class */
 .run-status {
   margin: 0;
   min-height: 1.4em;
@@ -123,6 +125,7 @@
   }
 }
 
+/* One lane per model; the top rule is the only edge, with no side borders */
 .lane {
   margin: 0;
   padding: var(--space-4) var(--space-6) var(--space-6);
@@ -185,6 +188,7 @@
 }
 
 /* Pips: a 1px ring per level. The fill scales from 0.6 to 1 over 240ms when a level is passed. */
+/* Ten columns, one per level */
 .pips {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
@@ -242,6 +246,7 @@
 }
 
 /* The one-off flip ring: a terracotta ring that grows and fades over 480ms */
+/* Hidden until .is-pulsing runs the animation, and ignores the pointer */
 .pip-dot::after {
   content: "";
   position: absolute;
@@ -337,6 +342,7 @@
   border-top: 1px solid var(--rule);
 }
 
+/* Two columns: kind label (up to 8rem) and text */
 .ticker-item {
   display: grid;
   grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
@@ -415,6 +421,7 @@
   text-align: right;
 }
 
+/* Chart tables keep each cell on one line, so a wide table scrolls inside .table-scroll */
 .chart-table {
   width: max-content;
   min-width: 100%;

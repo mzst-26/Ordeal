@@ -27,6 +27,7 @@
   color: var(--ink-soft);
 }
 
+/* Table alternative to the graphic; scrolls sideways rather than squashing columns */
 .fg-alt {
   margin-top: var(--space-4);
   overflow-x: auto;
@@ -73,6 +74,7 @@
   overflow-x: auto;
 }
 
+/* border-collapse separate with 2px spacing draws the heatmap as spaced tiles */
 .fp-grid {
   min-width: 100%;
   border-collapse: separate;
@@ -88,6 +90,7 @@
   text-align: left;
 }
 
+/* Column header width matches the .fp-cell min-width (96px) so headers line up with cells */
 .fp-th {
   width: 96px;
   min-width: 96px;
@@ -95,6 +98,7 @@
   vertical-align: bottom;
 }
 
+/* Sort button inside a column header; 44px minimum height is a touch-target size */
 .fp-sort {
   display: flex;
   align-items: flex-start;
@@ -152,6 +156,7 @@
   text-decoration-color: var(--teal);
 }
 
+/* One heatmap tile. Its fill colour is set from script via element.style (see file header), not here */
 .fp-cell {
   position: relative;
   min-width: 96px;
@@ -244,6 +249,7 @@
   margin-bottom: var(--space-4);
 }
 
+/* flex-basis 220px with min-width 0 lets the slider grow and shrink beside the other controls */
 .sv-range-wrap {
   display: grid;
   flex: 1 1 220px;
@@ -307,6 +313,7 @@
   height: 16px;
 }
 
+/* The transition only smooths changes of the dot's fill and stroke */
 .sv-dot circle {
   stroke-width: 2px;
   transition: fill var(--dur-base) var(--ease-out), stroke var(--dur-base) var(--ease-out);
@@ -373,6 +380,7 @@
   text-decoration-color: var(--teal);
 }
 
+/* Bar track: overflow hidden clips the fill to the rounded track */
 .mit-track {
   position: relative;
   height: 16px;
@@ -387,6 +395,7 @@
   border: 1px dotted var(--ink-mute);
 }
 
+/* Starts at zero width; the transition animates any later width change */
 .mit-fill {
   height: 100%;
   width: 0;
@@ -408,6 +417,7 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* From 620px a row becomes four columns: name, bar, value (64px) and delta */
 @media (min-width: 620px) {
   .mit-row {
     grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 64px minmax(0, 260px);
