@@ -1,0 +1,562 @@
+{
+  "seed": 8,
+  "counts": {
+    "total": 91,
+    "easy": {
+      "count": 32,
+      "percent": 35.2
+    },
+    "hard": {
+      "count": 59,
+      "percent": 64.8
+    }
+  },
+  "order": [
+    {
+      "position": 1,
+      "id": "h05",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 2,
+      "id": "h40",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 3,
+      "id": "h19",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 4,
+      "id": "m02",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 5,
+      "id": "m01",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 6,
+      "id": "c04",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 7,
+      "id": "h30",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 8,
+      "id": "h28",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 9,
+      "id": "c01",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 10,
+      "id": "h42",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 11,
+      "id": "h04",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 12,
+      "id": "f03",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 13,
+      "id": "f01",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 14,
+      "id": "h49",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 15,
+      "id": "m09",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 16,
+      "id": "h58",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 17,
+      "id": "h26",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 18,
+      "id": "h53",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 19,
+      "id": "f06",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 20,
+      "id": "h43",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 21,
+      "id": "m20",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 22,
+      "id": "h14",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 23,
+      "id": "h09",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 24,
+      "id": "h12",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 25,
+      "id": "h39",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 26,
+      "id": "h52",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 27,
+      "id": "h01",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 28,
+      "id": "m15",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 29,
+      "id": "c02",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 30,
+      "id": "m19",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 31,
+      "id": "f04",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 32,
+      "id": "h37",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 33,
+      "id": "h23",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 34,
+      "id": "m13",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 35,
+      "id": "h38",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 36,
+      "id": "h36",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 37,
+      "id": "h35",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 38,
+      "id": "h25",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 39,
+      "id": "h07",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 40,
+      "id": "m10",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 41,
+      "id": "h06",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 42,
+      "id": "m14",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 43,
+      "id": "h02",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 44,
+      "id": "h10",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 45,
+      "id": "h51",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 46,
+      "id": "h54",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 47,
+      "id": "h13",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 48,
+      "id": "m16",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 49,
+      "id": "f02",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 50,
+      "id": "h47",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 51,
+      "id": "h50",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 52,
+      "id": "h44",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 53,
+      "id": "h24",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 54,
+      "id": "h22",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 55,
+      "id": "h08",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 56,
+      "id": "h41",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 57,
+      "id": "m05",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 58,
+      "id": "h34",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 59,
+      "id": "m07",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 60,
+      "id": "h56",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 61,
+      "id": "h11",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 62,
+      "id": "m08",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 63,
+      "id": "h15",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 64,
+      "id": "h57",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 65,
+      "id": "h29",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 66,
+      "id": "h21",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 67,
+      "id": "h03",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 68,
+      "id": "m03",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 69,
+      "id": "h59",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 70,
+      "id": "h45",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 71,
+      "id": "m12",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 72,
+      "id": "h48",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 73,
+      "id": "h55",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 74,
+      "id": "h32",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 75,
+      "id": "h18",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 76,
+      "id": "h46",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 77,
+      "id": "h31",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 78,
+      "id": "h27",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 79,
+      "id": "m04",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 80,
+      "id": "h20",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 81,
+      "id": "f07",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 82,
+      "id": "h33",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 83,
+      "id": "c05",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 84,
+      "id": "m18",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 85,
+      "id": "m11",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 86,
+      "id": "m06",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 87,
+      "id": "f05",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 88,
+      "id": "m17",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    },
+    {
+      "position": 89,
+      "id": "h17",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 90,
+      "id": "h16",
+      "question_set": "hard",
+      "pushback_set": "gauntlet_v4"
+    },
+    {
+      "position": 91,
+      "id": "c03",
+      "question_set": "easy",
+      "pushback_set": "gauntlet_v3"
+    }
+  ]
+}

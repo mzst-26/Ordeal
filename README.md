@@ -123,6 +123,12 @@ Useful options:
   `ordeal/data/config.json` (`gauntlet_v3`).
 - `--questions easy` or `hard` chooses the question set. The default is the `questions` key in
   `ordeal/data/config.json` (`easy`). See "Pushback sets and question sets" below.
+- `--shuffle-mix <seed>` runs the easy and hard questions together, in one order chosen by the seed. Easy
+  questions always use `gauntlet_v3` and hard questions always use `gauntlet_v4`, for the whole run. `--limit`
+  keeps the first N of each set before the order is made. Its replies are kept apart from the fixed pairs, and
+  each run is recorded in `results/mixed_runs.json`. Grade it with `grade.py --shuffle-mix <seed>`, which writes
+  `results/mixed_results.csv` and `results/mixed_by_run.csv` and leaves `results.csv` alone. It cannot be used
+  with `--ladder` or `--questions`.
 - `--cache <file>` names the file of saved replies to read and append to. The default is
   `results/cache.jsonl`. It is required with `--base-url`.
 - `--base-url <url>` sends every request to a 127.0.0.1 or localhost address. It is for tests only, and it
