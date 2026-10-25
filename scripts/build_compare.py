@@ -27,8 +27,8 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-import core  # noqa: E402  (needs the project folder on sys.path first)
-import grade  # noqa: E402
+from ordeal import core  # noqa: E402  (needs the project folder on sys.path first)
+from ordeal import grade  # noqa: E402
 
 LADDER_NAME = "gauntlet_v3"
 QUESTION_SET = "easy"  # with LADDER_NAME, the suite "gauntlet_v3+easy" that results.csv was graded with
@@ -814,7 +814,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description="Build the comparison page data and embed it in the page.")
     parser.add_argument("--results-dir", type=Path, default=core.RESULTS_DIR, help="grade output folder (default: %(default)s)")
     parser.add_argument("--site-dir", type=Path, default=DEFAULT_SITE_DIR, help="site folder with compare.html (default: %(default)s)")
-    parser.add_argument("--meta", type=Path, default=PROJECT_DIR / META_NAME, help="model metadata file (default: %(default)s)")
+    parser.add_argument("--meta", type=Path, default=core.DATA_DIR / META_NAME, help="model metadata file (default: %(default)s)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="data file to write (default: %(default)s)")
     parser.add_argument("--config", type=Path, default=core.CONFIG_PATH, help="settings file; only the mitigation and control prompts are read")
     return parser.parse_args(argv)

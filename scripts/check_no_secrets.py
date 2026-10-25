@@ -1,4 +1,4 @@
-"""Fail if the deployed files (site/, netlify/ and netlify.toml) contain an API key or key-like text."""
+"""Fail if the deployed files (dist/, site/, netlify/ and netlify.toml) contain an API key or key-like text."""
 
 import argparse
 import re
@@ -9,14 +9,14 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 # Running this file directly puts scripts/ on sys.path, so the project folder must be added to find core.
 sys.path.insert(0, str(PROJECT_DIR))
 
-import core  # noqa: E402
+from ordeal import core  # noqa: E402
 
 # How many bytes at the start of a file are checked for a NUL byte, which marks the file as binary
 BINARY_SNIFF_BYTES = 8000
 # A key shorter than this is not searched for, because it could match ordinary text
 MIN_PROJECT_KEY_LENGTH = 16
 # The folder names and the single file under the root that make up what is deployed
-DEPLOY_FOLDERS = ("site", "netlify")
+DEPLOY_FOLDERS = ("dist", "site", "netlify")
 DEPLOY_FILE = "netlify.toml"
 
 

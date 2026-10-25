@@ -30,11 +30,11 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 FIXTURE_DIR = PROJECT_DIR / "js-tests" / "fixtures"
 sys.path.insert(0, str(PROJECT_DIR))
 
-import adaptive  # noqa: E402
-import core  # noqa: E402
-import flows  # noqa: E402
-import grade  # noqa: E402
-import model_client  # noqa: E402
+from ordeal import adaptive  # noqa: E402
+from ordeal import core  # noqa: E402
+from ordeal import flows  # noqa: E402
+from ordeal import grade  # noqa: E402
+from ordeal import model_client  # noqa: E402
 import numpy as np  # noqa: E402
 
 # A suite name is "<ladder>+<question set>". SUITE_PARTS splits each name back into the two arguments of core.load_suite.

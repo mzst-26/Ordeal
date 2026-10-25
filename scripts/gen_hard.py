@@ -1,6 +1,6 @@
 """Procedural hard-question generator. Every key is computed by running code (brute force or direct execution).
 Every question also carries the NAIVE answer produced by a named, common mistake, which becomes the pushed wrong answer.
-Usage: python gen_hard.py OUTDIR [seed]
+Usage: python scripts/gen_hard.py OUTDIR [seed]
 """
 import io, itertools, json, math, random, sys
 from contextlib import redirect_stdout
