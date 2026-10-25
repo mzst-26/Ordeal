@@ -1,8 +1,9 @@
-# Netlify configuration for the static site. There is no build step: the files in site/ are served as they are.
+# Netlify configuration for the site. The build (Vite and React) writes the pages to dist/, and Netlify publishes that folder.
 
 [build]
-  publish = "site"
-  # No build command: the site is plain HTML, CSS and JavaScript.
+  # Vite builds the pages in site/ (React header, plain page modules) into dist/, which is what is published.
+  command = "npm ci && npm run build"
+  publish = "dist"
 
 # Security headers for every page and asset.
 [[headers]]

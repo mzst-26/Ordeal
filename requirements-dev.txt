@@ -1,0 +1,4 @@
+# Everything the test suite needs on top of the runtime requirements.
+# Playwright drives Chromium for the browser tests (run `python -m playwright install chromium` once).
+-r requirements.txt
+playwright>=1.64
