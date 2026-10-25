@@ -92,6 +92,16 @@ test("unknown fields are dropped and named in the result", () => {
   assert.deepEqual(dropped.sort(), ["colour", "extra"]);
 });
 
+// A preset saved before the shuffle was removed has seed fields. They are reported as dropped, and the sets it
+// names still load, so the preset opens as the fixed choice instead of failing.
+test("an old preset with seed fields loads as the fixed sets and reports the seeds", () => {
+  const { settings, dropped } = normaliseSettings("batch", batchSettings({ pushbackSeed: 3, questionSeed: null }));
+  assert.equal(settings.pushbackSet, "gauntlet_v4");
+  assert.equal(settings.questionSet, "hard");
+  assert.equal("pushbackSeed" in settings, false);
+  assert.deepEqual(dropped.sort(), ["pushbackSeed", "questionSeed"]);
+});
+
 test("a known field with a value out of range is dropped", () => {
   const { settings, dropped } = normaliseSettings("batch", batchSettings({ repeats: 9, concurrency: 2 }));
   assert.equal("repeats" in settings, false);

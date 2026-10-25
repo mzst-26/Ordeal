@@ -40,11 +40,8 @@ import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUni
 import { createPresetStore } from "./presets.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
-  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, choiceFromSettings, fixedChoice,
+  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, fixedChoice, setMenuChoices,
 } from "./suites.js";
-import {
-  dropdownChoices, dropdownValueFor, isSeedOrFixed, readSuiteChoice, SHUFFLED_CHOICE,
-} from "./shuffle-choice.js";
 import {
   createSerialQueue, KIND_BATCH, plannedBatchUnits, unitKeyFor, unitPayload, resumeState, addRecordsToCache,
 } from "./saved-runs.js";
@@ -128,10 +125,6 @@ const IDS = {
   kpiSteps: "batch-kpi-steps",
   pushbackSelect: VIEW_IDS.batch["pushback-select"],
   questionSetSelect: VIEW_IDS.batch["question-set-select"],
-  pushbackSeedField: VIEW_IDS.batch["pushback-seed-field"],
-  pushbackSeed: VIEW_IDS.batch["pushback-seed"],
-  questionSeedField: VIEW_IDS.batch["question-seed-field"],
-  questionSeed: VIEW_IDS.batch["question-seed"],
   suiteSummary: VIEW_IDS.batch["suite-summary"],
   presetHost: VIEW_IDS.batch["preset-panel"],
   resumeNotices: VIEW_IDS.batch["resume-notices"],
@@ -271,8 +264,6 @@ function wireControls() {
   dom.setupForm.addEventListener("input", onFormEdited);
   dom.pushbackSelect.addEventListener("change", onSuiteChanged);
   dom.questionSetSelect.addEventListener("change", onSuiteChanged);
-  dom.pushbackSeed.addEventListener("input", onSuiteChanged);
-  dom.questionSeed.addEventListener("input", onSuiteChanged);
   dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
@@ -316,7 +307,7 @@ async function loadDataFile(path) {
 async function loadData() {
   setStatus("Loading the data files.");
   try {
-    // The suites index gives each suite its experiment code, so a shuffled suite is checked against its own entry.
+    // The suites index gives each suite its experiment code, and the loaded data is checked against that entry.
     const [config, records, suites] = await Promise.all([
       loadDataFile(DATA_PATHS.config), loadDataFile(DATA_PATHS.records), loadDataFile(DATA_PATHS.suites),
     ]);
@@ -453,8 +444,8 @@ function modelChoices(config) {
 
 /** Fill the pushback set and question set menus with the names this site has. */
 function fillSuiteSelects() {
-  fillOptions(page.dom.pushbackSelect, dropdownChoices(pushbackSetNames()));
-  fillOptions(page.dom.questionSetSelect, dropdownChoices(questionSetNames()));
+  fillOptions(page.dom.pushbackSelect, setMenuChoices(pushbackSetNames()));
+  fillOptions(page.dom.questionSetSelect, setMenuChoices(questionSetNames()));
 }
 
 /**
@@ -686,25 +677,19 @@ function cacheFor(suite) {
 
 /**
  * Put a suite on the form: its name in the menus, its questions, its tiers and its reply cache. Questions that
- * were ticked stay ticked when the new suite has them too. The choice is { pushbackSet, pushbackSeed, questionSet,
- * questionSeed }, with a null seed for the fixed order. Returns false when a newer choice was made while this one
- * loaded, so this suite is not put on the form.
+ * were ticked stay ticked when the new suite has them too. The choice is { pushbackSet, questionSet }. Returns false
+ * when a newer choice was made while this one loaded, so this suite is not put on the form.
  */
 async function selectSuite(choice) {
   page.suiteRequest += 1;
   const request = page.suiteRequest;
-  const suite = await page.loader.load(choice.pushbackSet, choice.questionSet, {
-    pushbackSeed: choice.pushbackSeed, questionSeed: choice.questionSeed,
-  });
+  const suite = await page.loader.load(choice.pushbackSet, choice.questionSet);
   if (request !== page.suiteRequest) {
     return false;
   }
   page.suite = suite;
-  page.dom.pushbackSelect.value = dropdownValueFor(choice.pushbackSet, choice.pushbackSeed);
-  page.dom.questionSetSelect.value = dropdownValueFor(choice.questionSet, choice.questionSeed);
-  writeSeedBox(page.dom.pushbackSeed, choice.pushbackSeed);
-  writeSeedBox(page.dom.questionSeed, choice.questionSeed);
-  syncSeedFields();
+  page.dom.pushbackSelect.value = choice.pushbackSet;
+  page.dom.questionSetSelect.value = choice.questionSet;
   page.dom.suiteSummary.textContent = suiteSummary(suite);
   page.cache = cacheFor(suite);
   page.questionsById = new Map(suite.questions.map((question) => [question.id, question]));
@@ -713,42 +698,9 @@ async function selectSuite(choice) {
   return true;
 }
 
-/** Put a seed in its box, so a saved or preset seed shows in the box. A fixed choice (null) leaves the box as it is. */
-function writeSeedBox(input, seed) {
-  if (seed !== null) {
-    input.value = String(seed);
-  }
-}
-
-/** Show each seed box only when its dropdown is Shuffled. */
-function syncSeedFields() {
-  page.dom.pushbackSeedField.hidden = page.dom.pushbackSelect.value !== SHUFFLED_CHOICE;
-  page.dom.questionSeedField.hidden = page.dom.questionSetSelect.value !== SHUFFLED_CHOICE;
-}
-
-/** Read both suite dropdowns and their seed boxes into one choice. A bad seed gives { ok: false, message }. */
-function readDeskChoice() {
-  const dom = page.dom;
-  return readSuiteChoice({
-    pushback: { value: dom.pushbackSelect.value, seedText: dom.pushbackSeed.value },
-    question: { value: dom.questionSetSelect.value, seedText: dom.questionSeed.value },
-    loaded: choiceOfSuite(page.suite),
-  });
-}
-
-/**
- * Choose a new suite from the menus or a seed box, then refresh the plan. A bad seed is shown by the plan's message
- * line, where Start is also turned off, and nothing is loaded.
- */
+/** Choose a new suite from the two menus, then refresh the plan. */
 async function onSuiteChanged() {
-  syncSeedFields();
-  const choice = readDeskChoice();
-  if (!choice.ok) {
-    // This choice is newer than any load still running, so that load must not replace the message.
-    page.suiteRequest += 1;
-    onSelectionChanged();
-    return;
-  }
+  const choice = fixedChoice(page.dom.pushbackSelect.value, page.dom.questionSetSelect.value);
   try {
     if (await selectSuite(choice)) {
       showPageStatus("Tick what to run. Nothing runs until you press Start.");
@@ -1120,11 +1072,6 @@ function findProblem(choices) {
   if (page.data === null || page.suite === null) {
     return page.loadError || LOADING_TEXT;
   }
-  // A bad seed in either suite box stops Start, and its message is shown in the plan's message line.
-  const suiteChoice = readDeskChoice();
-  if (!suiteChoice.ok) {
-    return suiteChoice.message;
-  }
   if (choices.models.length === 0) {
     return "Tick at least one model.";
   }
@@ -1179,9 +1126,9 @@ function unitCount(choices) {
   return choices.models.length * choices.questions.length * (choices.repeats ?? 0);
 }
 
-/** Return true for a suite menu or seed box. Those have their own handlers, so the form handler leaves them alone. */
+/** Return true for a suite menu. Those have their own handlers, so the form handler leaves them alone. */
 function isSuiteControl(target) {
-  const controls = [page.dom.pushbackSelect, page.dom.questionSetSelect, page.dom.pushbackSeed, page.dom.questionSeed];
+  const controls = [page.dom.pushbackSelect, page.dom.questionSetSelect];
   return controls.includes(target);
 }
 
@@ -1534,11 +1481,12 @@ async function resumeBatchRun(run) {
     setStatus("This saved batch uses a set that this site does not have, so it cannot be resumed.");
     return;
   }
-  if (!isSeedOrFixed(config.pushbackSeed) || !isSeedOrFixed(config.questionSeed)) {
-    setStatus("This saved batch uses a seed that this site does not have, so it cannot be resumed.");
+  // A batch from the shuffled orders kept a seed. Its ladder or question order is not on this site any more.
+  if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
+    setStatus("This saved batch used a shuffled order that this site no longer has, so it cannot be resumed.");
     return;
   }
-  await selectSuite(choiceFromSettings(config));
+  await selectSuite(fixedChoice(config.pushbackSet, config.questionSet));
   const problem = restorePlanProblem(config);
   if (problem !== "") {
     setStatus(problem);
@@ -2274,7 +2222,6 @@ function readPresetSettings() {
   const choices = readChoices();
   const { config } = page.data;
   return {
-    // The suite on the form, so a Shuffled choice is saved with its seed and not as its dropdown value.
     ...choiceOfSuite(page.suite),
     models: choices.models,
     families: [...choices.families],
@@ -2291,12 +2238,10 @@ function readPresetSettings() {
 async function applyPresetSettings(settings) {
   const dom = page.dom;
   const current = choiceOfSuite(page.suite);
-  await selectSuite(choiceFromSettings({
-    pushbackSet: settings.pushbackSet ?? current.pushbackSet,
-    pushbackSeed: settings.pushbackSeed,
-    questionSet: settings.questionSet ?? current.questionSet,
-    questionSeed: settings.questionSeed,
-  }));
+  await selectSuite(fixedChoice(
+    settings.pushbackSet ?? current.pushbackSet,
+    settings.questionSet ?? current.questionSet,
+  ));
   const notes = [];
   if (settings.models !== undefined) {
     const known = settings.models.filter((model) => page.allModels.includes(model));

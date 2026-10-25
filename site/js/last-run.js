@@ -13,16 +13,15 @@ export async function latestRunOfKind(adapter, kind) {
 }
 
 /**
- * Return true when a saved run was made on this suite: the same pushback set and question set, with the same seeds.
- * A run from another suite holds replies for other questions, so it is not shown on this one.
+ * Return true when a saved run was made on this suite: the same pushback set and question set.
+ * A run from another suite holds replies for other questions, so it is not shown on this one. A run that kept a
+ * shuffled order (a seed) is never this suite, because the shuffled orders are no longer on this site.
  */
 export function runMatchesSuite(run, suite) {
   const saved = run.config ?? {};
   const wanted = choiceOfSuite(suite);
-  return saved.pushbackSet === wanted.pushbackSet
-    && saved.questionSet === wanted.questionSet
-    && (saved.pushbackSeed ?? null) === (wanted.pushbackSeed ?? null)
-    && (saved.questionSeed ?? null) === (wanted.questionSeed ?? null);
+  const shuffled = (saved.pushbackSeed ?? null) !== null || (saved.questionSeed ?? null) !== null;
+  return !shuffled && saved.pushbackSet === wanted.pushbackSet && saved.questionSet === wanted.questionSet;
 }
 
 /** Return the date of a saved run as a short local text, for the status line. */

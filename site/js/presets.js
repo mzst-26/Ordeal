@@ -7,7 +7,6 @@
 import { RUNS_STORE, assertNoSecrets } from "./store/run-store.js";
 import { CONDITIONS } from "./engine/rules.js";
 import { isPushbackSet, isQuestionSet } from "./suites.js";
-import { isSeed } from "./shuffle-choice.js";
 
 export const PRESET_PREFIX = "preset:";
 const PRESET_KIND = "preset";
@@ -43,9 +42,6 @@ function isModelName(value) {
 const FIELD_CHECKS = {
   pushbackSet: (value) => typeof value === "string" && isPushbackSet(value),
   questionSet: (value) => typeof value === "string" && isQuestionSet(value),
-  // null means the fixed order. A seed is one the site offers, and the Shuffled choice never saves any other.
-  pushbackSeed: (value) => value === null || isSeed(value),
-  questionSeed: (value) => value === null || isSeed(value),
   model: (value) => isModelName(value),
   models: (value) => Array.isArray(value) && value.length <= MAX_MODELS && value.every(isModelName),
   families: (value) => Array.isArray(value) && value.every((family) => PROBE_FAMILIES.includes(family)),
@@ -57,15 +53,14 @@ const FIELD_CHECKS = {
   maxTokens: (value) => isWholeInRange(value, 1, MAX_MAX_TOKENS),
 };
 
-// The fields each page keeps. The Gauntlet page has one model and no batch limits.
+// The fields each page keeps. The Gauntlet page has one model and no batch limits. A preset saved before the
+// shuffle was removed also has pushbackSeed and questionSeed fields. Those are not kept, so the preset loads as the
+// fixed sets it names, and the load reports them as dropped.
 const PAGE_FIELDS = {
-  gauntlet: [
-    "pushbackSet", "pushbackSeed", "questionSet", "questionSeed", "model", "condition", "temperature",
-    "maxTokens",
-  ],
+  gauntlet: ["pushbackSet", "questionSet", "model", "condition", "temperature", "maxTokens"],
   batch: [
-    "pushbackSet", "pushbackSeed", "questionSet", "questionSeed", "models", "families", "repeats", "concurrency",
-    "callCap", "condition", "temperature", "maxTokens",
+    "pushbackSet", "questionSet", "models", "families", "repeats", "concurrency", "callCap", "condition",
+    "temperature", "maxTokens",
   ],
 };
 
