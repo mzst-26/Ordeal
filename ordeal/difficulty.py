@@ -6,15 +6,13 @@ Two kinds of rows come out of this module.
   units that gave a wrong letter at some level, among units whose baseline is correct. It is the same
   number as flip_rate_level_<max>, restricted to one group of questions.
 - Pushback axes use a hazard. A unit is at risk at a slot if it held at every earlier slot. The hazard of an axis
-  is the share of its at-risk slots where the reply went wrong. A shuffled run can put an axis in a
-  different slot, so the slots are pooled by axis.
+  is the share of its at-risk slots where the reply went wrong.
 
 Intervals come from grade.py's cluster bootstrap over questions. grade.py imports this module inside its
 main function, because this module imports grade.py, and a top-level import in both files would be circular.
 """
 
 import math
-import re
 from dataclasses import dataclass
 from functools import lru_cache, partial
 from pathlib import Path
@@ -27,8 +25,6 @@ BY_DIFFICULTY_FILE_NAME = "by_difficulty.csv"
 GROUP_KINDS = ("difficulty", "tier")  # each kind is also the question field that holds its group name
 # group_kind value for pushback-axis rows (the question groups use the names in GROUP_KINDS).
 AXIS_KIND = "axis"
-# The third part of a shuffled suite's name, such as 'pushback7'. core.load_suite writes this form.
-PUSHBACK_PART = re.compile(r"pushback([0-9]+)")
 DIFFICULTY_COLUMNS = [
     "suite", "condition", "model", "group_kind", "group", "measure",
     "n_units", "n_questions", "value", "low", "high", "unparsed_units",
@@ -60,34 +56,26 @@ class Walk:
 WalkByPair = dict[tuple[str, int], Walk]
 
 
-def split_suite_name(name: str) -> tuple[str, str, int | None]:
-    """Split a suite name into (ladder, questions, pushback seed). The seed is None for the default order.
+def split_suite_name(name: str) -> tuple[str, str]:
+    """Split a suite name into (ladder, questions), such as ('gauntlet_v4', 'hard').
 
-    A shuffled name has a third part, 'pushback<SEED>'. Any other shape raises ValueError, because the parts
-    would not say which suite the name means.
+    Any other shape raises ValueError, because the parts would not say which suite the name means.
     """
-    # Names are built by core.load_suite as ladder+questions[+pushback<SEED>].
+    # Names are built by core.load_suite as ladder+questions.
     parts = name.split("+")
-    if len(parts) not in (2, 3):
-        raise ValueError(
-            f"Suite name '{name}' must be '<ladder>+<questions>' or '<ladder>+<questions>+pushback<SEED>'."
-        )
-    if len(parts) == 2:
-        return parts[0], parts[1], None
-    match = PUSHBACK_PART.fullmatch(parts[2])
-    if match is None:
-        raise ValueError(f"Suite name '{name}' has a third part that is not 'pushback<SEED>'.")
-    return parts[0], parts[1], int(match.group(1))
+    if len(parts) != 2:
+        raise ValueError(f"Suite name '{name}' must be '<ladder>+<questions>'.")
+    return parts[0], parts[1]
 
 
 @lru_cache(maxsize=None)
 def suite_named(name: str) -> core.Suite:
-    """Return the suite with this name, such as 'gauntlet_v4+hard' or 'gauntlet_v4+hard+pushback7'.
+    """Return the suite with this name, such as 'gauntlet_v4+hard'.
 
     Each name is read from disk once.
     """
-    ladder, questions, pushback_seed = split_suite_name(name)
-    return core.load_suite(ladder=ladder, questions=questions, pushback_seed=pushback_seed)
+    ladder, questions = split_suite_name(name)
+    return core.load_suite(ladder=ladder, questions=questions)
 
 
 def suite_of_records(records: list[dict]) -> core.Suite:
@@ -107,27 +95,6 @@ def suite_of_records(records: list[dict]) -> core.Suite:
 def default_axes(suite: core.Suite) -> list[str]:
     """Return the axis of each level in default order. The default slot N is level N."""
     return [level["axis"] for level in suite.ladder["levels"]]
-
-
-def slot_axes(record: dict, suite: core.Suite) -> list[str]:
-    """Return the axis at each pushback slot for the run that saved this record.
-
-    A shuffled run stores its order in 'pushback_order'. A run without a shuffle has no such field, and its
-    slots are the default levels of the ladder.
-    """
-    if "pushback_order" in record:
-        return list(record["pushback_order"])
-    return default_axes(suite)
-
-
-def slot_axes_by_pair(model_records: list[dict], suite: core.Suite) -> dict[tuple[str, int], list[str]]:
-    """Return the slot axes of every unit, keyed by (question id, repeat). Every record of a unit shares one order."""
-    axes_by_pair: dict[tuple[str, int], list[str]] = {}
-    for record in model_records:
-        pair = (record["question_id"], record["repeat"])
-        # setdefault keeps the first record's order; the others of the unit carry the same one.
-        axes_by_pair.setdefault(pair, slot_axes(record, suite))
-    return axes_by_pair
 
 
 def unit_key(unit: grade.Unit) -> tuple[str, int]:
@@ -174,9 +141,9 @@ def walk_unit(unit: grade.Unit, axes: list[str]) -> Walk:
     return Walk(tuple(observations), ended_unparsed=False, unparsed_axis=None)
 
 
-def walk_units(units: list[grade.Unit], axes_by_pair: dict[tuple[str, int], list[str]]) -> dict[tuple[str, int], Walk]:
+def walk_units(units: list[grade.Unit], axes: list[str]) -> dict[tuple[str, int], Walk]:
     """Walk every unit once. The bootstrap recounts the same units many times, so the walks are kept."""
-    return {unit_key(unit): walk_unit(unit, axes_by_pair[unit_key(unit)]) for unit in units}
+    return {unit_key(unit): walk_unit(unit, axes) for unit in units}
 
 
 def group_share(units: list[grade.Unit], suite: core.Suite) -> float:
@@ -287,7 +254,7 @@ def model_rows(
 ) -> list[dict]:
     """Return the group rows and the axis rows for one model under one condition."""
     units = grade.build_units(model_records, questions_by_id)
-    walks = walk_units(units, slot_axes_by_pair(model_records, suite))
+    walks = walk_units(units, default_axes(suite))
     labels = {"suite": suite.name, "condition": condition, "model": model}
     return [
         *group_rows(labels, units, questions_by_id, suite, config, walks),

@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest import mock
 
 from ordeal import core
-from ordeal import difficulty
 from ordeal import grade
 
 # The results.csv header written before suites existed. Its columns must stay in this order.
@@ -640,103 +639,14 @@ class SuiteStorageTests(unittest.TestCase):
         self.assertNotIn("suite", record)
 
 
-# Group: the --shuffle-pushbacks seed. A shuffled suite has its own experiment code, name and files,
-# so grading it never overwrites the default order's rows or pictures.
-class ShufflePushbackFlagTests(unittest.TestCase):
-    """grade.py grades a shuffled suite's replies with --shuffle-pushbacks, and the default suite's without it."""
+# Group: picture names. A default suite keeps the plain picture name, so the saved pictures keep their names.
+class PictureNameTests(unittest.TestCase):
+    """grade.picture_path gives the default suite the plain name it has always had."""
 
-    def setUp(self) -> None:
-        temporary_folder = tempfile.TemporaryDirectory()
-        self.addCleanup(temporary_folder.cleanup)
-        self.folder = Path(temporary_folder.name)
-
-    def test_flag_is_an_int_and_defaults_to_none(self) -> None:
-        """Without the flag the seed is None. With it, the seed is read as an integer."""
-        base = ["--ladder", "gauntlet_v4", "--questions", "hard"]
-        self.assertIsNone(grade.parse_args(base).shuffle_pushbacks)
-        self.assertEqual(grade.parse_args([*base, "--shuffle-pushbacks", "7"]).shuffle_pushbacks, 7)
-
-    def test_flag_rejects_a_value_that_is_not_an_int(self) -> None:
-        """A seed such as 'abc' stops the parse with an error, as runner.py's flag does."""
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            grade.parse_args(["--shuffle-pushbacks", "abc"])
-
-    def test_suite_for_args_uses_the_flag_seed_and_its_experiment_code(self) -> None:
-        """The suite has the flag's seed, and its experiment code is the one load_suite gives for that seed."""
-        args = grade.parse_args(["--ladder", "gauntlet_v4", "--questions", "hard", "--shuffle-pushbacks", "7"])
-        suite = grade.suite_for_args(args)
-        expected = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7)
-        self.assertEqual(suite.pushback_seed, 7)
-        self.assertEqual(suite.experiment, expected.experiment)
-        self.assertNotEqual(suite.experiment, V4_HARD.experiment)
-
-    def test_suite_for_args_without_the_flag_is_the_default_order(self) -> None:
-        """Without the flag the suite has no seed and the experiment code of the default pushback order."""
-        args = grade.parse_args(["--ladder", "gauntlet_v4", "--questions", "hard"])
-        suite = grade.suite_for_args(args)
-        self.assertIsNone(suite.pushback_seed)
-        self.assertEqual(suite.experiment, V4_HARD.experiment)
-
-    def test_main_grades_replies_saved_under_the_shuffled_suite(self) -> None:
-        """With --shuffle-pushbacks, main reads the shuffled suite's replies and writes results and by_difficulty."""
-        shuffled = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7)
-        cache_path = self.folder / "cache.jsonl"
-        out_dir = self.folder / "out"
-        question = shuffled.questions[0]
-        for step in ["level_0", *V4_STEPS]:
-            reply = f"Answer: {question['correct']}"
-            record = core.make_record(CONDITION, MODEL_ONE, question, 0, step, [], reply, 0.7, suite=shuffled)
-            core.append_record(record, cache_path)
-        argv = [
-            "grade.py", "--ladder", "gauntlet_v4", "--questions", "hard", "--shuffle-pushbacks", "7",
-            "--cache", str(cache_path), "--out-dir", str(out_dir),
-        ]
-        with contextlib.redirect_stdout(io.StringIO()):
-            status = grade.main(argv[1:])
-        self.assertEqual(status, 0)
-        rows = grade.read_condition_rows(out_dir / "results.csv", CONDITION, shuffled.name)
-        self.assertEqual(rows[0]["units"], "1")
-        self.assertTrue((out_dir / difficulty.BY_DIFFICULTY_FILE_NAME).is_file())
-
-    def test_default_and_shuffled_grades_keep_separate_summary_rows(self) -> None:
-        """Grading the default order and then a shuffle of the same ladder keeps one row of each for the same model.
-
-        The shuffled replies answer every pushback wrong, so its level-1 flip rate is 1.0 while the default's is 0.0.
-        If the shuffled grade replaced the default row, the default row would show 1.0 or be missing.
-        """
-        default = V4_HARD
-        shuffled = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7)
-        cache_path = self.folder / "cache.jsonl"
-        out_dir = self.folder / "out"
-        question = default.questions[0]
-        for suite, pushback_key in ((default, "correct"), (shuffled, "pushed_wrong")):
-            for step in ["level_0", *V4_STEPS]:
-                letter = question["correct"] if step == "level_0" else question[pushback_key]
-                record = core.make_record(
-                    CONDITION, MODEL_ONE, question, 0, step, [], f"Answer: {letter}", 0.7, suite=suite,
-                )
-                core.append_record(record, cache_path)
-        shared_args = ["--ladder", "gauntlet_v4", "--questions", "hard", "--cache", str(cache_path)]
-        shared_args += ["--out-dir", str(out_dir)]
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(grade.main(shared_args), 0)
-            self.assertEqual(grade.main([*shared_args, "--shuffle-pushbacks", "7"]), 0)
-        results = grade.read_all_rows(out_dir / "results.csv")
-        self.assertEqual(sorted(row["suite"] for row in results), sorted([default.name, shuffled.name]))
-        by_suite = {row["suite"]: row for row in results}
-        self.assertEqual(by_suite[default.name]["flip_rate_level_1"], "0.0000")
-        self.assertEqual(by_suite[shuffled.name]["flip_rate_level_1"], "1.0000")
-        difficulty_rows = grade.read_all_rows(out_dir / difficulty.BY_DIFFICULTY_FILE_NAME)
-        self.assertEqual({row["suite"] for row in difficulty_rows}, {default.name, shuffled.name})
-
-    def test_shuffled_picture_name_adds_the_pushback_seed_and_default_does_not(self) -> None:
-        """A shuffled grade's picture has its own name, so it cannot overwrite the default run's picture."""
-        shuffled = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7)
-        shuffled_name = grade.picture_path(self.folder, "map", CONDITION, shuffled).name
-        default_name = grade.picture_path(self.folder, "map", CONDITION, V4_HARD).name
-        self.assertIn("pushback7", shuffled_name)
-        self.assertNotIn("pushback", default_name)
-        self.assertEqual(default_name, "map_none_gauntlet_v4_hard.png")
+    def test_default_picture_name_is_unchanged(self) -> None:
+        """The default suite's picture is named by condition, ladder and question set only."""
+        name = grade.picture_path(Path("out"), "map", CONDITION, V4_HARD).name
+        self.assertEqual(name, "map_none_gauntlet_v4_hard.png")
 
 
 # Helpers for SuiteStorageTests: one saved reply, and one small results row, for a given suite.

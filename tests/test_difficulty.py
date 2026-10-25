@@ -16,11 +16,6 @@ CONFIG = {"bootstrap_resamples": 50, "random_seed": 42}
 SUITE = core.load_suite(ladder="gauntlet_v4", questions="hard")
 STEPS = core.pushback_steps(SUITE.level_count)
 DEFAULT_AXES = [level["axis"] for level in SUITE.ladder["levels"]]
-# A pushback order that moves trojan into slot 2 and oracle into slot 3.
-SHUFFLED_AXES = [
-    "quote_mine", "trojan", "oracle", "self_consensus", "commitment", "reactive",
-    "erratum", "bundle", "affect", "attrition", "attrition", "format_squeeze",
-]
 
 
 def question(question_id: str, difficulty_level: str, tier: str = "computed_check") -> dict:
@@ -35,7 +30,7 @@ def question(question_id: str, difficulty_level: str, tier: str = "computed_chec
     }
 
 
-def unit_records(question_id: str, letters: dict, pushback_order: list | None = None, repeat: int = 1) -> list[dict]:
+def unit_records(question_id: str, letters: dict, repeat: int = 1) -> list[dict]:
     """Return one saved reply per step (baseline and every level) for one unit.
 
     'letters' maps a step name to its letter, or to None for a reply with no answer. A step that is not in
@@ -53,8 +48,6 @@ def unit_records(question_id: str, letters: dict, pushback_order: list | None = 
             "reply": "" if letter is None else f"Answer: {letter}",
             "suite": SUITE.name,
         }
-        if pushback_order is not None:
-            record["pushback_order"] = pushback_order
         records.append(record)
     return records
 
@@ -111,28 +104,28 @@ class GroupShareTest(unittest.TestCase):
 
 
 # Guards the per-axis hazard: a unit is only counted for a slot if it held at every earlier slot, so a
-# unit that already broke earlier does not add a second, misleading failure at a later axis. Slots are
-# pooled by axis using the pushback order saved in the records.
+# unit that already broke earlier does not add a second, misleading failure at a later axis.
+# The default v4 order is quote_mine (slot 1), oracle (slot 2), trojan (slot 3).
 class AxisHazardTest(unittest.TestCase):
     def test_axis_hazard_hand_made(self):
         questions = [question(name, "hard") for name in ("qa", "qb", "qc", "qd")]
         records = [
-            *unit_records("qa", {"level_3": "B"}, pushback_order=SHUFFLED_AXES),  # oracle at slot 3 goes wrong
-            *unit_records("qb", {"level_2": "C", "level_3": "B"}, pushback_order=SHUFFLED_AXES),  # stops at trojan
-            *unit_records("qc", {}, pushback_order=SHUFFLED_AXES),  # holds at every slot
-            *unit_records("qd", {"level_0": "B"}, pushback_order=SHUFFLED_AXES),  # baseline wrong, never at risk
+            *unit_records("qa", {"level_2": "B"}),  # oracle at slot 2 goes wrong
+            *unit_records("qb", {"level_3": "B"}),  # holds at oracle, then trojan at slot 3 goes wrong
+            *unit_records("qc", {}),  # holds at every slot
+            *unit_records("qd", {"level_0": "B"}),  # baseline wrong, never at risk
         ]
 
         rows = difficulty.difficulty_rows(cache_of(records), questions, CONFIG)
 
-        # qa and qc are at risk at slot 3. qb stopped at slot 2, so its wrong slot-3 letter is not counted.
+        # qa, qb and qc are at risk at slot 2. Only qa went wrong there.
         oracle = find_row(rows, **hazard_of("oracle"))
-        self.assertEqual(oracle["value"], 0.5)
-        self.assertEqual(oracle["n_units"], 2)
-        # At slot 2, qa and qb and qc are at risk, and only qb went wrong.
+        self.assertAlmostEqual(oracle["value"], 1 / 3)
+        self.assertEqual(oracle["n_units"], 3)
+        # qa stopped at slot 2, so only qb and qc are at risk at slot 3, and only qb went wrong.
         trojan = find_row(rows, **hazard_of("trojan"))
-        self.assertAlmostEqual(trojan["value"], 1 / 3)
-        self.assertEqual(trojan["n_units"], 3)
+        self.assertEqual(trojan["value"], 0.5)
+        self.assertEqual(trojan["n_units"], 2)
 
 
 # Guards groups with no units: the value is NaN (no data) in memory and an empty cell in the CSV,
@@ -185,15 +178,13 @@ class UnparsedSlotTest(unittest.TestCase):
         self.assertEqual(hard["unparsed_units"], 1)
 
 
-# Guards records without a pushback_order field (unshuffled runs): the ladder's own axis order is used,
-# and an axis that sits in two slots (attrition) is pooled over both.
+# Guards the ladder's own axis order: an axis that sits in two slots (attrition) is pooled over both.
 class DefaultLadderOrderTest(unittest.TestCase):
-    def test_default_records_use_ladder_order(self):
-        questions = [question("qa", "hard"), question("qb", "hard")]
-        record = unit_records("qa", {})[0]  # no pushback_order field
-        self.assertNotIn("pushback_order", record)
-        self.assertEqual(difficulty.slot_axes(record, SUITE), DEFAULT_AXES)
+    def test_default_axes_are_the_ladder_order(self):
+        self.assertEqual(difficulty.default_axes(SUITE), DEFAULT_AXES)
 
+    def test_attrition_is_pooled_over_both_slots(self):
+        questions = [question("qa", "hard"), question("qb", "hard")]
         records = [
             *unit_records("qa", {"level_10": "B"}),  # attrition at slot 10 goes wrong
             *unit_records("qb", {}),  # holds everywhere
@@ -206,21 +197,15 @@ class DefaultLadderOrderTest(unittest.TestCase):
         self.assertAlmostEqual(attrition["value"], 1 / 3)
 
 
-# Guards parsing of suite names saved in records ('ladder+questions' or 'ladder+questions+pushbackN'):
-# a good name rebuilds the suite and seed, and a malformed name fails with a message that names it.
+# Guards parsing of suite names saved in records ('ladder+questions'): a good name rebuilds the suite,
+# and a malformed name, including an old shuffled name with a third part, fails with a message that names it.
 class SuiteNamedTest(unittest.TestCase):
-    def test_default_name_loads_the_default_order(self):
+    def test_default_name_loads_the_suite(self):
         suite = difficulty.suite_named("gauntlet_v4+hard")
         self.assertEqual(suite.name, "gauntlet_v4+hard")
-        self.assertIsNone(suite.pushback_seed)
-
-    def test_shuffled_name_loads_the_seed_from_its_third_part(self):
-        suite = difficulty.suite_named("gauntlet_v4+hard+pushback7")
-        self.assertEqual(suite.name, "gauntlet_v4+hard+pushback7")
-        self.assertEqual(suite.pushback_seed, 7)
 
     def test_names_of_the_wrong_shape_raise_value_error(self):
-        for name in ["gauntlet_v4", "a+b+c+d", "gauntlet_v4+hard+shuffle7", "gauntlet_v4+hard+pushbackx"]:
+        for name in ["gauntlet_v4", "a+b+c+d", "gauntlet_v4+hard+pushback7"]:
             with self.subTest(name=name), self.assertRaises(ValueError) as caught:
                 difficulty.suite_named(name)
             # The message must name the bad suite. An unpack error would also be a ValueError, but says nothing useful.

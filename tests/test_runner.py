@@ -15,7 +15,6 @@ from ordeal import adaptive
 from ordeal import core
 from ordeal import flows
 from ordeal import model_client
-from ordeal import shuffle
 from ordeal.model_client import ModelRoute
 from ordeal.runner import (
     RunSettings,
@@ -26,7 +25,6 @@ from ordeal.runner import (
     make_units,
     parse_args,
     parse_families,
-    plan_question_order,
     run_all,
     step_key,
 )
@@ -40,8 +38,6 @@ LADDER = core.load_ladder()
 PROBE_SPEC = core.load_probe_spec()
 REMINDER = CONFIG["answer_format_reminder"]
 V4_SUITE = core.load_suite(ladder="gauntlet_v4", questions="hard")
-# The axis order that pushback seed 7 gives on the v4 ladder, used to check the dry-run listing.
-V4_SHUFFLED_ORDER = core.load_suite(ladder="gauntlet_v4", questions="hard", pushback_seed=7).pushback_order
 
 
 # Two made-up error types let the tests control the retry decision without depending on openai error classes.
@@ -273,43 +269,16 @@ class ArgumentTests(unittest.TestCase):
         self.assertEqual(parse_args([]).probes, flows.ALL_FAMILIES)
 
 
-# Guards the shuffle flags: they are integer seeds, and absent means no shuffling.
-class ShuffleOptionTests(unittest.TestCase):
-    """--shuffle-questions and --shuffle-pushbacks are integer seeds, and None when not given."""
+# Guards the removed shuffle flags: the old seeded options are refused, so an old command fails loudly
+# instead of running in a different order than its user expects.
+class RemovedShuffleFlagTests(unittest.TestCase):
+    """--shuffle-questions and --shuffle-pushbacks are no longer options."""
 
-    def test_shuffle_seeds_are_read_as_integers(self) -> None:
-        """Both seeds come back as ints."""
-        args = parse_args(["--shuffle-questions", "3", "--shuffle-pushbacks", "7"])
-        self.assertEqual((args.shuffle_questions, args.shuffle_pushbacks), (3, 7))
-        self.assertIsInstance(args.shuffle_questions, int)
-        self.assertIsInstance(args.shuffle_pushbacks, int)
-
-    def test_shuffle_seeds_default_to_none(self) -> None:
-        """Without the flags, neither shuffle is on."""
-        args = parse_args([])
-        self.assertIsNone(args.shuffle_questions)
-        self.assertIsNone(args.shuffle_pushbacks)
-
-
-# Guards question ordering: with a seed the shuffle happens before --limit (so a limited run is a random
-# sample with positions 1..N); without a seed the file order is kept and no order fields are added.
-class QuestionOrderTests(unittest.TestCase):
-    """plan_question_order shuffles before the limit, and keeps the file order without a seed."""
-
-    QUESTIONS = [{"id": f"q{number}"} for number in range(10)]
-
-    def test_limit_takes_the_first_positions_of_the_shuffled_order(self) -> None:
-        """A limited shuffled run is a random sample: the first N of the shuffled order, positions 1..N."""
-        ordered, orders = plan_question_order(self.QUESTIONS, limit=3, seed=3)
-        self.assertEqual(ordered, shuffle.shuffled_questions(self.QUESTIONS, 3)[:3])
-        self.assertEqual([orders[question["id"]]["question_position"] for question in ordered], [1, 2, 3])
-        self.assertEqual(orders[ordered[0]["id"]]["question_order_seed"], 3)
-
-    def test_no_seed_keeps_the_file_order_and_adds_no_order_fields(self) -> None:
-        """Without a seed the first N questions run in file order, and no question gets order fields."""
-        ordered, orders = plan_question_order(self.QUESTIONS, limit=2, seed=None)
-        self.assertEqual(ordered, self.QUESTIONS[:2])
-        self.assertEqual(orders, {})
+    def test_old_shuffle_flags_are_refused(self) -> None:
+        """Each removed flag stops the parse with an error."""
+        for flag in ("--shuffle-questions", "--shuffle-pushbacks"):
+            with self.subTest(flag=flag), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                parse_args([flag, "3"])
 
 
 # Guards the dry run end to end through main(): it must print the plan without ever building a client or
@@ -481,8 +450,7 @@ class BaseUrlOptionTests(unittest.TestCase):
             self.assertIn(core.BASELINE_STEP, {record["step"] for record in core.load_cache(cache_path).values()})
 
 
-# Guards dry runs for non-default suites: the plan names the chosen ladder, nothing is called or written, and
-# with shuffled pushbacks it lists the axis of every slot.
+# Guards dry runs for non-default suites: the plan names the chosen ladder, and nothing is called or written.
 class SuiteDryRunTests(unittest.TestCase):
     """The dry run works for any suite, makes no calls and writes nothing."""
 
@@ -503,20 +471,6 @@ class SuiteDryRunTests(unittest.TestCase):
             router_class.assert_not_called()
             read_key.assert_not_called()
             self.assertEqual(cache.read_text(encoding="utf-8"), "")
-
-    def test_dry_run_with_shuffled_pushbacks_prints_one_line_per_slot(self) -> None:
-        """With --shuffle-pushbacks the dry run lists the axis of every slot, 12 for gauntlet_v4."""
-        with tempfile.TemporaryDirectory() as folder:
-            cache = Path(folder) / "empty.jsonl"
-            cache.write_text("", encoding="utf-8")
-            output = io.StringIO()
-            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
-                exit_code = main(["--dry-run", "--stub", "--ladder", "gauntlet_v4", "--questions", "hard",
-                                  "--shuffle-pushbacks", "7", "--limit", "2", "--cache", str(cache)])
-            self.assertEqual(exit_code, 0)
-            slot_lines = [line for line in output.getvalue().splitlines() if line.startswith("  level ")]
-            self.assertEqual(len(slot_lines), 12)
-            self.assertEqual(slot_lines[0], f"  level 1: {V4_SHUFFLED_ORDER[0]}")
 
 
 # A variable name that is never set, so tests decide when a custom key exists.

@@ -19,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 from ordeal import core
-from ordeal import shuffle
 from tests.mock_openai import MockOpenAIServer
+from tests.test_default_codes import DEFAULT_RECORD_KEYS
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 RUNNER = "ordeal.runner"
@@ -314,42 +314,31 @@ class LocalhostRuleTests(unittest.TestCase):
         self.assertFalse(cache_path.exists())
 
 
-# Guards shuffle bookkeeping with the offline stub model: records store the question's position in the
-# seeded order (taken before --limit is applied), both seeds, and the 12-slot pushback order, so a
-# shuffled run can be analysed and resumed later.
-class ShuffledStubRunTests(unittest.TestCase):
-    """A stub run with both shuffles: each record carries its question position and its pushback order."""
+# Guards the default run end to end with the offline stub model: with --limit the first N questions of the
+# file run in file order, and every saved record has the default keys and no shuffle fields.
+class DefaultStubRunTests(unittest.TestCase):
+    """A default stub run with --limit saves the first N questions and the default record keys."""
 
     def setUp(self) -> None:
         """Create the temporary folder for this test. It is removed when the test ends."""
         self.workdir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.cache_path = self.workdir / "c.jsonl"
-        self.suite = core.load_suite("gauntlet_v4", "hard", pushback_seed=7)
+        self.suite = core.load_suite("gauntlet_v4", "hard")
 
-    def test_shuffled_stub_run_saves_pushback_order_and_question_positions(self) -> None:
-        """Positions are 1..3 in the seeded order taken before --limit, and every record has the v4 shuffled code."""
+    def test_default_stub_run_keeps_file_order_and_default_keys(self) -> None:
+        """The run saves the first 3 questions of the file, under the default code and with no shuffle fields."""
         result = run_script(RUNNER, [
-            "--stub", "--limit", "3", "--shuffle-questions", "3", "--shuffle-pushbacks", "7",
-            "--ladder", "gauntlet_v4", "--questions", "hard", "--cache", str(self.cache_path),
+            "--stub", "--limit", "3", "--ladder", "gauntlet_v4", "--questions", "hard",
+            "--cache", str(self.cache_path),
         ])
         self.assertEqual(result.returncode, 0, result.stderr)
-        rows = list(core.load_cache(self.cache_path, experiment=self.suite.experiment).values())
-        self.assertEqual(len(rows), len(read_rows(self.cache_path)))
+        rows = read_rows(self.cache_path)
         self.assertTrue(rows)
-        expected_positions = {
-            question["id"]: position
-            for position, question in enumerate(shuffle.shuffled_questions(self.suite.questions, 3)[:3], start=1)
-        }
-        self.assertEqual({row["question_id"] for row in rows}, set(expected_positions))
-        self.assertEqual(sorted(expected_positions.values()), [1, 2, 3])
+        self.assertEqual({row["question_id"] for row in rows}, {question["id"] for question in self.suite.questions[:3]})
         for row in rows:
             with self.subTest(question_id=row["question_id"], step=row["step"]):
-                self.assertEqual(row["question_position"], expected_positions[row["question_id"]])
-                self.assertEqual(row["question_order_seed"], 3)
-                self.assertEqual(row["pushback_seed"], 7)
-                self.assertEqual(row["pushback_order"], self.suite.pushback_order)
-                self.assertEqual(len(row["pushback_order"]), 12)
                 self.assertEqual(row["experiment"], self.suite.experiment)
+                self.assertEqual(set(row), DEFAULT_RECORD_KEYS | {"suite"})
 
 
 if __name__ == "__main__":

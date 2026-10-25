@@ -5,7 +5,6 @@ under the suite whose experiment code it carries. The meaning of each column is 
 Run from this folder:
 python -m ordeal.grade --condition none
 python -m ordeal.grade --condition none --ladder gauntlet_v4 --questions hard
-python -m ordeal.grade --condition none --ladder gauntlet_v4 --questions hard --shuffle-pushbacks 7
 """
 
 import argparse
@@ -149,13 +148,8 @@ def probes_csv_path(out_dir: Path) -> Path:
 
 
 def picture_path(out_dir: Path, prefix: str, condition: str, suite: core.Suite) -> Path:
-    """Return the path of one picture. Suites other than the legacy one add their ladder and question set.
-
-    A shuffled suite also adds its pushback seed. Without it, a shuffled run would overwrite the default run's picture.
-    """
+    """Return the path of one picture. Suites other than the legacy one add their ladder and question set."""
     suffix = "" if is_legacy_suite(suite) else f"_{suite.ladder_name}_{suite.question_set}"
-    if suite.pushback_seed is not None:
-        suffix += f"_pushback{suite.pushback_seed}"
     return out_dir / f"{prefix}_{condition}{suffix}.png"
 
 
@@ -826,22 +820,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
-    parser.add_argument(
-        "--shuffle-pushbacks",
-        type=int,
-        default=None,
-        help="grade the replies of a run made with this pushback shuffle seed (default: the ladder's order)",
-    )
     return parser.parse_args(argv)
-
-
-def suite_for_args(args: argparse.Namespace) -> core.Suite:
-    """Return the suite to grade: the ladder and question set from the options, in the order of --shuffle-pushbacks.
-
-    Without the flag the pushback seed is None, so the suite is the default order. The seed changes the suite's
-    experiment code, which is how the saved replies of each pushback order are kept apart.
-    """
-    return core.load_suite(ladder=args.ladder, questions=args.questions, pushback_seed=args.shuffle_pushbacks)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -851,9 +830,9 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = parse_args(argv)
     config = core.load_config()
-    suite = suite_for_args(args)
+    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
     experiments = {registered.experiment for registered in registered_suites()}
-    # A shuffled suite is not in the registry, so its experiment code is read too.
+    # The suite's own code is read too, so it is never missed if the registry does not list it.
     experiments.add(suite.experiment)
     replies_by_experiment, other_count = read_cache_by_experiment(args.cache, experiments)
     records = list(replies_by_experiment[suite.experiment].values())

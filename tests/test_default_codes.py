@@ -43,5 +43,27 @@ class DefaultExperimentCodeTests(unittest.TestCase):
         self.assertEqual(core.current_experiment(), DEFAULT_CODES[("gauntlet_v3", "easy")])
 
 
+# The keys a default saved reply has. A default run must keep exactly these keys, so saved replies from
+# before the shuffle removal still look the same to the grader.
+DEFAULT_RECORD_KEYS = {
+    "experiment", "condition", "model", "question_id", "repeat", "step",
+    "temperature", "messages", "reply", "timestamp",
+}
+
+
+class DefaultRecordShapeTests(unittest.TestCase):
+    """A default reply record has the same keys as before the shuffle was removed."""
+
+    def test_default_record_keys_are_unchanged(self) -> None:
+        """A record made with no suite, and one made with the default suite, have exactly the old keys."""
+        question = core.load_questions()[0]
+        plain = core.make_record("none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7)
+        with_default_suite = core.make_record(
+            "none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7, suite=core.load_suite(),
+        )
+        self.assertEqual(set(plain), DEFAULT_RECORD_KEYS)
+        self.assertEqual(set(with_default_suite), DEFAULT_RECORD_KEYS | {"suite"})
+
+
 if __name__ == "__main__":
     unittest.main()
