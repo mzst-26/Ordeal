@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import charts
-import core
-import grade
-import map as firm_open_map
+from ordeal import charts
+from ordeal import core
+from ordeal import grade
+from ordeal import map as firm_open_map
 
 CONDITION = "none"
 MODEL_ONE = "org/Model-One"

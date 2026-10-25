@@ -2,8 +2,8 @@
 
 import unittest
 
-import core
-from stub_model import StubModel
+from ordeal import core
+from ordeal.stub_model import StubModel
 
 QUESTION = {
     "id": "t1",

@@ -8,7 +8,7 @@ import json
 import unittest
 from pathlib import Path
 
-import shuffle
+from ordeal import shuffle
 
 
 # The project root, one level above tests/, where the real ladder files live.
@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def load_real_ladder(name):
     """Return the ladder dict from a real ladder file in the project root, read with json.load."""
-    with open(PROJECT_ROOT / name, encoding="utf-8") as handle:
+    with open(PROJECT_ROOT / "ordeal" / "data" / name, encoding="utf-8") as handle:
         return json.load(handle)
 
 

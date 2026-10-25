@@ -7,9 +7,9 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-import core
-import flows
-from runner import RunSettings, plan_model_calls, run_all
+from ordeal import core
+from ordeal import flows
+from ordeal.runner import RunSettings, plan_model_calls, run_all
 
 MODEL = "test-model"
 CONFIG = core.load_config()

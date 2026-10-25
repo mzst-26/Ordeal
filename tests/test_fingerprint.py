@@ -8,9 +8,9 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 
-import core
-import fingerprint
-import grade
+from ordeal import core
+from ordeal import fingerprint
+from ordeal import grade
 
 # One condition and two made-up models are enough for these tests.
 CONDITION = "none"

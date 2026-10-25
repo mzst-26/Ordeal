@@ -10,6 +10,7 @@ Run from the project folder:
 import contextlib
 import functools
 import socket
+import subprocess
 import threading
 import time
 import unittest
@@ -22,6 +23,8 @@ from playwright.sync_api import expect, sync_playwright
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SITE_DIR = PROJECT_DIR / "site"
+# The browser tests serve the Vite build, which setUpModule writes here, because site/ holds JSX that a plain server cannot run.
+DIST_DIR = PROJECT_DIR / "dist"
 LOCAL_HOST = "127.0.0.1"
 # Port 8791 is tried first so the address is predictable; any free port is used if it is taken.
 PREFERRED_PORT = 8791
@@ -69,12 +72,18 @@ def wait_for_server(url, timeout_s=15.0):
     raise RuntimeError(f"The local server did not answer at {url}: {last_error}")
 
 
+def build_site():
+    """Builds the static site into dist/ with npm run build. Raises CalledProcessError if the build fails."""
+    subprocess.run(["npm", "run", "build"], cwd=PROJECT_DIR, check=True, capture_output=True, text=True)
+
+
 def setUpModule():
     """Starts the static server on 127.0.0.1 and launches Chromium once for the whole module."""
+    build_site()
     global _SERVER, _SERVER_THREAD, _PLAYWRIGHT, _BROWSER, _BASE_URL
     port = pick_port()
     _BASE_URL = f"http://{LOCAL_HOST}:{port}"
-    handler = functools.partial(QuietHandler, directory=str(SITE_DIR))
+    handler = functools.partial(QuietHandler, directory=str(DIST_DIR))
     _SERVER = SiteServer((LOCAL_HOST, port), handler)
     _SERVER_THREAD = threading.Thread(target=_SERVER.serve_forever, daemon=True)
     _SERVER_THREAD.start()
@@ -203,11 +212,21 @@ class TabStateTests(unittest.TestCase):
         with open_page("/index.html#batch") as session:
             page = session.page
             expect_view(page, "batch")
-            expect(page.locator("#batch-model-list label.check").first).to_be_visible(timeout=LONG_MS)
-            page.locator("#model-clear").click()
+            expect(page.get_by_role("button", name="Choose models")).to_be_visible(timeout=LONG_MS)
+            # The model and question lists are pickers now: choose items in the dialog, then press Done.
+            page.get_by_role("button", name="Choose models").click()
+            picker = page.locator("dialog.picker-dialog")
+            expect(picker).to_be_visible(timeout=LONG_MS)
+            picker.get_by_role("button", name="Clear", exact=True).click()
             for model_id in SAVED_MODELS:
-                page.locator(f'#batch-model-list label.check:has(input[value="{model_id}"])').click()
-            page.locator(f'#question-list label.check:has(input[value="{SAVED_QUESTION}"])').click()
+                # Cards show the model name without its provider prefix, so match on the part after the slash.
+                picker.locator(".picker-card", has_text=model_id.split("/")[-1]).first.click()
+            picker.get_by_role("button", name="Done").click()
+            page.get_by_role("button", name="Choose questions").click()
+            picker = page.locator("dialog.picker-dialog")
+            expect(picker).to_be_visible(timeout=LONG_MS)
+            picker.locator(".picker-card", has_text=SAVED_QUESTION).first.click()
+            picker.get_by_role("button", name="Done").click()
             ticked = checked_models(page)
             self.assertEqual(len(ticked), 2, "Two models should be ticked before the switch")
 

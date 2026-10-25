@@ -12,12 +12,11 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-import calibrate
-import core
+from ordeal import calibrate
+from ordeal import core
 from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-CALIBRATE = PROJECT_DIR / "calibrate.py"
 # Small, fast settings: the v4 hard suite, only 3 questions, 2 repeats.
 LADDER = "gauntlet_v4"
 QUESTIONS = "hard"
@@ -54,7 +53,7 @@ def make_responder(questions):
 def calibrate_command(mode, out_dir, base_url=None):
     """Return the command line for one mode, with a temp out-dir and the test flags."""
     command = [
-        sys.executable, str(CALIBRATE), mode,
+        sys.executable, "-m", "ordeal.calibrate", mode,
         "--ladder", LADDER, "--questions", QUESTIONS,
         "--limit", str(QUESTION_LIMIT), "--repeats", str(REPEATS),
         "--out-dir", str(out_dir),

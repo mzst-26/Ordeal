@@ -6,12 +6,12 @@ import unittest
 from pathlib import Path
 
 PROJECT_FOLDER = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_FOLDER / "config.json"
+CONFIG_PATH = PROJECT_FOLDER / "ordeal" / "data" / "config.json"
 EXPORT_PATH = PROJECT_FOLDER / "scripts" / "export_site_data.py"
 
-# The brief said 27 models, but the list it gave has 29 rows, and the endpoint serves all 29 chat models.
+# Only text models are kept: the project tests text only, so vision-only models were removed from the catalog.
 # Pin the catalog size and the default models so an accidental edit to config.json is caught.
-EXPECTED_CATALOG_SIZE = 29
+EXPECTED_CATALOG_SIZE = 19
 EXPECTED_DEFAULT_MODELS = [
     "Qwen/Qwen3-30B-A3B-Instruct-2507",
     "google/gemma-3-27b-it",
@@ -134,7 +134,7 @@ class CatalogDetailsTest(unittest.TestCase):
                 self.assertIn(field, entry, f"{entry.get('id')} has no {field}")
 
     # Guards that ranks form exactly 1..N with no gaps or ties (bool is excluded because it is a subclass of int).
-    def test_industry_ranks_are_unique_integers_from_1_to_29(self):
+    def test_industry_ranks_are_unique_integers_from_1_to_19(self):
         ranks = [entry["industry_rank"] for entry in self.catalog]
         for rank in ranks:
             self.assertIsInstance(rank, int, f"rank {rank!r} is not an integer")

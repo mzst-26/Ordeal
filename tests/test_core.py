@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import core
-import flows
+from ordeal import core
+from ordeal import flows
 
 
 # A minimal question for placeholder tests: the right answer is C, the pushed wrong answer is B.
@@ -97,7 +97,7 @@ class LoadLadderTests(unittest.TestCase):
         self.assertEqual([entry["level"] for entry in loaded["levels"]], list(range(1, 10)))
 
     def test_the_real_v4_ladder_has_twelve_levels_in_order(self) -> None:
-        ladder = core.load_ladder(core.PROJECT_DIR / "ladder_v4.json")
+        ladder = core.load_ladder(core.DATA_DIR / "ladder_v4.json")
         self.assertEqual([entry["level"] for entry in ladder["levels"]], list(range(1, 13)))
 
 

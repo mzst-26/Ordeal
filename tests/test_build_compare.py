@@ -26,7 +26,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 sys.path.insert(0, str(PROJECT_DIR))
 
 import build_compare  # noqa: E402
-import core  # noqa: E402
+from ordeal import core  # noqa: E402
 
 ALPHA = "fake/alpha-7b"
 BRAVO = "fake/bravo-no-extras"

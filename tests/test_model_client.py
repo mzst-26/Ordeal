@@ -12,9 +12,9 @@ from unittest import mock
 import httpx2
 import openai
 
-import core
-import model_client
-from model_client import ModelRoute, describe_error, is_retryable
+from ordeal import core
+from ordeal import model_client
+from ordeal.model_client import ModelRoute, describe_error, is_retryable
 from tests.mock_openai import MockOpenAIServer
 
 # A key variable name that is never set in the environment, so tests control exactly when a key exists.

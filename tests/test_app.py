@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import gradio as gr
 
-import adaptive
-import app
-import core
+from ordeal import adaptive
+from ordeal import app
+from ordeal import core
 
 # These tests call app.py's helper functions directly. Handlers return a 4-tuple 'screen': the run, the chat
 # bubbles, the meter HTML and the status line (so screen[0] is the run and screen[3] is the status text).
