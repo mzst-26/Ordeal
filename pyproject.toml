@@ -1,0 +1,29 @@
+# Packaging for Ordeal. "pip install ." or "pipx install ." builds this project and adds the `ordeal` command.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ordeal"
+version = "0.1.0"
+description = "Test any model for sycophancy under pressure, from the terminal."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+# Only what the command line imports. matplotlib and gradio are for the charts and the demo app, so they stay out.
+dependencies = [
+    "openai>=1.40",
+    "numpy>=1.26",
+]
+
+[project.scripts]
+ordeal = "ordeal.cli:main"
+
+[tool.setuptools]
+# Name the package on purpose, so the folders beside it (site, scripts, tests, data) are not packaged.
+packages = ["ordeal"]
+
+[tool.setuptools.package-data]
+# providers.json is the platform list, so it must ship inside the installed package.
+# data/ holds the questions, pushback ladders and config that the test runs read.
+ordeal = ["providers.json", "data/*.json"]
