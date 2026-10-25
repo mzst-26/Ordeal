@@ -34,7 +34,7 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
-import { modelRowText, sortByRank } from "./model-details.js";
+import { hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
@@ -789,6 +789,10 @@ function buildModelCard(entry) {
   const row = rowOf(entry);
   const note = entryNote(entry);
   const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
+  // A plain name from a saved list has no rank or facts, so the card shows the name alone.
+  if (hasNoDetails(row)) {
+    return el("span", { className: "pick-model" }, [el("span", { className: "pick-model-name", text: name })]);
+  }
   return el("span", { className: "pick-model", title: row.basis }, [
     el("span", { className: "model-rank", text: row.rank }),
     el("span", { className: "pick-model-name", text: name }),
@@ -2019,12 +2023,14 @@ function linkModelHover(node, index) {
 function buildRankBlock(ranked, measure) {
   const values = ranked.map((row) => row.measures[measure.key]);
   const scaled = normalise(values, measure.higherIsBetter);
+  // normalise gives every value 0.5 when they are all equal, so a single ticked model would get a half-width bar.
+  const usableCount = values.filter((value) => typeof value === "number" && Number.isFinite(value)).length;
   const items = ranked.map((row, position) => {
     const missing = values[position] === null;
     const track = el("span", { className: "rank-track", "aria-hidden": "true" });
     if (!missing) {
       const bar = el("span", { className: "rank-bar" });
-      bar.style.width = `${Math.round(scaled[position] * 100)}%`;
+      bar.style.width = usableCount === 1 ? "100%" : `${Math.round(scaled[position] * 100)}%`;
       track.append(bar);
     }
     const item = el("li", { className: missing ? "rank-row is-missing" : "rank-row", "data-model-index": row.index }, [
