@@ -49,6 +49,14 @@ export function sortByRank(entries) {
 }
 
 /**
+ * Return true when a row has no details at all: no rank, context, reasoning or price. Such a row is a plain name from
+ * a saved list, so its card shows the name alone instead of a row of "unknown" words.
+ */
+export function hasNoDetails(row) {
+  return row.rank === UNRANKED && row.context === UNKNOWN && row.reasoning === UNKNOWN && row.price === UNKNOWN;
+}
+
+/**
  * Return the text for one model row: the rank ("#2" or "unranked"), the model id, the context window, the
  * reasoning label, the price line and the basis of the rank. Missing fields become "unknown".
  */

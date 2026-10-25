@@ -11,6 +11,7 @@ import { askForToken } from "./token-dialog.js";
 import { browserStorage, vault } from "./engine/token.js";
 import { fetchModelIds } from "./engine/api.js";
 import { openPicker } from "./picker-dialog.js";
+import { MODELS_PATH, platformModelIds } from "./model-list.js";
 import {
   currentPlatform,
   findModel,
@@ -34,6 +35,9 @@ const PICKER_TITLE = "Choose a platform";
 const PICKER_SEARCH = "Search platforms";
 const PICKER_FAILED_MESSAGE = "The platform list could not be opened. Try again after the page reloads.";
 const NO_KEY_HINT = "Add your key first, then check the model.";
+const MODEL_BROWSER_TITLE = "Choose a model";
+const NO_SAVED_LIST_MESSAGE = "This platform has no saved model list yet. Type a model name instead.";
+const MODEL_LIST_FAILED_MESSAGE = "The model list could not be loaded. Type a model name instead.";
 const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform or model.";
 const NO_SUGGESTIONS_HINT = "No close names were found. Check the id on the platform's model page.";
 const MODEL_HINT = "Type a model id such as org/name, or paste its link.";
@@ -41,6 +45,8 @@ const MODEL_PLACEHOLDER = "org/name, hf:org/name, or a link to the model page";
 
 // True while a platform popup is open. It stops a second popup from opening on top of the first, for either copy.
 let chooserOpen = false;
+// True while the model list is open, so a second click does not open a second copy.
+let browserOpen = false;
 
 /**
  * Return the element ids for one copy of the section. Each id starts with the copy's root id, so the batch copy and
@@ -103,6 +109,7 @@ function buildSection(root, list, saved) {
     placeholder: MODEL_PLACEHOLDER,
     value: saved ? saved.model : "",
   });
+  view.browseButton = el("button", { type: "button", className: "btn", text: "Browse models" });
   view.checkButton = el("button", { type: "button", className: "btn btn-primary", text: "Check model" });
   view.status = el("p", { className: "field-hint platform-status", id: ids.status, role: "status", "aria-live": "polite" });
   view.suggestions = el("ul", { className: "platform-suggestions", "aria-label": "Close model names", hidden: true });
@@ -119,7 +126,7 @@ function buildSection(root, list, saved) {
       ]),
       el("div", { className: "platform-column" }, [
         el("label", { className: "field-label", for: ids.input, text: "Model" }),
-        el("div", { className: "inline-row" }, [view.input, view.checkButton]),
+        el("div", { className: "inline-row" }, [view.input, view.browseButton, view.checkButton]),
         el("p", { className: "field-hint", text: MODEL_HINT }),
         view.status,
         view.suggestions,
@@ -138,6 +145,7 @@ function wireSection(view, storage) {
     renderKeyStatus(view);
   });
   view.checkButton.addEventListener("click", () => checkModel(view, storage));
+  view.browseButton.addEventListener("click", () => openModelBrowser(view));
   window.addEventListener(CHOICE_EVENT, (event) => onChoiceSaved(view, event.detail));
 }
 
@@ -261,6 +269,47 @@ function openChooser(view, storage) {
     // The popup could not be drawn here, so the flag is cleared and the visitor is told in the status line.
     chooserOpen = false;
     view.status.textContent = PICKER_FAILED_MESSAGE;
+  }
+}
+
+/**
+ * Open a searchable list of the chosen platform's saved model names. Picking a name fills the Model box, and the
+ * visitor presses Check model to confirm it. It is the same saved list that the batch popup shows.
+ */
+async function openModelBrowser(view) {
+  if (isRunLocked()) {
+    setStatus(view, RUN_LOCKED_MESSAGE);
+    return;
+  }
+  if (browserOpen || view.platform === null) return;
+  browserOpen = true;
+  try {
+    const modelsFile = await loadJson(MODELS_PATH);
+    const ids = platformModelIds(modelsFile, view.platform.id);
+    if (ids.length === 0) {
+      browserOpen = false;
+      setStatus(view, NO_SAVED_LIST_MESSAGE);
+      return;
+    }
+    const dialog = openPicker({
+      title: MODEL_BROWSER_TITLE,
+      items: ids,
+      isSelected: (id) => id === view.input.value.trim(),
+      onToggle: (id) => {
+        view.input.value = id;
+        setStatus(view, `Selected ${id}. Press Check model to confirm it.`);
+        dialog.close();
+      },
+      renderCard: (id) => el("span", { className: "platform-card-name", text: id }),
+      bulk: false,
+      searchPlaceholder: "Search models",
+    });
+    dialog.addEventListener("close", () => {
+      browserOpen = false;
+    }, { once: true });
+  } catch {
+    browserOpen = false;
+    setStatus(view, MODEL_LIST_FAILED_MESSAGE);
   }
 }
 
