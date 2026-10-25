@@ -36,7 +36,8 @@ const PICKER_SEARCH = "Search platforms";
 const PICKER_FAILED_MESSAGE = "The platform list could not be opened. Try again after the page reloads.";
 const NO_KEY_HINT = "Add your key first, then check the model.";
 const MODEL_BROWSER_TITLE = "Choose a model";
-const NO_SAVED_LIST_MESSAGE = "This platform has no saved model list yet. Type a model name instead.";
+const NO_LIST_ACTION = "Got it";
+const NO_LIST_BODY = "Add the models by hand. Type a model id, such as org/name, in the box under \"Add a model that is not in the list\", then press Check model. The check confirms the name on the platform before it is saved.";
 const MODEL_LIST_FAILED_MESSAGE = "The model list could not be loaded. Type a model name instead.";
 const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform or model.";
 const NO_SUGGESTIONS_HINT = "No close names were found. Check the id on the platform's model page.";
@@ -59,6 +60,7 @@ function idsFor(rootId) {
     label: `${rootId}-platform-label`,
     pickHeading: `${rootId}-pick-heading`,
     addHeading: `${rootId}-add-heading`,
+    noListTitle: `${rootId}-no-list-title`,
     button: `${rootId}-button`,
     keyStatus: `${rootId}-key-status`,
     input: `${rootId}-model-input`,
@@ -301,7 +303,7 @@ async function openModelBrowser(view) {
     const ids = platformModelIds(modelsFile, view.platform.id);
     if (ids.length === 0) {
       browserOpen = false;
-      setStatus(view, NO_SAVED_LIST_MESSAGE);
+      openNoListDialog(view);
       return;
     }
     const dialog = openPicker({
@@ -326,6 +328,28 @@ async function openModelBrowser(view) {
     browserOpen = false;
     setStatus(view, MODEL_LIST_FAILED_MESSAGE);
   }
+}
+
+/**
+ * Open a small popup for a platform with no saved models. The visitor has to add a model by hand, so the popup says
+ * how. It is modal, so it has to be answered first. Closing it puts the cursor in the model box, which is the next step.
+ * It reuses the token dialog's look, the same as the other small confirmations in the app.
+ */
+function openNoListDialog(view) {
+  const action = el("button", { type: "button", className: "btn btn-primary", text: NO_LIST_ACTION });
+  const dialog = el("dialog", { className: "token-dialog", "aria-labelledby": view.ids.noListTitle }, [
+    el("h2", { className: "dialog-title", id: view.ids.noListTitle, text: `No models are saved for ${textOf(view.platform.name)}` }),
+    el("p", { text: NO_LIST_BODY }),
+    el("div", { className: "dialog-actions" }, [action]),
+  ]);
+  action.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    view.input.focus();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+  action.focus();
 }
 
 /**
