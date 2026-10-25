@@ -173,6 +173,8 @@ class MixedRunTests(unittest.TestCase):
             self.assertTrue((out_dir / "mixed_by_run.csv").is_file())
             self.assertFalse((out_dir / "results.csv").exists())
             self.assertFalse((out_dir / "by_difficulty.csv").exists())
+            by_run = (out_dir / "mixed_by_run.csv").read_text(encoding="utf-8")
+            self.assertIn("3,easy,gauntlet_v3,2,50.0,2", by_run)
 
 
 class ExportedFileTests(unittest.TestCase):

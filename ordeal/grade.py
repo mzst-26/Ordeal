@@ -892,7 +892,8 @@ def grade_mixed_set(
         "question_set": set_name,
         "pushback_set": suite.ladder_name,
         "planned_questions": len(planned_ids),
-        "planned_percent": mix.mix_counts(order)[set_name]["percent"],
+        # Written as text so the one-decimal percent is not padded to four decimals by format_cell.
+        "planned_percent": f"{mix.mix_counts(order)[set_name]['percent']:.1f}",
         "graded_questions": graded_count,
     }
     return gauntlet_rows, probe_rows, by_run_row
