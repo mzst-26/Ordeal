@@ -19,8 +19,6 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-from ordeal import shuffle
-
 # All paths hang off the project folder (the one above this package), so scripts work from any current directory.
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -183,11 +181,11 @@ def check_dose_dials(doses, path):
             raise ValueError(f"The dose dial '{dial}' in {path.name} needs a non-empty levels list.")
 
 
-def prompt_settings(config, ladder, probe_spec, questions, pushback_seed=None):
+def prompt_settings(config, ladder, probe_spec, questions):
     """Return every setting that changes what the models are asked, or how replies are graded.
 
-    'pushback_seed' is added only when a shuffled pushback set is used. A default run has no
-    such key, so its experiment code stays the same as before shuffle mode existed.
+    The result is hashed by fingerprint(). Only the settings listed here count, so a change to
+    anything else (such as a question field outside PROMPT_QUESTION_FIELDS) keeps saved replies valid.
     """
     settings = {
         "ladder": ladder,
@@ -200,8 +198,6 @@ def prompt_settings(config, ladder, probe_spec, questions, pushback_seed=None):
             {field: question[field] for field in PROMPT_QUESTION_FIELDS} for question in questions
         ],
     }
-    if pushback_seed is not None:
-        settings["pushback_seed"] = pushback_seed
     return settings
 
 
@@ -225,21 +221,14 @@ class Suite:
     probe_spec: dict
     questions: list
     experiment: str  # the fingerprint of this suite's settings
-    # Both are None for a default suite. A shuffled suite sets them: the seed of its pushback
-    # order, and the axis id of each slot in that order (so a record can say where each sat).
-    pushback_seed: int | None = None
-    pushback_order: list | None = None
 
 
-def load_suite(ladder=None, questions=None, pushback_seed=None):
+def load_suite(ladder=None, questions=None):
     """Return the suite for a ladder name and a question-set name.
 
     Names missing from the call are read from config.json ("ladder" and "questions"),
     then from DEFAULT_LADDER and DEFAULT_QUESTIONS. An unknown name raises ValueError.
 
-    With 'pushback_seed', the ladder's movable pushbacks are put in a seeded order (see shuffle.py).
-    The suite's experiment code then differs from the default, so saved replies are never mixed.
-    The name then ends in "+pushback<SEED>", so its summary rows are not replaced by the default's.
     """
     config = load_config()
     ladder_name = ladder if ladder is not None else config.get("ladder", DEFAULT_LADDER)
@@ -248,20 +237,13 @@ def load_suite(ladder=None, questions=None, pushback_seed=None):
         raise ValueError(f"Unknown ladder '{ladder_name}'. Valid ladders: {', '.join(LADDER_FILES)}.")
     if question_set not in QUESTION_FILES:
         raise ValueError(f"Unknown question set '{question_set}'. Valid question sets: {', '.join(QUESTION_FILES)}.")
-    # The shuffle runs before the fingerprint is taken, so a shuffled ladder gets its own experiment code.
     ladder_file, probe_file = LADDER_FILES[ladder_name]
     ladder_data = load_ladder(DATA_DIR / ladder_file)
-    pushback_order = None
-    if pushback_seed is not None:
-        ladder_data, pushback_order = shuffle.shuffle_ladder(ladder_data, pushback_seed)
     probe_spec = load_probe_spec(DATA_DIR / probe_file)
     question_list = load_questions(DATA_DIR / QUESTION_FILES[question_set])
     level_count = len(ladder_data["levels"])
-    # grade.py keys results.csv and by_difficulty.csv by suite name. A shuffled suite needs its own name, or
-    # grading it would replace the default rows for the same model. The default name stays as it was.
-    name_suffix = "" if pushback_seed is None else f"+pushback{pushback_seed}"
     return Suite(
-        name=f"{ladder_name}+{question_set}{name_suffix}",
+        name=f"{ladder_name}+{question_set}",
         ladder_name=ladder_name,
         question_set=question_set,
         ladder=ladder_data,
@@ -269,11 +251,7 @@ def load_suite(ladder=None, questions=None, pushback_seed=None):
         held_firm_score=level_count + 1,
         probe_spec=probe_spec,
         questions=question_list,
-        experiment=fingerprint(
-            prompt_settings(config, ladder_data, probe_spec, question_list, pushback_seed)
-        ),
-        pushback_seed=pushback_seed,
-        pushback_order=pushback_order,
+        experiment=fingerprint(prompt_settings(config, ladder_data, probe_spec, question_list)),
     )
 
 
@@ -428,18 +406,12 @@ def make_key(condition, model, question_id, repeat, step):
     return (condition, model, question_id, repeat, step)
 
 
-def make_record(
-    condition, model, question, repeat, step, messages, reply, temperature, suite=None, question_order=None,
-):
+def make_record(condition, model, question, repeat, step, messages, reply, temperature, suite=None):
     """Build one saved line for the cache. 'messages' is the full list sent to the model.
 
     'suite' is optional. When given, the record carries the suite name and that suite's experiment code.
     When it is not given, the record gets the default suite's experiment code (default_suite(): config.json,
     which is gauntlet_v3 + easy here) and no 'suite' field. Callers that run a ladder must pass its suite.
-
-    'question_order' is optional, a dict with 'question_order_seed' and 'question_position' (1-based).
-    A shuffled suite adds 'pushback_seed' and 'pushback_order' to the record. Neither group of fields
-    is added on a default run, so default records keep their existing keys.
     """
     record = {
         "experiment": current_experiment(suite),
@@ -455,14 +427,6 @@ def make_record(
     }
     if suite is not None:
         record["suite"] = suite.name
-    if question_order is not None:
-        # Recorded only on a question-shuffled run, so a default record keeps its old keys.
-        record["question_order_seed"] = question_order["question_order_seed"]
-        record["question_position"] = question_order["question_position"]
-    if suite is not None and suite.pushback_order is not None:
-        # The pushback seed and order are what make a shuffled reply's position checkable later.
-        record["pushback_seed"] = suite.pushback_seed
-        record["pushback_order"] = suite.pushback_order
     return record
 
 

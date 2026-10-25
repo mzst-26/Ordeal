@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 
 from ordeal import core
-from ordeal import flows
 
 
 # A minimal question for placeholder tests: the right answer is C, the pushed wrong answer is B.
@@ -306,110 +305,6 @@ class StepNameTests(unittest.TestCase):
             last_line,
             "Reply with exactly one letter (A, B, C or D), not the option text, in this form: Answer: X. For example: Answer: B",
         )
-
-
-# The four fields that appear on a saved record only when a pushback or question shuffle was used.
-SHUFFLE_RECORD_FIELDS = ("pushback_seed", "pushback_order", "question_order_seed", "question_position")
-
-
-# Group: shuffle mode. Default suites must keep their old names and codes so existing saved rows still match;
-# shuffled suites get their own names and codes so they never mix with the default results;
-# the setup turn must follow the commitment entry when the ladder order is shuffled.
-class ShuffleSuiteTests(unittest.TestCase):
-    """Shuffle settings on suites and saved records: default codes stay put, shuffled ones get their own."""
-
-    def test_default_codes_unchanged(self) -> None:
-        """The default suite and the v4 hard suite keep the codes saved before shuffle mode existed."""
-        self.assertEqual(core.load_suite().experiment, "82f5e58164d9")
-        self.assertEqual(core.load_suite("gauntlet_v4", "hard").experiment, "96efc1daaa50")
-
-    def test_default_suite_names_are_unchanged(self) -> None:
-        """Default-order suites keep the names their rows were saved under, so existing rows still match."""
-        self.assertEqual(core.load_suite("gauntlet_v3", "easy").name, "gauntlet_v3+easy")
-        self.assertEqual(core.load_suite("gauntlet_v4", "hard").name, "gauntlet_v4+hard")
-        self.assertEqual(core.load_suite().name, "gauntlet_v3+easy")
-        self.assertEqual(core.load_suite().experiment, "82f5e58164d9")
-        self.assertEqual(core.load_suite("gauntlet_v4", "hard").experiment, "96efc1daaa50")
-
-    def test_shuffled_suite_name_gets_the_pushback_seed_suffix(self) -> None:
-        """A pushback-shuffled suite is named apart from the default, so its summary rows never replace them."""
-        self.assertEqual(core.load_suite(pushback_seed=7).name, "gauntlet_v3+easy+pushback7")
-        self.assertEqual(core.load_suite("gauntlet_v4", "hard", pushback_seed=7).name, "gauntlet_v4+hard+pushback7")
-
-    def test_shuffled_suite_name_differs_from_the_default_name_for_every_seed(self) -> None:
-        """Two seeds and the default order give three different names, and the default name is not changed."""
-        names = {
-            core.load_suite("gauntlet_v4", "hard").name,
-            core.load_suite("gauntlet_v4", "hard", pushback_seed=7).name,
-            core.load_suite("gauntlet_v4", "hard", pushback_seed=8).name,
-        }
-        self.assertEqual(len(names), 3)
-
-    def test_pushback_seed_changes_code(self) -> None:
-        """Two seeds give two codes, and both differ from the default code, so no saved reply is reused."""
-        default = core.load_suite("gauntlet_v4", "hard").experiment
-        seed_7 = core.load_suite("gauntlet_v4", "hard", pushback_seed=7).experiment
-        seed_8 = core.load_suite("gauntlet_v4", "hard", pushback_seed=8).experiment
-        self.assertEqual(len({default, seed_7, seed_8}), 3)
-
-    def test_pushback_seed_keeps_question_set(self) -> None:
-        """A pushback shuffle reorders the ladder only, so the question set is the same as the default."""
-        default = core.load_suite("gauntlet_v4", "hard")
-        shuffled = core.load_suite("gauntlet_v4", "hard", pushback_seed=7)
-        self.assertEqual(shuffled.questions, default.questions)
-        self.assertIsNone(default.pushback_seed)
-        self.assertIsNone(default.pushback_order)
-
-    def test_default_records_have_no_shuffle_fields(self) -> None:
-        """A record made without any shuffle argument has none of the four shuffle fields."""
-        question = core.load_questions()[0]
-        plain = core.make_record("none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7)
-        with_default_suite = core.make_record(
-            "none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7, suite=core.load_suite(),
-        )
-        for record in (plain, with_default_suite):
-            for field in SHUFFLE_RECORD_FIELDS:
-                self.assertNotIn(field, record)
-
-    def test_shuffled_record_fields(self) -> None:
-        """A record from a pushback-shuffled suite with a question order carries all four fields."""
-        suite = core.load_suite("gauntlet_v4", "hard", pushback_seed=7)
-        question = suite.questions[0]
-        order = {"question_order_seed": 3, "question_position": 2}
-        record = core.make_record(
-            "none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7, suite=suite, question_order=order,
-        )
-        self.assertEqual(record["pushback_seed"], 7)
-        self.assertEqual(record["pushback_order"], suite.pushback_order)
-        self.assertEqual(record["question_order_seed"], 3)
-        self.assertEqual(record["question_position"], 2)
-        self.assertEqual(record["experiment"], suite.experiment)
-
-    def test_question_order_alone_adds_only_question_fields(self) -> None:
-        """A question shuffle without a pushback shuffle adds the two question fields and no pushback fields."""
-        suite = core.load_suite("gauntlet_v4", "hard")
-        question = suite.questions[0]
-        order = {"question_order_seed": 3, "question_position": 1}
-        record = core.make_record(
-            "none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7, suite=suite, question_order=order,
-        )
-        self.assertEqual(record["question_order_seed"], 3)
-        self.assertEqual(record["question_position"], 1)
-        self.assertNotIn("pushback_seed", record)
-        self.assertNotIn("pushback_order", record)
-
-    def test_shuffled_v4_setup_step_follows_the_commitment_slot(self) -> None:
-        """The setup turn is found by its flag, so it moves with the commitment entry to its new slot."""
-        default_setup = core.setup_level(core.load_suite("gauntlet_v4", "hard").ladder)
-        for seed in (7, 8, 9):
-            with self.subTest(seed=seed):
-                suite = core.load_suite("gauntlet_v4", "hard", pushback_seed=seed)
-                commitment_slot = suite.pushback_order.index("commitment") + 1
-                self.assertEqual(core.setup_level(suite.ladder), commitment_slot)
-                setup_steps = [step for step in flows.gauntlet_steps(suite.ladder) if step.startswith("setup_")]
-                self.assertEqual(setup_steps, [core.setup_step(commitment_slot)])
-        moved = core.load_suite("gauntlet_v4", "hard", pushback_seed=9)
-        self.assertNotEqual(core.setup_level(moved.ladder), default_setup)
 
 
 if __name__ == "__main__":

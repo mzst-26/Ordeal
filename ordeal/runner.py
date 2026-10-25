@@ -18,7 +18,6 @@ from typing import Any, Protocol
 from ordeal import core
 from ordeal import flows
 from ordeal import model_client
-from ordeal import shuffle
 from ordeal.stub_model import StubModel
 
 # Longest wait between retries; backoff_seconds() doubles the wait each attempt up to this cap.
@@ -76,8 +75,6 @@ class RunSettings:
     wait: Callable[[float], Awaitable[None]] = asyncio.sleep
     suite: core.Suite | None = None  # names the saved records; None means the default suite
     labels: dict[str, str] = field(default_factory=dict)  # saved name per model; see model_client.record_labels
-    # Per question id: the order seed and the 1-based position. Empty on a run without --shuffle-questions.
-    question_orders: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 @dataclass
@@ -153,30 +150,6 @@ def make_units(
     ]
 
 
-def plan_question_order(
-    questions: list[dict[str, Any]], limit: int | None, seed: int | None
-) -> tuple[list[dict[str, Any]], dict[str, dict[str, int]]]:
-    """Return the questions to run, in run order, and the order fields to save with each one.
-
-    The shuffle comes before the limit, so a limited shuffled run is a seeded random sample of the
-    set, not the first N questions of the file. Each question gets its 1-based position in the shuffled
-    order and the seed. Without a seed the file's order is kept and no question gets order fields, so
-    a default run saves the same records as before.
-    """
-    if seed is None:
-        ordered = questions
-        orders: dict[str, dict[str, int]] = {}
-    else:
-        ordered = shuffle.shuffled_questions(questions, seed)
-        orders = {
-            question["id"]: {"question_order_seed": seed, "question_position": position}
-            for position, question in enumerate(ordered, start=1)
-        }
-    if limit is not None:
-        ordered = ordered[:limit]
-    return ordered, orders
-
-
 def step_key(condition: str, unit: Unit, step: str) -> tuple[Any, ...]:
     """Return the cache key of one step of one unit, built from the saved model name."""
     return core.make_key(condition, unit.label, unit.question["id"], unit.repeat, step)
@@ -233,7 +206,6 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         reply,
         ctx.settings.config["temperature"],
         suite=ctx.settings.suite,
-        question_order=ctx.settings.question_orders.get(unit.question["id"]),
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     core.append_record(record, ctx.cache_path)
@@ -391,13 +363,6 @@ def family_text(families: frozenset[str]) -> str:
     return ", ".join(sorted(families))
 
 
-def print_pushback_slots(axis_order: list[str]) -> None:
-    """Print the axis that sits in each pushback slot, so a shuffled order can be read before a run."""
-    print("Pushback slots in shuffled order:")
-    for slot, axis in enumerate(axis_order, start=1):
-        print(f"  level {slot}: {axis}")
-
-
 def print_dry_run(
     models: list[str],
     questions: list[dict[str, Any]],
@@ -408,18 +373,12 @@ def print_dry_run(
     ladder: dict[str, Any],
     probe_spec: dict[str, Any],
     labels: dict[str, str] | None = None,
-    axis_order: list[str] | None = None,
 ) -> None:
-    """Print, per model, how many replies are saved and the most new calls a real run would make.
-
-    With 'axis_order' (a shuffled ladder), the axis of each pushback slot is printed too.
-    """
+    """Print, per model, how many replies are saved and the most new calls a real run would make."""
     total_new = 0
     print("Dry run: no calls will be made.")
     print(f"Ladder: {ladder['name']}")
     print(f"Families: {family_text(families)}")
-    if axis_order is not None:
-        print_pushback_slots(axis_order)
     for model in models:
         plan = plan_model_calls(model, questions, repeats, cache, condition, families, ladder, probe_spec, labels)
         total_new += plan.at_most_new
@@ -498,20 +457,6 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         choices=tuple(core.QUESTION_FILES),
         default=None,
         help="question set (default: the questions in config.json, easy)",
-    )
-    parser.add_argument(
-        "--shuffle-questions",
-        type=int,
-        default=None,
-        help="run the questions in this seeded random order; applied before --limit, so a limited run is a random "
-        "sample (default: the file's order)",
-    )
-    parser.add_argument(
-        "--shuffle-pushbacks",
-        type=int,
-        default=None,
-        help="put the movable pushbacks in this seeded random order; makes a new experiment code "
-        "(default: the ladder's order)",
     )
     parser.add_argument(
         "--cache",
@@ -622,8 +567,9 @@ def main(
         models = list(prebuilt_routes)
     else:
         models = choose_models(args, config)
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions, pushback_seed=args.shuffle_pushbacks)
-    questions, question_orders = plan_question_order(suite.questions, args.limit, args.shuffle_questions)
+    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    # --limit keeps the first N questions of the file, so a limited run is the same set every time.
+    questions = suite.questions if args.limit is None else suite.questions[: args.limit]
     labels = model_client.record_labels(models, config, custom_routes, args.base_url)
     # An explicit --cache wins; otherwise stub runs use their own cache file so fake replies never mix with real ones.
     cache_path = args.cache or (core.STUB_CACHE_PATH if args.stub else core.CACHE_PATH)
@@ -632,7 +578,7 @@ def main(
     if args.dry_run:
         print_dry_run(
             models, questions, args.repeats, args.condition, cache, args.probes, suite.ladder, suite.probe_spec,
-            labels, suite.pushback_order,
+            labels,
         )
         return 0
 
@@ -656,7 +602,6 @@ def main(
         describe_error=model_client.describe_error,
         suite=suite,
         labels=labels,
-        question_orders=question_orders,
     )
 
     print_plan(
