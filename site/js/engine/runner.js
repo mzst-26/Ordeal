@@ -51,9 +51,15 @@ function errorMessage(error) {
 /**
  * Return { runUnit(unit) }. runUnit gets or sends every reply of one unit, then runs its flows.
  * 'shared' holds the state of the whole batch: the stop flag, the abort signal, the counts and emit.
+ * pairFor is optional. A mixed run gives each question its own { ladder, probeSpec } (see planner.js).
  */
-export function makeReplyRunner({ client, cache, condition, config, families, ladder, probeSpec, shared }) {
+export function makeReplyRunner({ client, cache, condition, config, families, ladder, probeSpec, pairFor = null, shared }) {
   const systemPrompt = systemPromptFor(condition, config);
+
+  /** Return the ladder and probe spec for one unit: its question's own pair in a mixed run, else the batch's pair. */
+  function pairOf(unit) {
+    return pairFor ? pairFor(unit.question) : { ladder, probeSpec };
+  }
 
   /** Save a new reply in the cache, count it, and emit step-done. Return the reply. */
   function saveReply(unit, step, messages, key, reply) {
@@ -159,7 +165,8 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
     };
     const baseline = await ask(BASELINE_STEP, openingMessages(unit.question, systemPrompt));
     if (baseline !== null) {
-      await runFlows(unit.question, systemPrompt, baseline, ask, families, ladder, probeSpec, config);
+      const pair = pairOf(unit);
+      await runFlows(unit.question, systemPrompt, baseline, ask, families, pair.ladder, pair.probeSpec, config);
     }
     return !cutShort;
   }
@@ -171,11 +178,11 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
  * Create a batch runner for every unit of the models, questions and repeats given.
  * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 32,
  * and defaults to config.concurrency. onEvent(event) gets one plain object per event, in order.
- * Other options are as in runner.py.
+ * Other options are as in runner.py. pairFor is the optional per-question pair of a mixed run.
  */
 export function createBatchRunner({
   client, models, questions, repeats, condition, families, ladder, probeSpec, config, cache,
-  concurrency, onEvent = () => {}, log = NO_LOG,
+  concurrency, onEvent = () => {}, log = NO_LOG, pairFor = null,
 }) {
   const limit = checkConcurrency(concurrency ?? config.concurrency);
   const pending = makeUnits(models, questions, repeats);
@@ -246,7 +253,7 @@ export function createBatchRunner({
   };
 
   const replyRunner = makeReplyRunner({
-    client, cache, condition, config, families, ladder, probeSpec, shared,
+    client, cache, condition, config, families, ladder, probeSpec, pairFor, shared,
   });
 
   /** Return the next unit to run. Waits while paused. Returns null when none is left or a stop was requested. */

@@ -68,13 +68,16 @@ export function confessionCanFollow(unit, cacheIndex, condition, levelCount = LE
 
 /**
  * Count the calls a run would still need for one model. Nothing is called and nothing is saved.
- * settings holds { cacheIndex, condition, families, ladder, probeSpec }.
+ * settings holds { cacheIndex, condition, families, ladder, probeSpec, pairFor }.
+ * pairFor is optional. A mixed run has one pushback set per question, so pairFor(question) gives that question's
+ * { ladder, probeSpec }. Without it, every question uses the ladder and probe spec in settings.
  * Returns { saved, atMostNew }. Until a unit's first answer is saved, the new count is an upper bound.
  */
 export function planModelCalls(model, questions, repeats, settings) {
-  const { cacheIndex, condition, families, ladder, probeSpec } = settings;
+  const { cacheIndex, condition, families, pairFor } = settings;
   const plan = { saved: 0, atMostNew: 0 };
   for (const unit of makeUnits([model], questions, repeats)) {
+    const { ladder, probeSpec } = pairFor ? pairFor(unit.question) : settings;
     const baselineCorrect = savedBaselineCorrect(cacheIndex, condition, unit);
     let steps = expectedSteps(unit.question, families, ladder, probeSpec, baselineCorrect);
     if (!confessionCanFollow(unit, cacheIndex, condition, ladder.levels.length)) {
@@ -95,13 +98,14 @@ export function planModelCalls(model, questions, repeats, settings) {
  * Count the calls for every model. Returns { models, totals }: models is one { model, saved, atMostNew }
  * per model in the order given, and totals is the sum of those counts.
  * The config argument is passed by both pages but is not used by the count, as in runner.py.
+ * pairFor is the optional per-question pushback pair of a mixed run (see planModelCalls).
  */
 export function planAllModels(
-  models, questions, repeats, cacheIndex, condition, families, ladder, probeSpec, config,
+  models, questions, repeats, cacheIndex, condition, families, ladder, probeSpec, config, pairFor = null,
 ) {
   const rows = [];
   const totals = { saved: 0, atMostNew: 0 };
-  const settings = { cacheIndex, condition, families, ladder, probeSpec };
+  const settings = { cacheIndex, condition, families, ladder, probeSpec, pairFor };
   for (const model of models) {
     const plan = planModelCalls(model, questions, repeats, settings);
     rows.push({ model, saved: plan.saved, atMostNew: plan.atMostNew });
