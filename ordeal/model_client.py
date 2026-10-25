@@ -156,9 +156,14 @@ def custom_route(entry: Any) -> ModelRoute:
         raise ValueError(CUSTOM_URL_MESSAGE.format(name=name))
     # A custom model must not reuse the built-in key, or that key would be sent to a third-party endpoint.
     key_env = entry["api_key_env"]
-    if not ENV_NAME_PATTERN.fullmatch(key_env) or key_env == core.TOKEN_ENV_VAR:
+    # Every platform's variable is off limits too, so a custom model cannot send another platform's key to its own URL.
+    # providers imports this module, so it is imported here, when the check runs, to avoid a circular import.
+    from ordeal import providers
+
+    platform_key_names = {platform.key_env for platform in providers.load_platforms() if platform.key_env}
+    if not ENV_NAME_PATTERN.fullmatch(key_env) or key_env in platform_key_names:
         raise ValueError(
-            f"Custom model '{name}' needs api_key_env to name an environment variable other than {core.TOKEN_ENV_VAR}."
+            f"Custom model '{name}' needs api_key_env to name a variable that no platform uses, such as MY_MODEL_KEY."
         )
     return ModelRoute(
         name=name, api_model=entry["model"], base_url=entry["base_url"], key_env=key_env, custom=True

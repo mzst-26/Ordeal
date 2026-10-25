@@ -52,16 +52,21 @@ def read_saved_keys() -> dict:
 def write_saved_keys(keys: dict) -> None:
     """Write the saved keys to the credentials file, creating the folder, and keep the file private.
 
-    os.open applies its mode only when it creates a new file, so chmod also fixes a file that already
-    existed with looser permissions.
+    The keys go into a new temporary file that is created with owner-only permissions, and that file then
+    replaces the credentials file. This way the key is never written to a file other people can read, even
+    when an old credentials file already exists with looser permissions (os.open applies its mode only to a
+    newly created file, so it cannot fix an old one).
     """
     path = credentials_path()
     path.parent.mkdir(parents=True, exist_ok=True, mode=CREDENTIALS_FOLDER_MODE)
     text = json.dumps(keys, indent=2, sort_keys=True) + "\n"
-    file_descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, CREDENTIALS_MODE)
+    temporary = path.with_name(path.name + ".tmp")
+    # Remove a leftover temporary file first, so os.open really creates a new file with the owner-only mode.
+    temporary.unlink(missing_ok=True)
+    file_descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, CREDENTIALS_MODE)
     with os.fdopen(file_descriptor, "w", encoding="utf-8") as file:
         file.write(text)
-    os.chmod(path, CREDENTIALS_MODE)
+    os.replace(temporary, path)
 
 
 def get_key(platform: providers.Platform) -> str:

@@ -11,6 +11,7 @@ const SHORT_MASK = '••••••';
 // Whitespace is not allowed, so spaces, quotes and line breaks inside the value are rejected.
 export const KEY_CHARACTERS_PATTERN = /^[A-Za-z0-9._+/=-]+$/;
 const BAD_KEY_MESSAGE = 'That does not look like an API key. Check it and try again.';
+const NO_PLATFORM_MESSAGE = 'The key needs the platform it belongs to.';
 
 /**
  * Return true if text looks like an API key: 20 to 512 characters after trimming, and only key
@@ -39,56 +40,80 @@ export function browserStorage() {
 }
 
 /**
- * Create a vault that keeps one key in a closure variable. With a storage object, a key saved with
- * remember: true is also kept there, so it is still there after a reload. Storage errors are never shown.
+ * Create a vault that keeps one key in a closure variable. The key is saved together with the id of the
+ * platform it was entered for, so a key for one platform can never be sent to another platform's address.
+ * With a storage object, a key saved with remember: true is also kept there, so it is still there after a reload.
+ * Storage errors are never shown.
  */
 export function createTokenVault({ storage = null } = {}) {
   let storedText = null;
+  let storedPlatform = null;
 
-  /** Read the saved key from storage. Returns null when there is none, or when it is not a plausible key. */
+  /** Read the saved key and its platform from storage. Returns null unless both are there and the key looks plausible. */
   function readRemembered() {
     try {
       const text = storage ? storage.getItem(REMEMBER_STORAGE_NAME) : null;
-      return isPlausibleToken(text) ? text.trim() : null;
+      const platform = storage ? storage.getItem(REMEMBER_PLATFORM_NAME) : null;
+      if (!isPlausibleToken(text) || typeof platform !== 'string' || platform === '') return null;
+      return { text: text.trim(), platform };
     } catch {
       return null;
     }
   }
 
-  /** Write or remove the saved key. A storage error is ignored, so the key still works for this tab. */
-  function writeRemembered(text) {
+  /** Write or remove the saved key and its platform. A storage error is ignored, so the key still works for this tab. */
+  function writeRemembered(text, platform) {
     try {
       if (!storage) return;
-      if (text === null) storage.removeItem(REMEMBER_STORAGE_NAME);
-      else storage.setItem(REMEMBER_STORAGE_NAME, text);
+      if (text === null) {
+        storage.removeItem(REMEMBER_STORAGE_NAME);
+        storage.removeItem(REMEMBER_PLATFORM_NAME);
+      } else {
+        storage.setItem(REMEMBER_STORAGE_NAME, text);
+        storage.setItem(REMEMBER_PLATFORM_NAME, platform);
+      }
     } catch {
       // The key stays in memory for this tab only.
     }
   }
 
-  /** Return the key held in memory, loading a remembered key from storage the first time. */
-  function current() {
-    if (storedText === null) storedText = readRemembered();
-    return storedText;
+  /** Load a remembered key from storage the first time it is needed. */
+  function load() {
+    if (storedText !== null) return;
+    const saved = readRemembered();
+    if (saved !== null) {
+      storedText = saved.text;
+      storedPlatform = saved.platform;
+    }
   }
 
   return {
     /**
-     * Store the key. Throws a plain message if it does not look like a key. With remember: true the key is
-     * also saved in storage; with remember: false any saved copy is removed, so the key lasts for this tab only.
+     * Store the key and the id of its platform. Throws a plain message if the key does not look like a key or the
+     * platform is missing. With remember: true both are also saved in storage; with remember: false any saved copy
+     * is removed, so the key lasts for this tab only.
      */
-    set(text, { remember = false } = {}) {
+    set(text, { remember = false, platform = null } = {}) {
       if (!isPlausibleToken(text)) throw new Error(BAD_KEY_MESSAGE);
+      if (typeof platform !== 'string' || platform === '') throw new Error(NO_PLATFORM_MESSAGE);
       storedText = text.trim();
-      writeRemembered(remember ? storedText : null);
+      storedPlatform = platform;
+      writeRemembered(remember ? storedText : null, platform);
     },
     /** Return the stored key, or null when none is set. A key saved in storage is loaded on first use. */
     get() {
-      return current();
+      load();
+      return storedText;
     },
     /** Return true when a key is stored, in memory or in storage. */
     has() {
-      return current() !== null;
+      load();
+      return storedText !== null;
+    },
+    /** Return the id of the platform the stored key was entered for, or null when no key is set. */
+    platformId() {
+      load();
+      return storedText === null ? null : storedPlatform;
     },
     /** Return true when the key is saved in storage, so it survives a reload. */
     remembered() {
@@ -97,18 +122,22 @@ export function createTokenVault({ storage = null } = {}) {
     /** Forget the stored key, in memory and in storage. */
     clear() {
       storedText = null;
-      writeRemembered(null);
+      storedPlatform = null;
+      writeRemembered(null, null);
     },
     /** Return the masked key for display, or an empty string when none is set. */
     masked() {
-      const text = current();
-      return text === null ? '' : maskToken(text);
+      load();
+      return storedText === null ? '' : maskToken(storedText);
     },
   };
 }
 
-// The name the key is saved under in this browser's local storage.
+// The name the key is saved under in this browser's local storage. The name is kept from the first version,
+// so a key saved earlier still loads. Its platform is saved under REMEMBER_PLATFORM_NAME.
 export const REMEMBER_STORAGE_NAME = 'ordeal.nebius-api-key';
+// The name the platform id of the saved key is stored under.
+export const REMEMBER_PLATFORM_NAME = 'ordeal.api-key-platform';
 
 // One shared vault for the pages. It saves a key only when the user asks it to.
 export const vault = createTokenVault({ storage: browserStorage() });

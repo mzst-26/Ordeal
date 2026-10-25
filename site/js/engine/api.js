@@ -7,6 +7,7 @@ import { createModelLimiter } from './limiter.js';
 const MAX_BACKOFF_SECONDS = 60;
 const DEFAULT_TIMEOUT_MS = 120000;
 const NO_KEY_MESSAGE = 'No API key is set. Add your key first.';
+const OTHER_PLATFORM_KEY_MESSAGE = 'The saved key belongs to another platform. Enter the key for this platform.';
 const KEY_REFUSED_MESSAGE = 'The key was refused. Check the key and try again.';
 const STOPPED_MESSAGE = 'Stopped by you.';
 const NO_TEXT_MESSAGE = 'The reply had no text.';
@@ -139,10 +140,6 @@ export function platformAddressFor(platform, path) {
   return withTrailingSlash(base) + path;
 }
 
-/** Throw the fixed address message unless the endpoint is exactly the address that was checked when the client was made. */
-function assertSameEndpoint(endpoint, allowedEndpoint) {
-  if (endpoint !== allowedEndpoint) throw new Error(WRONG_ADDRESS_MESSAGE);
-}
 
 /** Return true for a 2xx status. */
 function isSuccess(status) {
@@ -220,8 +217,6 @@ function interpretResponse(status, json) {
  */
 async function attemptOnce(context) {
   throwIfStopped(context.signal);
-  // The key is added to the request below, so this check runs first and only the checked endpoint gets it.
-  assertSameEndpoint(context.endpoint, context.allowedEndpoint);
   context.budget.spend();
   context.log.record('request-attempt', { model: context.model, attempt: context.attempt + 1 });
 
@@ -236,7 +231,7 @@ async function attemptOnce(context) {
   try {
     // Keep fetch unbound: browsers reject calls where `this` is another object.
     const send = context.fetchImpl;
-    response = await send(context.endpoint, {
+    response = await send(context.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -344,10 +339,11 @@ export function createChatClient({
     if (isCustomModel(model, customModels)) throw new Error(CUSTOM_REFUSED_MESSAGE);
     const token = vault.get();
     if (token === null) throw new Error(NO_KEY_MESSAGE);
+    // The key was entered for one platform. It is refused for any other, so it never goes to the wrong address.
+    if (vault.platformId() !== platform.id) throw new Error(OTHER_PLATFORM_KEY_MESSAGE);
 
     const context = {
-      endpoint: chatUrl,
-      allowedEndpoint: chatUrl,
+      url: chatUrl,
       body: chatBody(apiModelFor(model, customModels), { messages, temperature, maxTokens }),
       token,
       signal,

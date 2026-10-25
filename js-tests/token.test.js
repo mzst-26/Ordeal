@@ -100,14 +100,14 @@ test('a new vault has no key', () => {
 
 test('set then get returns the stored key, and has is true', () => {
   const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY);
+  keyVault.set(FAKE_KEY, { platform: 'nebius' });
   assert.equal(keyVault.has(), true);
   assert.equal(keyVault.get(), FAKE_KEY);
 });
 
 test('clear forgets the key', () => {
   const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY);
+  keyVault.set(FAKE_KEY, { platform: 'nebius' });
   keyVault.clear();
   assert.equal(keyVault.has(), false);
   assert.equal(keyVault.get(), null);
@@ -136,7 +136,7 @@ test('the error for a bad value does not repeat the value', () => {
 
 test('masked never returns the whole key or its middle part', () => {
   const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY);
+  keyVault.set(FAKE_KEY, { platform: 'nebius' });
   const shown = keyVault.masked();
   assert.equal(shown, maskToken(FAKE_KEY));
   assert.notEqual(shown, FAKE_KEY);
