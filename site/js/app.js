@@ -2,9 +2,6 @@
 // at a time, mounts each view's page module the first time it is shown, and keeps the address and the
 // browser history in step with the view on screen. Moving between views does not reload the page.
 
-import { buildShell } from "./shell.js";
-import { vault } from "./engine/token.js";
-
 // The view names, also used as the URL hash and as the data-view values in the page.
 export const VIEWS = ["gauntlet", "batch", "live"];
 const DEFAULT_VIEW = "gauntlet";
@@ -96,11 +93,12 @@ export function createRouter({ views, mounts, document, window }) {
 }
 
 /**
- * Build the router and the header, then show the view for the current location. Runs only in a browser, so the
- * tests can import the functions above under node. Each page module is loaded by the mount function for its
- * view, which keeps the page's data and state for the life of the document.
+ * Build the router, then show the view for the current location. The entry module (main.jsx) calls this once in
+ * the browser. `renderHeader(navigate)` draws the site header; it is given the router's navigate function, so the
+ * header's links show views without a reload. Each page module is loaded by the mount function for its view,
+ * which keeps the page's data and state for the life of the document.
  */
-function startApp() {
+export function startApp({ renderHeader }) {
   const views = Object.fromEntries(VIEWS.map((view) => [view, document.querySelector(`[data-view="${view}"]`)]));
   const mounts = {
     gauntlet: (root) => import("./page-gauntlet.js").then((page) => page.mountGauntlet(root)),
@@ -108,11 +106,6 @@ function startApp() {
     live: (root) => import("./page-live.js").then((page) => page.mountLive(root)),
   };
   const router = createRouter({ views, mounts, document, window });
-  // The header is built here, once, so it is never rebuilt when the visitor changes view.
-  document.body.prepend(buildShell({ vault, navigate: (view) => router.navigate(view) }));
+  renderHeader((view) => router.navigate(view));
   router.start();
-}
-
-if (typeof document !== "undefined") {
-  startApp();
 }

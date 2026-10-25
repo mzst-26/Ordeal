@@ -53,9 +53,10 @@
 .kpi-card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
-  padding: var(--dash-pad);
+  /* Compact: 12px block padding, 16px inline (the --dash-pad token is used by panels) */
+  padding: var(--space-3) var(--space-4);
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius-md);
@@ -75,18 +76,25 @@
 
 .kpi-value {
   font-family: var(--font-serif);
-  font-size: var(--dash-kpi-size);
+  /* Stat-card size: one step below the panel KPI token (--dash-kpi-size stays for other uses) */
+  font-size: var(--size-lg);
   line-height: var(--leading-heading);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
 
+/* Muted note: one line when short; clamps to two lines at most, then ellipsis */
 .kpi-note {
   font-family: var(--font-sans);
-  font-size: var(--size-sm);
+  font-size: var(--size-xs);
   line-height: 1.4;
   color: var(--ink-mute);
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 /* Empty state: the value shows a placeholder in the muted colour */
