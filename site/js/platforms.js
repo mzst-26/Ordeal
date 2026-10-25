@@ -49,19 +49,68 @@ export function usablePlatforms(list) {
   return browserPlatforms(list).filter((platform) => typeof platform.base_url === 'string');
 }
 
+/**
+ * Return the platforms a visitor may choose on the site: hosted inference platforms that are marked for the browser
+ * and have a fixed address. Single-vendor APIs, local servers and the custom entry are left out on purpose. Every
+ * place that offers or restores a choice uses this one list, so the picker and the saved choice always agree.
+ */
+export function selectablePlatforms(list) {
+  return list.filter(
+    (platform) => platform.kind === 'inference' && platform.browser === true && typeof platform.base_url === 'string',
+  );
+}
+
 /** Return the platform with this id, or null when the list has no such id. */
 export function findPlatform(list, id) {
   return list.find((platform) => platform.id === id) ?? null;
 }
 
 /**
- * Return the platform the visitor chose, or the default one. A saved id that is not usable in the browser any more
- * is ignored, so an old choice can never send the key to a platform the browser may not use.
+ * Return the platform the visitor chose, or the default one. A saved id that is not selectable any more is ignored,
+ * so an old choice can never send the key to a platform the picker does not offer. If the default is not selectable,
+ * the first selectable platform is used. Returns null only when no platform is selectable at all.
  */
 export function currentPlatform(list, choice) {
-  const usable = usablePlatforms(list);
-  const saved = choice ? findPlatform(usable, choice.platformId) : null;
-  return saved ?? findPlatform(usable, DEFAULT_PLATFORM_ID) ?? usable[0];
+  const selectable = selectablePlatforms(list);
+  const saved = choice ? findPlatform(selectable, choice.platformId) : null;
+  return saved ?? findPlatform(selectable, DEFAULT_PLATFORM_ID) ?? selectable[0] ?? null;
+}
+
+// The words shown for each kind of platform on a card. A kind not listed here shows the fallback words.
+const TYPE_WORDS = {
+  inference: "Hosts many labs' models",
+  'single-vendor': "Serves one maker's models",
+  local: 'Runs on this computer',
+  custom: 'Your own address',
+};
+const TYPE_FALLBACK = 'Not stated';
+const KEY_NEEDED = "Needed, from the platform's sign-up page";
+const KEY_NOT_NEEDED = 'Not needed';
+const BROWSER_YES = 'Works in this page';
+const BROWSER_NO = 'Needs a server, so not in this page';
+
+/**
+ * Return the short rows shown on a platform's card: its type, whether a key is needed, and whether it works in this
+ * page. Each row is {label, value} with plain text, so the card can show it without any markup.
+ */
+export function platformFacts(platform) {
+  // The site copy of the list has no key_env field (the export removes it). Only an explicit null means no key is
+  // needed; any other value, or a missing field, means the visitor types a key, which is what the browser asks for.
+  const keyNeeded = platform.key_env !== null;
+  return [
+    { label: 'Type', value: TYPE_WORDS[platform.kind] ?? TYPE_FALLBACK },
+    { label: 'Key', value: keyNeeded ? KEY_NEEDED : KEY_NOT_NEEDED },
+    { label: 'Browser', value: platform.browser === true ? BROWSER_YES : BROWSER_NO },
+  ];
+}
+
+/**
+ * Return the platform's sign-up address when it is a non-empty https address, otherwise null. Only https is allowed,
+ * so the card never links to a plain or script address. A null result means the card shows no link.
+ */
+export function signupLink(platform) {
+  const link = platform.signup;
+  return typeof link === 'string' && link.startsWith('https://') ? link : null;
 }
 
 /** Return a result that refuses the text, with a plain reason. */
