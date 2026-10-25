@@ -6,14 +6,23 @@ import { loadJson } from "./data-cache.js";
 import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
 import { initTooltips } from "./tooltip.js";
-import { vault } from "./engine/token.js";
+import { browserStorage, vault } from "./engine/token.js";
 import { createBatchLog } from "./engine/batch-log.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
-import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
+import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
+import { DEFAULT_PLATFORM_ID } from "./platforms.js";
+import { CHOICE_EVENT } from "./platform-section.js";
+import { setRunLocked } from "./run-lock.js";
+import {
+  MAX_POPUP_ROWS, MODELS_PATH, hasSavedList, platformModelIds, readAddedModels, writeAddedModels, withAddedModel,
+  withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform, ticksAfterPlatformChange,
+  resolveNewModel, largeRunWarning,
+} from "./model-list.js";
+import { buildModelAddArea } from "./model-popup.js";
 import { csvCell } from "./engine/csv.js";
-import { hostOfCustomUrl, modelNameProblem, validateCustomModel } from "./engine/custom-model.js";
+import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
@@ -90,6 +99,8 @@ const SAVE_PROBLEM_TEXT = "Some results could not be saved, so a reload would re
 const RESUME_BLOCKED_TEXT = "Wait for the batch to finish or stop before you resume another run.";
 const RUN_DONE_TEXT = "Every unit of this run is already saved, so the run is marked done.";
 const PRESET_HINT = "Presets hold the sets, the models, the families, the limits and the system prompt.";
+const PLATFORM_CHANGED_TEXT = "The platform changed before the run started, so nothing was sent. Tick the models again, then press Start.";
+const NO_PLATFORM_ADD_TEXT = "No platform is chosen, so no model can be added.";
 
 // The gauntlet measures in each model's table: label, field name in the grade row, decimal digits.
 // The flip column names the last level, so it follows the pushback set.
@@ -127,7 +138,6 @@ const IDS = {
   runsList: VIEW_IDS.batch["runs-list"],
   storageNote: VIEW_IDS.batch["storage-note"],
   fixedSettings: "fixed-settings",
-  modelList: VIEW_IDS.batch["model-list"],
   modelCount: VIEW_IDS.batch["model-count"],
   modelChoose: "model-choose",
   modelSelectAll: "model-select-all",
@@ -192,8 +202,14 @@ const page = {
   caches: new Map(),          // the reply cache of each suite, by suite name (the runner reads and writes it)
   cache: new Map(),           // the reply cache of the suite on the form
   questionsById: new Map(),   // question objects by id, for the suite on the form
-  allModels: [],              // config models, then names the user added; kept only in memory
-  modelRows: [],              // one per model row: its tick box, its text for the picker card, and its note
+  allModels: [],              // the ids of the models on the chosen platform, catalog order first (chart colours use it)
+  modelEntries: [],           // the models on the chosen platform, in popup order: {id, row, note, unchecked}
+  ticked: new Set(),          // the ids ticked on the chosen platform: the only models a run uses
+  platform: null,             // the platform the model rows belong to, or null when none can be chosen
+  hasList: false,             // true when the platform has a saved model list, or is the default platform
+  modelsFile: null,           // the saved model lists (site/data/models.json), or null when they could not be read
+  addedModels: [],            // the names the visitor added for this platform: {id, checked}, kept per platform
+  popupRefresh: null,         // redraws the open model popup after its items change, or null when it is closed
   questionRows: [],           // one per question row of the suite on the form: its tick box and its question
   customModels: [],           // custom models from config.json that passed the checks in custom-model.js
   newRecords: [],             // replies made in this page session, for the JSON export
@@ -258,18 +274,19 @@ function wireControls() {
   dom.pushbackSeed.addEventListener("input", onSuiteChanged);
   dom.questionSeed.addEventListener("input", onSuiteChanged);
   dom.modelChoose.addEventListener("click", openModelPicker);
-  dom.modelSelectAll.addEventListener("click", () => setChecks(dom.modelList, () => true));
-  dom.modelClear.addEventListener("click", () => setChecks(dom.modelList, () => false));
+  dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
+  dom.modelClear.addEventListener("click", () => setAllModels(false));
+  window.addEventListener(CHOICE_EVENT, onPlatformChosen);
   dom.questionChoose.addEventListener("click", openQuestionPicker);
   dom.questionAll.addEventListener("click", () => setChecks(dom.questionList, () => true));
   dom.questionNone.addEventListener("click", () => setChecks(dom.questionList, () => false));
   dom.questionCorrection.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("correction_test")));
   dom.questionWrapper.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("wrapper_test")));
-  dom.customAdd.addEventListener("click", addCustomModel);
+  dom.customAdd.addEventListener("click", addFromForm);
   dom.customName.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      addCustomModel();
+      addFromForm();
     }
   });
   dom.start.addEventListener("click", handleStart);
@@ -308,6 +325,7 @@ async function loadData() {
     page.loader = createSuiteLoader(loadDataFile, suites);
     fillSuiteSelects();
     setupControls(config);
+    await loadModelChoices();
     await selectSuite(fixedChoice(DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET));
     showPageStatus("Tick what to run. Nothing runs until you press Start.");
     onSelectionChanged();
@@ -439,27 +457,174 @@ function fillSuiteSelects() {
   fillOptions(page.dom.questionSetSelect, dropdownChoices(questionSetNames()));
 }
 
-/** Fill the model, condition and number controls from the config. Built-in models are ticked by default. */
+/**
+ * Fill the condition and number controls from the config, and note the custom endpoints. The model rows are not
+ * built here: they depend on the platform chosen, so loadModelChoices draws them.
+ */
 function setupControls(config) {
-  // Setup order matters: the built-in rows come first, then the custom endpoints from config, so a custom
-  // name can be checked against every built-in name before it is accepted.
-  const choices = modelChoices(config);
-  const defaults = new Set(config.models);
-  // The rows are drawn in rank order, but allModels keeps the catalog order: the chart colours depend on it.
-  page.allModels = choices.map((entry) => entry.id);
-  page.dom.modelList.append(buildModelHeading());
-  for (const entry of sortByRank(choices)) {
-    addModelRow(entry, { checked: defaults.has(entry.id), note: entry.kind });
-  }
-  page.customModels = checkedCustomModels(config, page.allModels);
-  for (const entry of page.customModels) {
-    page.allModels.push(entry.name);
-    addModelRow({ id: entry.name }, { note: "custom endpoint" });
-  }
+  // A custom name is checked against every built-in name before it is accepted, so no two models share a name.
+  page.customModels = checkedCustomModels(config, modelChoices(config).map((entry) => entry.id));
   fillConditionSelect(config.system_prompts);
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
+}
+
+/** Load the saved model lists, then draw the model rows for the platform the visitor chose. Never throws. */
+async function loadModelChoices() {
+  page.modelsFile = await loadSavedModelLists();
+  await refreshModelChoices();
+}
+
+/** Read the saved model lists. A missing or broken file gives null, so the popup shows its no-list note instead. */
+async function loadSavedModelLists() {
+  try {
+    return await loadJson(MODELS_PATH);
+  } catch {
+    return null;
+  }
+}
+
+/** Return the platform chosen in this browser, or null when none can be used. Never throws. */
+async function chosenPlatformOrNull() {
+  try {
+    return await activePlatform();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Redraw the model rows for the platform chosen now. A change of platform clears every tick, so no model of the old
+ * platform stays ticked; when the default platform comes back, its own defaults are ticked again. Models the visitor
+ * added for this platform are read from storage and kept per platform.
+ */
+async function refreshModelChoices() {
+  const platform = await chosenPlatformOrNull();
+  const previousId = page.platform === null ? null : page.platform.id;
+  const nextId = platform === null ? null : platform.id;
+  page.platform = platform;
+  page.ticked = ticksAfterPlatformChange(previousId, nextId, page.ticked);
+  page.addedModels = platform === null ? [] : readAddedModels(browserStorage(), platform.id);
+  page.hasList = platform !== null && (platform.id === DEFAULT_PLATFORM_ID || hasSavedList(page.modelsFile, platform.id));
+  rebuildEntries();
+  if (platform !== null && previousId !== nextId && platform.id === DEFAULT_PLATFORM_ID) {
+    setTickedModels(page.data.config.models);
+  }
+  if (previousId !== nextId) {
+    page.resumeRunId = null;
+  }
+}
+
+/**
+ * Rebuild the rows and the id list of the chosen platform. The ticks are left as they are: each caller decides
+ * which models stay ticked.
+ */
+function rebuildEntries() {
+  setModelEntries(page.platform === null ? [] : buildEntries(page.platform));
+  page.allModels = orderedIds(page.platform);
+}
+
+/**
+ * Replace the rows in place. The popup keeps the same array while it is open, so it shows the new rows at once
+ * without being reopened.
+ */
+function setModelEntries(entries) {
+  page.modelEntries.length = 0;
+  for (const entry of entries) {
+    page.modelEntries.push(entry);
+  }
+}
+
+/** Return the rows for a platform: the config models for Nebius only, otherwise its saved list, then the added names. */
+function buildEntries(platform) {
+  const base = platform.id === DEFAULT_PLATFORM_ID ? configEntries() : listEntries(platform.id);
+  const added = addedRows(base.map((entry) => entry.id), page.addedModels)
+    .map((entry) => ({ ...entry, row: modelRowText({ id: entry.id }) }));
+  return [...base, ...added];
+}
+
+/**
+ * Return the config models and the custom endpoints. These belong to the default platform only, so they are never
+ * shown for another platform, where a model id could be run on an address that does not host it.
+ */
+function configEntries() {
+  const models = sortByRank(modelChoices(page.data.config)).map((entry) => ({
+    id: entry.id, row: modelRowText(entry), note: entry.kind ?? "", unchecked: false,
+  }));
+  const customs = page.customModels.map((entry) => ({ id: entry.name, row: null, note: "custom endpoint", unchecked: false }));
+  return [...models, ...customs];
+}
+
+/** Return the rows of a platform's saved list, in file order. Only ids are known for these, so their row is made from the id. */
+function listEntries(platformId) {
+  return platformModelIds(page.modelsFile, platformId).map((id) => ({ id, row: null, note: "", unchecked: false }));
+}
+
+/** Return the row text of an entry. An entry with no row of its own (a plain list name) gets its row from its id. */
+function rowOf(entry) {
+  return entry.row ?? modelRowText({ id: entry.id });
+}
+
+/**
+ * Return the ids in catalog order: the config models and custom names first (the chart colours depend on this order),
+ * then the rest of the rows. Each id appears once.
+ */
+function orderedIds(platform) {
+  const catalogIds = platform !== null && platform.id === DEFAULT_PLATFORM_ID
+    ? [...modelChoices(page.data.config).map((entry) => entry.id), ...page.customModels.map((entry) => entry.name)]
+    : [];
+  return [...new Set([...catalogIds, ...page.modelEntries.map((entry) => entry.id)])];
+}
+
+/** Return the rows ticked on the chosen platform, in popup order. These are the models a run uses. */
+function selectedEntries() {
+  return page.modelEntries.filter((entry) => page.ticked.has(entry.id));
+}
+
+/** Return the ids ticked on the chosen platform, in popup order. These are the models a run uses. */
+function selectedModelIds() {
+  return selectedEntries().map((entry) => entry.id);
+}
+
+/** Build the thin lines for the ticked models. Only the first rows are drawn; the rest are counted in one line. */
+function selectedModelItems(models) {
+  const shown = models.slice(0, MAX_POPUP_ROWS).map((entry) => {
+    const row = rowOf(entry);
+    const item = selectedItem(row.rank, shortName(row.name));
+    // The id is kept on the line, so the page (and its tests) can read which models are ticked.
+    item.dataset.model = entry.id;
+    return item;
+  });
+  const more = models.length - shown.length;
+  return more > 0 ? [...shown, el("li", { className: "selected-item", text: `${formatCount(more)} more ticked` })] : shown;
+}
+
+/** Tick exactly the given models, if the chosen platform has them. Does not refresh the plan. */
+function setTickedModels(ids) {
+  const wanted = new Set(ids);
+  page.ticked = new Set(page.allModels.filter((id) => wanted.has(id)));
+}
+
+/** Tick every model of the chosen platform, or untick them all, then refresh the plan. */
+function setAllModels(on) {
+  page.ticked = on ? new Set(page.modelEntries.map((entry) => entry.id)) : new Set();
+  if (!page.confirming) {
+    page.resumeRunId = null;
+  }
+  onSelectionChanged();
+}
+
+/**
+ * The platform was changed in the platform section. The section refuses a change during a run, so this only redraws
+ * the rows for the new platform, then refreshes the plan.
+ */
+async function onPlatformChosen() {
+  if (page.data === null || isRunning() || page.confirming) {
+    return;
+  }
+  await refreshModelChoices();
+  onSelectionChanged();
 }
 
 /** Return the note that says where temperature and max tokens come from. Presets keep them as they are. */
@@ -619,62 +784,165 @@ function buildCheckbox(value, {
   return el("label", { className, title }, children);
 }
 
-/**
- * Build one model row from its catalog entry. The rank sits in a fixed-width column beside the name, and the
- * context, reasoning and price go on a line under the name. The kind, when there is one, is shown in brackets
- * after the name. The row's title is the source of the rank, so hovering shows where the rank came from.
- */
-function buildModelRow(entry, { checked = false, note = "" } = {}) {
-  const row = modelRowText(entry);
-  const rank = el("span", { className: "model-rank", text: row.rank });
-  const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
-  return buildCheckbox(row.name, {
-    text: name, title: row.basis, checked, lead: [rank], extra: [buildModelFacts(row)],
-    className: "check check-model",
-  });
-}
-
-/**
- * Add a model's tick box to the list, and remember its row text so the picker can show a card for it. The tick
- * box stays the record of the choice: the picker only ticks and unticks it.
- */
-function addModelRow(entry, options) {
-  const label = buildModelRow(entry, options);
-  page.dom.modelList.append(label);
-  page.modelRows.push({ input: label.querySelector("input"), row: modelRowText(entry), note: options.note ?? "" });
-}
-
-/** Open the model picker. Its cards tick and untick the same boxes the rest of the page reads. */
-function openModelPicker() {
-  openPicker({
-    title: "Choose models",
-    items: page.modelRows,
-    isSelected: (item) => item.input.checked,
-    onToggle: toggleModel,
-    renderCard: buildModelCard,
-    onSelectAll: () => setChecks(page.dom.modelList, () => true),
-    onClear: () => setChecks(page.dom.modelList, () => false),
-    searchPlaceholder: "Search models",
-  });
-}
-
-/** Tick or untick one model from the picker. Does what a tick box change does: a fresh run, then a refresh. */
-function toggleModel(item) {
-  item.input.checked = !item.input.checked;
-  if (!page.confirming) {
-    page.resumeRunId = null;
-  }
-  onSelectionChanged();
-}
-
-/** Build the text of one picker card: the rank, the short name (with its kind) and the facts under the name. */
-function buildModelCard({ row, note }) {
+/** Build the text of one picker card: the rank, the short name with its note, and the facts under the name. */
+function buildModelCard(entry) {
+  const row = rowOf(entry);
+  const note = entryNote(entry);
   const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
   return el("span", { className: "pick-model", title: row.basis }, [
     el("span", { className: "model-rank", text: row.rank }),
     el("span", { className: "pick-model-name", text: name }),
     buildModelFacts(row),
   ]);
+}
+
+/**
+ * Open the "Choose models" popup. Its cards tick and untick the rows of the chosen platform, and its top part adds a
+ * model name. Only the first MAX_POPUP_ROWS matching rows are drawn, so a list of thousands stays quick.
+ */
+function openModelPicker() {
+  const addArea = buildModelAddArea({
+    hasList: page.hasList,
+    addedModels: page.addedModels,
+    onAdd: addTypedModel,
+    onRemove: removeAddedModel,
+  });
+  const dialog = openPicker({
+    title: "Choose models",
+    items: page.modelEntries,
+    isSelected: (entry) => page.ticked.has(entry.id),
+    onToggle: toggleModel,
+    renderCard: buildModelCard,
+    searchText: (entry) => entry.id,
+    limit: MAX_POPUP_ROWS,
+    header: addArea.node,
+    onSelectAll: () => setAllModels(true),
+    onClear: () => setAllModels(false),
+    onReady: (redraw) => {
+      page.popupRefresh = redraw;
+    },
+    searchPlaceholder: "Search models",
+  });
+  dialog.addEventListener("close", () => {
+    page.popupRefresh = null;
+  });
+}
+
+/** Tick or untick one model from the popup. The picker redraws its own card; the plan and the lists follow here. */
+function toggleModel(entry) {
+  if (page.ticked.has(entry.id)) {
+    page.ticked.delete(entry.id);
+  } else {
+    page.ticked.add(entry.id);
+  }
+  selectionChanged();
+}
+
+/** Note a change to what is ticked: a fresh run is needed, then the plan and the lists are refreshed. */
+function selectionChanged() {
+  if (!page.confirming) {
+    page.resumeRunId = null;
+  }
+  onSelectionChanged();
+}
+
+/** Refresh what shows the rows after they change: the open popup, the lists, the counts and the plan. */
+function afterListChange() {
+  page.popupRefresh?.();
+  selectionChanged();
+}
+
+/** Return true when the key saved in this browser was entered for this platform, or once the visitor gives one for it. */
+async function keyReadyFor(platform) {
+  if (vault.has() && keyFitsPlatform(vault.platformId(), platform.id)) {
+    return true;
+  }
+  return askForToken({ vault, platformId: platform.id });
+}
+
+/**
+ * Check a typed name for the chosen platform, then add it. Returns {message, added, addedModels} for the add area.
+ * A name is refused before any request when it is unsafe or empty. Otherwise the platform list is checked when a key
+ * for this platform is saved, and a name it does not have is refused with close names.
+ */
+async function addTypedModel(text) {
+  const platform = page.platform;
+  if (platform === null) {
+    return { message: NO_PLATFORM_ADD_TEXT, added: false, addedModels: page.addedModels };
+  }
+  const early = resolveNewModel(platform, text, null);
+  if (!early.ok) {
+    return refusedResult(early);
+  }
+  const found = resolveNewModel(platform, text, await platformIdsForCheck(platform));
+  if (!found.ok) {
+    return refusedResult(found);
+  }
+  return saveNewModel(platform, found.model, found.checked);
+}
+
+/** Return the result for a name that cannot be added: its plain line, and the names the visitor already has. */
+function refusedResult(found) {
+  return { message: refusalText(found.reason, found.suggestions), added: false, addedModels: page.addedModels };
+}
+
+/**
+ * Return the platform's own list of ids for the check, or null when the check cannot run. It cannot run when no key is
+ * saved, when the saved key was entered for another platform (that key is never sent there), or when the request
+ * fails. Null means the name is added as not checked.
+ */
+async function platformIdsForCheck(platform) {
+  if (!vault.has() || !keyFitsPlatform(vault.platformId(), platform.id)) {
+    return null;
+  }
+  try {
+    return await fetchModelIds({ platform, token: vault.get() });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Add a checked or unchecked name for the platform, or tick it when the platform already has it. A new name is saved
+ * for this platform only, ticked, and its row shows at once.
+ */
+function saveNewModel(platform, model, checked) {
+  if (page.modelEntries.some((entry) => entry.id === model)) {
+    page.ticked.add(model);
+    afterListChange();
+    return { message: `${model} is already in the list, so it is ticked.`, added: true, addedModels: page.addedModels };
+  }
+  const next = withAddedModel(page.addedModels, model, checked);
+  const saved = writeAddedModels(browserStorage(), platform.id, next.added);
+  page.addedModels = next.added;
+  rebuildEntries();
+  page.ticked.add(model);
+  afterListChange();
+  return { message: addOutcomeText({ model, checked, saved }), added: true, addedModels: page.addedModels };
+}
+
+/** Remove a name the visitor added for the chosen platform. It is unticked, and the saved list is updated. */
+function removeAddedModel(id) {
+  if (page.platform === null) {
+    return { message: "", addedModels: [] };
+  }
+  const kept = withoutAddedModel(page.addedModels, id);
+  const saved = writeAddedModels(browserStorage(), page.platform.id, kept);
+  page.addedModels = kept;
+  page.ticked.delete(id);
+  rebuildEntries();
+  afterListChange();
+  const storageNote = saved ? "" : " Browser storage is blocked, so this lasts only for this page visit.";
+  return { message: `Removed ${id}.${storageNote}`, addedModels: kept };
+}
+
+/** The form's own Add control. It runs the same checks as the popup, and its line shows under the field. */
+async function addFromForm() {
+  const result = await addTypedModel(page.dom.customName.value);
+  page.dom.customMessage.textContent = result.message;
+  if (result.added) {
+    page.dom.customName.value = "";
+  }
 }
 
 /**
@@ -686,24 +954,6 @@ function buildModelFacts(row) {
     el("span", { className: "model-context", text: row.context }),
     el("span", { className: "model-reasoning", text: row.reasoning }),
     el("span", { className: "model-price", text: row.price }),
-  ]);
-}
-
-/**
- * Build the heading above the model rows, in the same columns as the rows. The price heading gives the unit
- * (per million tokens) once, so the rows do not repeat it.
- */
-function buildModelHeading() {
-  const facts = el("span", { className: "model-facts" }, [
-    el("span", { className: "model-context", text: "Context" }),
-    el("span", { className: "model-reasoning", text: "Reasoning" }),
-    el("span", { className: "model-price", text: "Price per million tokens, in / out" }),
-  ]);
-  return el("div", { className: "model-head" }, [
-    el("span", { className: "model-head-gap" }),
-    el("span", { className: "model-rank", text: "Rank" }),
-    el("span", { className: "check-text", text: "Model" }),
-    facts,
   ]);
 }
 
@@ -836,7 +1086,7 @@ function readOptionalNumber(input) {
 function readChoices() {
   const dom = page.dom;
   return {
-    models: checkedValues(dom.modelList),
+    models: selectedModelIds(),
     questions: checkedValues(dom.questionList),
     families: new Set(checkedValues(dom.familyList)),
     condition: dom.condition.value,
@@ -961,7 +1211,7 @@ function onSelectionChanged() {
 
 /** Refresh the count line of each multi-select group: models, questions and probe families. */
 function updateCountLines() {
-  updateGroupCount(page.dom.modelCount, page.dom.modelList, "models");
+  updateSelectionCount(page.dom.modelCount, selectedModelIds().length, page.modelEntries.length, "models");
   updateGroupCount(page.dom.questionCount, page.dom.questionList, "questions");
   updateGroupCount(page.dom.familyCount, page.dom.familyList, "families");
 }
@@ -974,11 +1224,9 @@ function updateGroupCount(countElement, container, noun) {
 
 /** Fill the thin lists under the Models and Questions cards with the ticked items, so the choice reads at a glance. */
 function renderSelectedLists() {
-  const models = page.modelRows.filter((entry) => entry.input.checked);
+  const models = selectedEntries();
   const questions = page.questionRows.filter((entry) => entry.input.checked);
-  page.dom.modelSelected.replaceChildren(
-    ...models.map((entry) => selectedItem(entry.row.rank, shortName(entry.row.name))),
-  );
+  page.dom.modelSelected.replaceChildren(...selectedModelItems(models));
   page.dom.questionSelected.replaceChildren(
     ...questions.map((entry) => selectedItem(entry.question.id, entry.question.question)),
   );
@@ -1003,7 +1251,7 @@ function renderPlan(choices, plan) {
     dom.planTotals.textContent = totalsSentence(plan.totals, choices);
   }
   dom.planCost.textContent = plan === null ? "" : costSentence(plan.totals.atMostNew, choices);
-  dom.planProblem.textContent = findProblem(choices) ?? "";
+  dom.planProblem.textContent = findProblem(choices) ?? largeRunWarning(plan === null ? 0 : plan.totals.atMostNew);
 }
 
 /** Fill the four summary cards from the choices and the plan. With no data loaded, each card says so. */
@@ -1061,6 +1309,8 @@ function updateControls() {
   dom.stop.disabled = page.phase !== "running";
   dom.pause.textContent = page.runner !== null && page.runner.isPaused() ? "Resume" : "Pause";
   setSelectionLocked(running || page.confirming);
+  // The platform section reads this flag and refuses a platform change while it is on.
+  setRunLocked(running || page.confirming);
 }
 
 /** Return true while a batch is running or stopping. */
@@ -1075,48 +1325,15 @@ function setSelectionLocked(locked) {
   }
 }
 
-/** Add the typed model name to the list, ticked, if it is new and has no spaces. */
-function addCustomModel() {
-  const name = page.dom.customName.value.trim();
-  const problem = customModelProblem(name);
-  page.dom.customMessage.textContent = problem;
-  if (problem !== "") {
-    return;
-  }
-  page.allModels.push(name);
-  addModelRow({ id: name }, { checked: true });
-  page.dom.customName.value = "";
-  page.dom.customMessage.textContent = `Added ${shortName(name)}. It is ticked.`;
-  onSelectionChanged();
-}
-
-/** Return why a typed model name cannot be added, or an empty text when it can. */
-function customModelProblem(name) {
-  if (name === "") {
-    return "Type a model name first.";
-  }
-  const refused = modelNameProblem(name);
-  if (refused !== null) {
-    return refused;
-  }
-  if (/\s/.test(name)) {
-    return "Model names have no spaces. Check the name and try again.";
-  }
-  if (page.allModels.includes(name)) {
-    return "That model is already in the list.";
-  }
-  return "";
-}
-
 /** Start was pressed. Ask for the key when there is none, then show the confirmation line. */
 async function handleStart() {
-  if (page.confirming || isRunning() || findProblem(readChoices()) !== null) {
+  if (page.confirming || isRunning() || page.platform === null || findProblem(readChoices()) !== null) {
     return;
   }
   // confirming locks the form (see updateControls) while the key dialog and confirmation line are open.
   page.confirming = true;
   updateControls();
-  const ready = vault.has() || (await askForToken({ vault }));
+  const ready = await keyReadyFor(page.platform);
   if (!ready) {
     page.confirming = false;
     page.resumeRunId = null;
@@ -1150,7 +1367,7 @@ function showConfirmation() {
 function confirmStart() {
   page.confirming = false;
   page.dom.confirmPanel.hidden = true;
-  beginRun().catch(handleRunError);
+  beginRun(page.platform === null ? null : page.platform.id).catch(handleRunError);
 }
 
 /** Cancel was pressed: hide the confirmation. Nothing has been called. */
@@ -1217,7 +1434,16 @@ async function openRunFor(choices) {
 }
 
 /** Create the client and the batch runner from the choices on screen, then start the batch. */
-async function beginRun() {
+async function beginRun(confirmedId) {
+  // The platform is read first. The ticked models belong to the platform the visitor confirmed, so any other
+  // platform stops the run before a single call is made.
+  const platform = await activePlatform();
+  if (page.platform === null || platform.id !== confirmedId || page.platform.id !== confirmedId) {
+    setStatus(PLATFORM_CHANGED_TEXT);
+    await refreshModelChoices();
+    onSelectionChanged();
+    return;
+  }
   const choices = readChoices();
   const { config } = page.data;
   page.phase = "running";
@@ -1248,8 +1474,6 @@ async function beginRun() {
     key_remembered: vault.remembered(),
   });
   updateExportButtons();
-  // The platform is read now, so the batch uses the platform chosen when it starts.
-  const platform = await activePlatform();
   // The budget enforces the call cap; the runner stops the batch when it is used up (see onBudgetExhausted).
   const client = createChatClient({
     platform,
@@ -1335,7 +1559,7 @@ function restorePlanProblem(config) {
 /** Set the form's models, questions, families, numbers and condition from a saved batch's config. */
 function restoreChoices(config) {
   const dom = page.dom;
-  tickOnly(dom.modelList, config.models);
+  setTickedModels(config.models);
   tickOnly(dom.questionList, config.questions);
   tickOnly(dom.familyList, config.families);
   dom.repeats.value = String(config.repeats);
@@ -2057,7 +2281,7 @@ async function applyPresetSettings(settings) {
   const notes = [];
   if (settings.models !== undefined) {
     const known = settings.models.filter((model) => page.allModels.includes(model));
-    tickOnly(dom.modelList, known);
+    setTickedModels(known);
     notes.push(skippedModelsNote(settings.models.length - known.length));
   }
   if (settings.families !== undefined) {

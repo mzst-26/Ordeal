@@ -172,9 +172,9 @@ def expect_view(page, view):
 
 
 def checked_models(page):
-    """Returns the values of the ticked model boxes on the Batch page, in page order."""
+    """Returns the ids of the ticked models on the Batch page, in page order, from the Selected models lines."""
     return page.eval_on_selector_all(
-        "#batch-model-list input[type=checkbox]:checked", "els => els.map(el => el.value)"
+        "#batch-model-selected li[data-model]", "els => els.map(el => el.dataset.model)"
     )
 
 

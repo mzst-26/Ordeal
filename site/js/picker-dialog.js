@@ -36,6 +36,10 @@ export function openPicker({
   onClear,
   bulk = true,
   searchPlaceholder = "Search",
+  header = null,
+  searchText = null,
+  limit = null,
+  onReady = null,
 }) {
   const search = el("input", { className: "text-input", id: SEARCH_ID, type: "search", placeholder: searchPlaceholder });
   const count = el("p", { className: "picker-count", id: COUNT_ID, role: "status", "aria-live": "polite" });
@@ -43,11 +47,16 @@ export function openPicker({
 
   // Draw the grid from scratch. Filtering and selection changes both come through here.
   const render = () => {
-    const entries = items.map((item) => ({ item, node: renderCard(item, isSelected(item) === true) }));
-    const visible = filterItems(entries, search.value, (entry) => entry.node.textContent);
-    grid.replaceChildren(...visible.map(({ item, node }) => cardButton(item, node, isSelected, onToggle, render)));
+    // A long list passes searchText and limit: only the matching rows up to the limit get a card, so the page never
+    // builds a card for every item. Without them, every card is built and then filtered by its text, as before.
+    const bounded = searchText !== null && limit !== null;
+    const { cards, more } = bounded
+      ? boundedCards(items, search.value, searchText, limit, renderCard, isSelected)
+      : { cards: allCards(items, search.value, renderCard, isSelected), more: 0 };
+    grid.replaceChildren(...cards.map(({ item, node }) => cardButton(item, node, isSelected, onToggle, render)));
     const { total, selected } = summarizeSelection(items, isSelected);
-    count.textContent = `${selected} of ${total} selected`;
+    const moreText = more > 0 ? ` ${more} more match. Refine the search.` : "";
+    count.textContent = `${selected} of ${total} selected${moreText}`;
   };
 
   const selectAll = el("button", { type: "button", className: "btn btn-quiet", text: "Select all" });
@@ -71,6 +80,7 @@ export function openPicker({
       search,
       bulk ? el("div", { className: "picker-bulk" }, [selectAll, clear]) : null,
     ]),
+    header,
     count,
     el("div", { className: "picker-body" }, [grid]),
     el("div", { className: "dialog-actions" }, [done]),
@@ -80,10 +90,40 @@ export function openPicker({
   dialog.addEventListener("close", () => dialog.remove());
 
   render();
+  // The caller may keep the redraw function, so it can refresh the grid after it changes the items (see the batch page).
+  onReady?.(render);
   document.body.append(dialog);
   dialog.showModal();
   search.focus();
   return dialog;
+}
+
+/**
+ * Return a card for every item that matches the query, using the text of the whole card. This is the original path:
+ * the cards are built first and then filtered by their text, so it is only used for short lists.
+ */
+export function allCards(items, query, renderCard, isSelected) {
+  const entries = items.map((item) => ({ item, node: renderCard(item, isSelected(item) === true) }));
+  return filterItems(entries, query, (entry) => entry.node.textContent);
+}
+
+/**
+ * Return cards for at most `limit` items whose search text contains the query, and how many more match. Only the
+ * shown items are given a card, so a list of many thousands of names never builds thousands of nodes.
+ */
+export function boundedCards(items, query, searchText, limit, renderCard, isSelected) {
+  const needle = query.trim().toLowerCase();
+  const cards = [];
+  let matches = 0;
+  for (const item of items) {
+    if (needle === "" || searchText(item).toLowerCase().includes(needle)) {
+      matches += 1;
+      if (cards.length < limit) {
+        cards.push({ item, node: renderCard(item, isSelected(item) === true) });
+      }
+    }
+  }
+  return { cards, more: matches - cards.length };
 }
 
 /** Wrap a rendered card in a button that toggles the item and redraws the grid. */

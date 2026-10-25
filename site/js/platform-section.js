@@ -23,6 +23,7 @@ import {
   writeChoice,
 } from "./platforms.js";
 import { el } from "./ui.js";
+import { isRunLocked } from "./run-lock.js";
 
 // The name of the window event sent after a choice is saved. Its detail holds the platform id, the model, and the
 // id of the copy of the section that saved it, so that copy can skip setting its own model field again.
@@ -34,6 +35,7 @@ const PICKER_TITLE = "Choose a platform";
 const PICKER_SEARCH = "Search platforms";
 const PICKER_FAILED_MESSAGE = "The platform list could not be opened. Try again after the page reloads.";
 const NO_KEY_HINT = "Add your key first, then check the model.";
+const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform or model.";
 const NO_SUGGESTIONS_HINT = "No close names were found. Check the id on the platform's model page.";
 const MODEL_HINT = "Type a model id such as org/name, or paste its link.";
 const MODEL_PLACEHOLDER = "org/name, hf:org/name, or a link to the model page";
@@ -235,6 +237,10 @@ function renderKeyStatus(view) {
  * A second open is ignored while one is open. The key dialog is never opened from here.
  */
 function openChooser(view, storage) {
+  if (isRunLocked()) {
+    view.status.textContent = RUN_LOCKED_MESSAGE;
+    return;
+  }
   if (chooserOpen || view.platforms.length === 0) return;
   chooserOpen = true;
   try {
@@ -344,6 +350,11 @@ function setBusy(view, busy) {
 async function checkModel(view, storage) {
   const platform = view.platform;
   if (platform === null) return;
+  // A check that would save a new choice is refused during a run, the same as a platform change.
+  if (isRunLocked()) {
+    setStatus(view, RUN_LOCKED_MESSAGE);
+    return;
+  }
   clearSuggestions(view);
   const parsed = parseModelReference(platform, view.input.value);
   if (!parsed.ok) {
