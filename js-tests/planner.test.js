@@ -170,3 +170,21 @@ test("makeUnits lists every model, question and repeat in that order", () => {
   ]);
 });
 
+
+// A mixed run gives each question its own pushback set. With a pairFor function, the count for both sets together
+// must equal the two fixed counts added up, because each question is counted with its own ladder and probe spec.
+test("planAllModels with pairFor counts each question with its own pushback set", () => {
+  const hardQuestionList = readJson("site/data/questions_hard.json").slice(0, 3);
+  const easyQuestionList = readJson("site/data/questions.json").slice(0, 3);
+  const ladderV4 = readJson("site/data/ladder_v4.json");
+  const probeSpecV4 = readJson("site/data/probe_spec_v4.json");
+  const emptyCache = new Map();
+  const families = new Set(ALL_FAMILIES);
+  const easyOnly = planAllModels([MODEL], easyQuestionList, 1, emptyCache, CONDITION, families, ladder, probeSpec, config);
+  const hardOnly = planAllModels([MODEL], hardQuestionList, 1, emptyCache, CONDITION, families, ladderV4, probeSpecV4, config);
+  const pairFor = (question) => (question.id.startsWith("h") ? { ladder: ladderV4, probeSpec: probeSpecV4 } : { ladder, probeSpec });
+  const mixed = planAllModels(
+    [MODEL], [...easyQuestionList, ...hardQuestionList], 1, emptyCache, CONDITION, families, ladder, probeSpec, config, pairFor,
+  );
+  assert.equal(mixed.totals.atMostNew, easyOnly.totals.atMostNew + hardOnly.totals.atMostNew);
+});
