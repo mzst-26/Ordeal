@@ -5,6 +5,8 @@
     {
       "id": "huggingface",
       "name": "Hugging Face (Inference Providers)",
+      "kind": "inference",
+      "summary": "Hosts open models from many labs through Hugging Face Inference Providers.",
       "base_url": "https://router.huggingface.co/v1",
       "key_env": "HF_TOKEN",
       "signup": "https://huggingface.co/settings/tokens",
@@ -15,6 +17,8 @@
     {
       "id": "openrouter",
       "name": "OpenRouter",
+      "kind": "inference",
+      "summary": "One API that routes requests to many open and commercial models.",
       "base_url": "https://openrouter.ai/api/v1",
       "key_env": "OPENROUTER_API_KEY",
       "signup": "https://openrouter.ai/keys",
@@ -25,6 +29,8 @@
     {
       "id": "together",
       "name": "Together AI",
+      "kind": "inference",
+      "summary": "Hosted open-source models behind an OpenAI-compatible API.",
       "base_url": "https://api.together.xyz/v1",
       "key_env": "TOGETHER_API_KEY",
       "signup": "https://api.together.ai/settings/api-keys",
@@ -35,6 +41,8 @@
     {
       "id": "groq",
       "name": "Groq",
+      "kind": "inference",
+      "summary": "Open models served on Groq's own chips, built for low latency.",
       "base_url": "https://api.groq.com/openai/v1",
       "key_env": "GROQ_API_KEY",
       "signup": "https://console.groq.com/keys",
@@ -45,6 +53,8 @@
     {
       "id": "fireworks",
       "name": "Fireworks AI",
+      "kind": "inference",
+      "summary": "Hosted open-source models, with options to fine-tune and deploy your own.",
       "base_url": "https://api.fireworks.ai/inference/v1",
       "key_env": "FIREWORKS_API_KEY",
       "signup": "https://fireworks.ai/account/api-keys",
@@ -55,6 +65,8 @@
     {
       "id": "deepinfra",
       "name": "DeepInfra",
+      "kind": "inference",
+      "summary": "Hosted open-source models, priced per token.",
       "base_url": "https://api.deepinfra.com/v1/openai",
       "key_env": "DEEPINFRA_API_KEY",
       "signup": "https://deepinfra.com/dash/api_keys",
@@ -65,6 +77,8 @@
     {
       "id": "cerebras",
       "name": "Cerebras",
+      "kind": "inference",
+      "summary": "Open models served on Cerebras hardware, built for speed.",
       "base_url": "https://api.cerebras.ai/v1",
       "key_env": "CEREBRAS_API_KEY",
       "signup": "https://cloud.cerebras.ai/",
@@ -75,6 +89,8 @@
     {
       "id": "sambanova",
       "name": "SambaNova Cloud",
+      "kind": "inference",
+      "summary": "Hosted open models on SambaNova's own chips.",
       "base_url": "https://api.sambanova.ai/v1",
       "key_env": "SAMBANOVA_API_KEY",
       "signup": "https://cloud.sambanova.ai/",
@@ -85,6 +101,8 @@
     {
       "id": "hyperbolic",
       "name": "Hyperbolic",
+      "kind": "inference",
+      "summary": "Hosted open models and GPU cloud capacity.",
       "base_url": "https://api.hyperbolic.xyz/v1",
       "key_env": "HYPERBOLIC_API_KEY",
       "signup": "https://app.hyperbolic.xyz/settings",
@@ -95,6 +113,8 @@
     {
       "id": "novita",
       "name": "Novita AI",
+      "kind": "inference",
+      "summary": "Hosted open models and GPU cloud capacity.",
       "base_url": "https://api.novita.ai/openai",
       "key_env": "NOVITA_API_KEY",
       "signup": "https://novita.ai/settings/key-management",
@@ -105,6 +125,8 @@
     {
       "id": "featherless",
       "name": "Featherless AI",
+      "kind": "inference",
+      "summary": "A large catalogue of open-weight models behind one API.",
       "base_url": "https://api.featherless.ai/v1",
       "key_env": "FEATHERLESS_API_KEY",
       "signup": "https://featherless.ai/account/api-keys",
@@ -115,6 +137,8 @@
     {
       "id": "nebius",
       "name": "Nebius Token Factory",
+      "kind": "inference",
+      "summary": "Hosted open models run on Nebius' own AI cloud.",
       "base_url": "https://api.tokenfactory.nebius.com/v1",
       "key_env": "TOKEN_FACTORY_TOKEN",
       "signup": "https://tokenfactory.nebius.com/",
@@ -125,6 +149,8 @@
     {
       "id": "ovhcloud",
       "name": "OVHcloud AI Endpoints",
+      "kind": "inference",
+      "summary": "Hosted open models from OVHcloud.",
       "base_url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
       "key_env": "OVH_AI_ENDPOINTS_ACCESS_TOKEN",
       "signup": "https://endpoints.ai.cloud.ovh.net/",
@@ -135,6 +161,8 @@
     {
       "id": "scaleway",
       "name": "Scaleway Generative APIs",
+      "kind": "inference",
+      "summary": "Hosted open models from Scaleway's generative APIs.",
       "base_url": "https://api.scaleway.ai/v1",
       "key_env": "SCW_SECRET_KEY",
       "signup": "https://console.scaleway.com/",
@@ -145,6 +173,8 @@
     {
       "id": "mistral",
       "name": "Mistral AI",
+      "kind": "single-vendor",
+      "summary": "Mistral AI's own models through its API.",
       "base_url": "https://api.mistral.ai/v1",
       "key_env": "MISTRAL_API_KEY",
       "signup": "https://console.mistral.ai/api-keys",
@@ -155,6 +185,8 @@
     {
       "id": "siliconflow",
       "name": "SiliconFlow",
+      "kind": "inference",
+      "summary": "Hosted open models from SiliconFlow.",
       "base_url": "https://api.siliconflow.com/v1",
       "key_env": "SILICONFLOW_API_KEY",
       "signup": "https://cloud.siliconflow.com/account/ak",
@@ -165,6 +197,8 @@
     {
       "id": "dashscope",
       "name": "Alibaba Model Studio (Qwen, international)",
+      "kind": "inference",
+      "summary": "Qwen and other models from Alibaba Cloud's Model Studio.",
       "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
       "key_env": "DASHSCOPE_API_KEY",
       "signup": "https://modelstudio.console.alibabacloud.com/",
@@ -175,6 +209,8 @@
     {
       "id": "zai",
       "name": "Z.ai (GLM)",
+      "kind": "single-vendor",
+      "summary": "GLM models from Z.ai through its API.",
       "base_url": "https://api.z.ai/api/paas/v4",
       "key_env": "ZAI_API_KEY",
       "signup": "https://z.ai/manage-apikey/apikey-list",
@@ -185,6 +221,8 @@
     {
       "id": "moonshot",
       "name": "Moonshot AI (Kimi)",
+      "kind": "single-vendor",
+      "summary": "Kimi models from Moonshot AI through its API.",
       "base_url": "https://api.moonshot.ai/v1",
       "key_env": "MOONSHOT_API_KEY",
       "signup": "https://platform.moonshot.ai/console/api-keys",
@@ -195,6 +233,8 @@
     {
       "id": "minimax",
       "name": "MiniMax",
+      "kind": "single-vendor",
+      "summary": "MiniMax's own models through its API.",
       "base_url": "https://api.minimax.io/v1",
       "key_env": "MINIMAX_API_KEY",
       "signup": "https://platform.minimax.io/",
@@ -205,6 +245,8 @@
     {
       "id": "deepseek",
       "name": "DeepSeek",
+      "kind": "single-vendor",
+      "summary": "DeepSeek's own models through its API.",
       "base_url": "https://api.deepseek.com/v1",
       "key_env": "DEEPSEEK_API_KEY",
       "signup": "https://platform.deepseek.com/api_keys",
@@ -215,6 +257,8 @@
     {
       "id": "ollama",
       "name": "Ollama (on this computer)",
+      "kind": "local",
+      "summary": "A model server that runs on this computer.",
       "base_url": "http://localhost:11434/v1",
       "key_env": null,
       "signup": "https://ollama.com/download",
@@ -225,6 +269,8 @@
     {
       "id": "lm-studio",
       "name": "LM Studio (on this computer)",
+      "kind": "local",
+      "summary": "A model server that runs on this computer.",
       "base_url": "http://localhost:1234/v1",
       "key_env": null,
       "signup": "https://lmstudio.ai/",
@@ -235,6 +281,8 @@
     {
       "id": "vllm",
       "name": "vLLM server (on this computer)",
+      "kind": "local",
+      "summary": "A model server that runs on this computer.",
       "base_url": "http://localhost:8000/v1",
       "key_env": null,
       "signup": "https://docs.vllm.ai/",
@@ -245,6 +293,8 @@
     {
       "id": "llama-cpp",
       "name": "llama.cpp server (on this computer)",
+      "kind": "local",
+      "summary": "A model server that runs on this computer.",
       "base_url": "http://localhost:8080/v1",
       "key_env": null,
       "signup": "https://github.com/ggml-org/llama.cpp",
@@ -255,6 +305,8 @@
     {
       "id": "custom",
       "name": "Any OpenAI-compatible endpoint (you give the address)",
+      "kind": "custom",
+      "summary": "Any OpenAI-compatible address that you give.",
       "base_url": null,
       "key_env": "ORDEAL_API_KEY",
       "signup": null,
