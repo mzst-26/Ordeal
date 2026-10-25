@@ -6,8 +6,16 @@ import { loadJson } from "./data-cache.js";
 import { browserStorage } from "./engine/token.js";
 import { currentPlatform, loadPlatforms, readChoice } from "./platforms.js";
 
-/** Return the browser platform the visitor chose, or the default one when none is chosen. Reads the list each time. */
+// The message a page shows when no platform can be chosen. It is plain text, so it is safe to show as it is.
+const NO_PLATFORM_MESSAGE = "No platform is available, so the request cannot be sent.";
+
+/**
+ * Return the platform the visitor chose, or the default one when none is chosen. Reads the list each time.
+ * It throws a plain message only when the list has no selectable platform at all, which the pages report.
+ */
 export async function activePlatform() {
   const list = await loadPlatforms(loadJson);
-  return currentPlatform(list, readChoice(browserStorage()));
+  const platform = currentPlatform(list, readChoice(browserStorage()));
+  if (platform === null) throw new Error(NO_PLATFORM_MESSAGE);
+  return platform;
 }

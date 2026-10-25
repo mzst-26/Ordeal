@@ -13,5 +13,7 @@ startApp({
   },
 });
 
-// The platform and model section sits in the batch view. It loads the shared platform list itself.
+// The platform and model section sits in the batch view and in the gauntlet view. It loads the shared platform list
+// itself. Each copy is drawn into its own root, and the two copies share one saved choice (see platform-section.js).
 mountPlatformSection(document.getElementById("platform-section"));
+mountPlatformSection(document.getElementById("platform-section-gauntlet"));
