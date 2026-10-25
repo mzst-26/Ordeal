@@ -891,6 +891,12 @@ fieldset:disabled .check-box {
   margin: 0 auto;
 }
 
+/* The radar is drawn at its full width (820px in its viewBox), so labels keep their size and the figure scrolls */
+.figure-svg-wide {
+  width: 51.25rem;
+  max-width: none;
+}
+
 /* The hover note: one bubble, placed by tooltip.js next to the element it describes */
 .tip {
   position: fixed;
@@ -1068,13 +1074,59 @@ fieldset:disabled .check-box {
   }
 }
 
-/* The "Platform and model" section sits above the batch setup. Its fields stack with the usual gaps. */
+/* The "Platform and model" section sits above the batch setup. Each setting is one row: its label on the left and
+   its controls on the right. The rows sit close together, so the section is much shorter than a stack of fields. */
 .platform-section {
+  gap: var(--space-3);
   margin-bottom: var(--dash-section-gap);
 }
 
-.platform-section .field {
-  margin-top: var(--space-4);
+/* The batch KPI row sits right above this section, so it needs the same gap the setup form gets. */
+[data-view="batch"] .platform-section {
+  margin-top: var(--space-6);
+}
+
+/* The platform panel is two columns: the platform and key on the left, the model on the right. The note
+   runs under both. Each column has min-width 0, so a long name cannot push the other column off screen. */
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-6);
+  align-items: start;
+}
+
+.platform-column {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.platform-footer {
+  grid-column: 1 / -1;
+}
+
+/* A control and its button share one line. The control takes the free width and the button keeps its size. */
+.inline-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inline-row > .text-input {
+  flex: 1 1 14rem;
+  width: auto;
+}
+
+.inline-row > .field-hint {
+  flex: 1 1 14rem;
+}
+
+/* On a phone the two columns stack, one above the other. */
+@media (max-width: 640px) {
+  .platform-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Each close model name is a button. The list wraps, and it is hidden when there are no names to show. */
@@ -1133,22 +1185,6 @@ fieldset:disabled .check-box {
 
 .platform-card-name {
   font-weight: 600;
-}
-
-.platform-facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-  font-size: var(--size-sm);
-}
-
-.platform-facts dt {
-  color: var(--ink-soft);
-}
-
-.platform-facts dd {
-  margin: 0;
 }
 
 .platform-card-link {

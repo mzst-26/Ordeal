@@ -16,7 +16,6 @@ import {
   findModel,
   loadPlatforms,
   parseModelReference,
-  platformFacts,
   readChoice,
   selectablePlatforms,
   signupLink,
@@ -110,23 +109,22 @@ function buildSection(root, list, saved) {
   view.note = el("p", { className: "field-hint", id: ids.note });
   view.section = el("section", { className: "panel platform-section", "aria-labelledby": ids.heading }, [
     el("h2", { className: "panel-title", id: ids.heading, text: "Platform and model" }),
-    el("div", { className: "field" }, [
-      el("span", { className: "field-label", id: ids.label, text: "Platform" }),
-      view.button,
-      view.note,
-    ]),
-    el("div", { className: "field" }, [
-      el("span", { className: "field-label", text: "API key" }),
-      view.keyStatus,
-      view.keyButton,
-    ]),
-    el("div", { className: "field" }, [
-      el("label", { className: "field-label", for: ids.input, text: "Model" }),
-      view.input,
-      el("p", { className: "field-hint", text: MODEL_HINT }),
-      view.checkButton,
-      view.status,
-      view.suggestions,
+    el("div", { className: "platform-grid" }, [
+      // Left: the platform and the key. Right: the model and its check. The note runs under both columns.
+      el("div", { className: "platform-column" }, [
+        el("span", { className: "field-label", id: ids.label, text: "Platform" }),
+        view.button,
+        el("span", { className: "field-label", text: "API key" }),
+        el("div", { className: "inline-row" }, [view.keyStatus, view.keyButton]),
+      ]),
+      el("div", { className: "platform-column" }, [
+        el("label", { className: "field-label", for: ids.input, text: "Model" }),
+        el("div", { className: "inline-row" }, [view.input, view.checkButton]),
+        el("p", { className: "field-hint", text: MODEL_HINT }),
+        view.status,
+        view.suggestions,
+      ]),
+      el("div", { className: "platform-footer" }, [view.note]),
     ]),
   ]);
   return view;
@@ -267,7 +265,7 @@ function openChooser(view, storage) {
 }
 
 /**
- * Build the text of one platform card: its name, its summary (when it has one), its facts, and a sign-up link.
+ * Build the text of one platform card: its name, its summary (when it has one), and a sign-up link.
  * The link stops the click here, so opening the key page does not also choose the platform.
  */
 function buildCard(platform) {
@@ -275,18 +273,8 @@ function buildCard(platform) {
   return el("span", { className: "platform-card" }, [
     el("span", { className: "platform-card-name", text: textOf(platform.name) }),
     summary === "" ? null : el("span", { className: "platform-card-summary", text: summary }),
-    buildFacts(platform),
     buildSignupLink(platform),
   ]);
-}
-
-/** Build the facts as a definition list: each row's label, then its value. Both are plain text. */
-function buildFacts(platform) {
-  const items = platformFacts(platform).flatMap((row) => [
-    el("dt", { text: row.label }),
-    el("dd", { text: row.value }),
-  ]);
-  return el("dl", { className: "platform-facts" }, items);
 }
 
 /** Build the "Get a key" link for a card, or return null when the platform has no safe sign-up address. */
