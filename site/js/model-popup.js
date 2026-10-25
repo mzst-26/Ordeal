@@ -31,7 +31,8 @@ export function buildModelAddArea({ hasList, addedModels, onAdd, onRemove }) {
   const list = el("ul", { className: "selected-list", "aria-label": "Models you added" });
   const area = el("div", { className: "model-add-area" }, [
     note,
-    el("label", { className: "field-label", text: "Add a model" }),
+    // A plain heading, so the visitor can tell adding a name (this part) from ticking the rows below it.
+    el("h3", { className: "field-label model-add-heading", text: "Add a model that is not in the list" }),
     el("div", { className: "add-model-row" }, [input, addButton]),
     message,
     list,

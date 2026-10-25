@@ -1,7 +1,7 @@
 // Tests for the pure helpers in site/js/picker-dialog.js. The dialog itself needs a DOM, so only the helpers are tested here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeSelection, filterItems } from "../site/js/picker-dialog.js";
+import { summarizeSelection, filterItems, pageRangeText } from "../site/js/picker-dialog.js";
 
 // summarizeSelection counts every item and the ones the predicate marks as selected.
 test("summarizeSelection counts total and selected items", () => {
@@ -43,4 +43,20 @@ test("filterItems trims the query before matching", () => {
 
 test("filterItems returns an empty array when nothing matches", () => {
   assert.deepEqual(filterItems(["one", "two"], "three", (item) => item), []);
+});
+
+// pageRangeText says which page the picker shows and which names are on it, for the line above the grid.
+test("pageRangeText names the page, the shown range and the total", () => {
+  const result = { items: new Array(100), page: 1, pageCount: 220, total: 22000 };
+  assert.equal(pageRangeText(result, 100), "Page 1 of 220. Showing 1-100 of 22,000");
+});
+
+test("pageRangeText counts the last partial page to its real last name", () => {
+  const result = { items: new Array(50), page: 3, pageCount: 3, total: 250 };
+  assert.equal(pageRangeText(result, 100), "Page 3 of 3. Showing 201-250 of 250");
+});
+
+test("pageRangeText says nothing matches when the search finds no names", () => {
+  const result = { items: [], page: 1, pageCount: 1, total: 0 };
+  assert.equal(pageRangeText(result, 100), "No models match.");
 });

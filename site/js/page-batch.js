@@ -16,9 +16,9 @@ import { DEFAULT_PLATFORM_ID } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
 import { setRunLocked } from "./run-lock.js";
 import {
-  MAX_POPUP_ROWS, MODELS_PATH, hasSavedList, platformModelIds, readAddedModels, writeAddedModels, withAddedModel,
-  withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform, ticksAfterPlatformChange,
-  resolveNewModel, largeRunWarning,
+  MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
+  withAddedModel, withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform,
+  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups,
 } from "./model-list.js";
 import { buildModelAddArea } from "./model-popup.js";
 import { csvCell } from "./engine/csv.js";
@@ -802,7 +802,7 @@ function buildModelCard(entry) {
 
 /**
  * Open the "Choose models" popup. Its cards tick and untick the rows of the chosen platform, and its top part adds a
- * model name. Only the first MAX_POPUP_ROWS matching rows are drawn, so a list of thousands stays quick.
+ * model name. The names are sorted under letter headings and shown PAGE_SIZE at a time, so a list of thousands stays quick.
  */
 function openModelPicker() {
   const addArea = buildModelAddArea({
@@ -811,19 +811,32 @@ function openModelPicker() {
     onAdd: addTypedModel,
     onRemove: removeAddedModel,
   });
+  // The picker keeps the array it was given, so the names are refilled in place whenever the rows change.
+  const names = [];
+  const rowById = new Map();
+  const refillNames = () => {
+    rowById.clear();
+    for (const entry of page.modelEntries) rowById.set(entry.id, entry);
+    names.length = 0;
+    for (const id of sortModelIds([...rowById.keys()])) names.push(id);
+  };
+  refillNames();
   const dialog = openPicker({
     title: "Choose models",
-    items: page.modelEntries,
-    isSelected: (entry) => page.ticked.has(entry.id),
-    onToggle: toggleModel,
-    renderCard: buildModelCard,
-    searchText: (entry) => entry.id,
-    limit: MAX_POPUP_ROWS,
+    items: names,
+    isSelected: (id) => page.ticked.has(id),
+    onToggle: (id) => toggleModel(rowById.get(id)),
+    renderCard: (id) => buildModelCard(rowById.get(id)),
+    pageSize: PAGE_SIZE,
+    groupItems: letterGroups,
     header: addArea.node,
     onSelectAll: () => setAllModels(true),
     onClear: () => setAllModels(false),
     onReady: (redraw) => {
-      page.popupRefresh = redraw;
+      page.popupRefresh = () => {
+        refillNames();
+        redraw();
+      };
     },
     searchPlaceholder: "Search models",
   });

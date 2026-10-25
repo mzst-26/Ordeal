@@ -1086,26 +1086,48 @@ fieldset:disabled .check-box {
   margin-top: var(--space-6);
 }
 
-/* The platform panel is two columns: the platform and key on the left, the model on the right. The note
-   runs under both. Each column has min-width 0, so a long name cannot push the other column off screen. */
+/* The platform panel is two columns of the same width: the platform and key on the left, the model on the right.
+   Both columns use the same class, so they also get the same padding. The note runs under both. Each column has
+   min-width 0, so a long name cannot push the other column off screen or make it wider than the other one. */
 .platform-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-3) var(--space-6);
   align-items: start;
 }
 
 .platform-column {
   display: grid;
-  gap: var(--space-2);
+  align-content: start;
+  gap: var(--space-3);
   min-width: 0;
+  padding: var(--space-3);
 }
 
 .platform-footer {
   grid-column: 1 / -1;
 }
 
-/* A control and its button share one line. The control takes the free width and the button keeps its size. */
+/* The model column has two parts, one above the other: pick from the saved list, then add a name the list does not
+   have. Each part has its own heading, so the two jobs are easy to tell apart. */
+.platform-part {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.platform-part-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The two model buttons share one width. They take the column's width up to a limit, so neither is squeezed. */
+.platform-action {
+  width: 100%;
+  max-width: 16rem;
+}
+
+/* A control and its button share one line. The key status takes the free width and the button keeps its size. */
 .inline-row {
   display: flex;
   flex-wrap: wrap;
@@ -1113,17 +1135,12 @@ fieldset:disabled .check-box {
   gap: var(--space-2);
 }
 
-.inline-row > .text-input {
-  flex: 1 1 14rem;
-  width: auto;
-}
-
 .inline-row > .field-hint {
   flex: 1 1 14rem;
 }
 
 /* On a phone the two columns stack, one above the other. */
-@media (max-width: 640px) {
+@media (max-width: 639px) {
   .platform-grid {
     grid-template-columns: minmax(0, 1fr);
   }
