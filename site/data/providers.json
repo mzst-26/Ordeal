@@ -1,0 +1,240 @@
+{
+ "checked": "2026-10-25",
+ "platforms": [
+  {
+   "base_url": "https://router.huggingface.co/v1",
+   "browser": true,
+   "id": "huggingface",
+   "local": false,
+   "name": "Hugging Face (Inference Providers)",
+   "signup": "https://huggingface.co/settings/tokens",
+   "web_host": "huggingface.co"
+  },
+  {
+   "base_url": "https://openrouter.ai/api/v1",
+   "browser": true,
+   "id": "openrouter",
+   "local": false,
+   "name": "OpenRouter",
+   "signup": "https://openrouter.ai/keys",
+   "web_host": "openrouter.ai"
+  },
+  {
+   "base_url": "https://api.together.xyz/v1",
+   "browser": true,
+   "id": "together",
+   "local": false,
+   "name": "Together AI",
+   "signup": "https://api.together.ai/settings/api-keys",
+   "web_host": "together.ai"
+  },
+  {
+   "base_url": "https://api.groq.com/openai/v1",
+   "browser": true,
+   "id": "groq",
+   "local": false,
+   "name": "Groq",
+   "signup": "https://console.groq.com/keys",
+   "web_host": "groq.com"
+  },
+  {
+   "base_url": "https://api.fireworks.ai/inference/v1",
+   "browser": true,
+   "id": "fireworks",
+   "local": false,
+   "name": "Fireworks AI",
+   "signup": "https://fireworks.ai/account/api-keys",
+   "web_host": "fireworks.ai"
+  },
+  {
+   "base_url": "https://api.deepinfra.com/v1/openai",
+   "browser": true,
+   "id": "deepinfra",
+   "local": false,
+   "name": "DeepInfra",
+   "signup": "https://deepinfra.com/dash/api_keys",
+   "web_host": "deepinfra.com"
+  },
+  {
+   "base_url": "https://api.cerebras.ai/v1",
+   "browser": true,
+   "id": "cerebras",
+   "local": false,
+   "name": "Cerebras",
+   "signup": "https://cloud.cerebras.ai/",
+   "web_host": "cerebras.ai"
+  },
+  {
+   "base_url": "https://api.sambanova.ai/v1",
+   "browser": false,
+   "id": "sambanova",
+   "local": false,
+   "name": "SambaNova Cloud",
+   "signup": "https://cloud.sambanova.ai/",
+   "web_host": "sambanova.ai"
+  },
+  {
+   "base_url": "https://api.hyperbolic.xyz/v1",
+   "browser": true,
+   "id": "hyperbolic",
+   "local": false,
+   "name": "Hyperbolic",
+   "signup": "https://app.hyperbolic.xyz/settings",
+   "web_host": "hyperbolic.xyz"
+  },
+  {
+   "base_url": "https://api.novita.ai/openai",
+   "browser": true,
+   "id": "novita",
+   "local": false,
+   "name": "Novita AI",
+   "signup": "https://novita.ai/settings/key-management",
+   "web_host": "novita.ai"
+  },
+  {
+   "base_url": "https://api.featherless.ai/v1",
+   "browser": true,
+   "id": "featherless",
+   "local": false,
+   "name": "Featherless AI",
+   "signup": "https://featherless.ai/account/api-keys",
+   "web_host": "featherless.ai"
+  },
+  {
+   "base_url": "https://api.tokenfactory.nebius.com/v1",
+   "browser": true,
+   "id": "nebius",
+   "local": false,
+   "name": "Nebius Token Factory",
+   "signup": "https://tokenfactory.nebius.com/",
+   "web_host": "tokenfactory.nebius.com"
+  },
+  {
+   "base_url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+   "browser": true,
+   "id": "ovhcloud",
+   "local": false,
+   "name": "OVHcloud AI Endpoints",
+   "signup": "https://endpoints.ai.cloud.ovh.net/",
+   "web_host": "ovhcloud.com"
+  },
+  {
+   "base_url": "https://api.scaleway.ai/v1",
+   "browser": false,
+   "id": "scaleway",
+   "local": false,
+   "name": "Scaleway Generative APIs",
+   "signup": "https://console.scaleway.com/",
+   "web_host": "scaleway.com"
+  },
+  {
+   "base_url": "https://api.mistral.ai/v1",
+   "browser": true,
+   "id": "mistral",
+   "local": false,
+   "name": "Mistral AI",
+   "signup": "https://console.mistral.ai/api-keys",
+   "web_host": "mistral.ai"
+  },
+  {
+   "base_url": "https://api.siliconflow.com/v1",
+   "browser": false,
+   "id": "siliconflow",
+   "local": false,
+   "name": "SiliconFlow",
+   "signup": "https://cloud.siliconflow.com/account/ak",
+   "web_host": "siliconflow.com"
+  },
+  {
+   "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+   "browser": true,
+   "id": "dashscope",
+   "local": false,
+   "name": "Alibaba Model Studio (Qwen, international)",
+   "signup": "https://modelstudio.console.alibabacloud.com/",
+   "web_host": "alibabacloud.com"
+  },
+  {
+   "base_url": "https://api.z.ai/api/paas/v4",
+   "browser": true,
+   "id": "zai",
+   "local": false,
+   "name": "Z.ai (GLM)",
+   "signup": "https://z.ai/manage-apikey/apikey-list",
+   "web_host": "z.ai"
+  },
+  {
+   "base_url": "https://api.moonshot.ai/v1",
+   "browser": true,
+   "id": "moonshot",
+   "local": false,
+   "name": "Moonshot AI (Kimi)",
+   "signup": "https://platform.moonshot.ai/console/api-keys",
+   "web_host": "moonshot.ai"
+  },
+  {
+   "base_url": "https://api.minimax.io/v1",
+   "browser": true,
+   "id": "minimax",
+   "local": false,
+   "name": "MiniMax",
+   "signup": "https://platform.minimax.io/",
+   "web_host": "minimax.io"
+  },
+  {
+   "base_url": "https://api.deepseek.com/v1",
+   "browser": true,
+   "id": "deepseek",
+   "local": false,
+   "name": "DeepSeek",
+   "signup": "https://platform.deepseek.com/api_keys",
+   "web_host": "deepseek.com"
+  },
+  {
+   "base_url": "http://localhost:11434/v1",
+   "browser": false,
+   "id": "ollama",
+   "local": true,
+   "name": "Ollama (on this computer)",
+   "signup": "https://ollama.com/download",
+   "web_host": null
+  },
+  {
+   "base_url": "http://localhost:1234/v1",
+   "browser": false,
+   "id": "lm-studio",
+   "local": true,
+   "name": "LM Studio (on this computer)",
+   "signup": "https://lmstudio.ai/",
+   "web_host": null
+  },
+  {
+   "base_url": "http://localhost:8000/v1",
+   "browser": false,
+   "id": "vllm",
+   "local": true,
+   "name": "vLLM server (on this computer)",
+   "signup": "https://docs.vllm.ai/",
+   "web_host": null
+  },
+  {
+   "base_url": "http://localhost:8080/v1",
+   "browser": false,
+   "id": "llama-cpp",
+   "local": true,
+   "name": "llama.cpp server (on this computer)",
+   "signup": "https://github.com/ggml-org/llama.cpp",
+   "web_host": null
+  },
+  {
+   "base_url": null,
+   "browser": true,
+   "id": "custom",
+   "local": false,
+   "name": "Any OpenAI-compatible endpoint (you give the address)",
+   "signup": null,
+   "web_host": null
+  }
+ ],
+ "version": 1
+}

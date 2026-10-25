@@ -3,7 +3,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ALLOWED_BASE_URL,
   BudgetExhausted,
   KeyRefused,
   MAX_ATTEMPTS_PER_STEP,
@@ -18,12 +17,21 @@ import {
 } from '../site/js/engine/api.js';
 import { CUSTOM_MODEL_REASONS } from '../site/js/engine/custom-model.js';
 import { createTokenVault } from '../site/js/engine/token.js';
+import { platformList, browserPlatforms, findPlatform } from '../site/js/platforms.js';
 import { readJson } from './helpers.js';
 
 // A fake key used only by these tests. Tests never print it.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);
-const BASE_URL = ALLOWED_BASE_URL;
-const CHAT_URL = ALLOWED_BASE_URL + 'chat/completions';
+// The platform these tests use is Nebius, read from the shared list, so the tests check the real address.
+const TEST_PLATFORM = findPlatform(browserPlatforms(platformList(readJson('site/data/providers.json'))), 'nebius');
+// The shared list has no trailing slash on this address, so the tests add one: the client adds it the same way.
+const BASE_URL = TEST_PLATFORM.base_url.endsWith('/') ? TEST_PLATFORM.base_url : TEST_PLATFORM.base_url + '/';
+const CHAT_URL = BASE_URL + 'chat/completions';
+
+/** Build a browser platform with the given address, for the tests that try other addresses. */
+function platformAt(baseUrl) {
+  return { id: 'test', name: 'Test platform', base_url: baseUrl, browser: true };
+}
 const KEY_REFUSED = 'The key was refused. Check the key and try again.';
 const STOPPED = 'Stopped by you.';
 const NO_KEY = 'No API key is set. Add your key first.';
@@ -86,7 +94,7 @@ function makeClient({
     sleeps.push(seconds);
   };
   const client = createChatClient({
-    baseUrl,
+    platform: platformAt(baseUrl),
     customModels,
     vault,
     budget,
@@ -144,7 +152,7 @@ test('a successful call posts JSON with the Bearer header to the chat endpoint',
 });
 
 test('the endpoint is the same whether or not baseUrl ends with a slash', async () => {
-  for (const baseUrl of [ALLOWED_BASE_URL, ALLOWED_BASE_URL.slice(0, -1)]) {
+  for (const baseUrl of [BASE_URL, BASE_URL.slice(0, -1)]) {
     const { client, calls } = makeClient({ script: [replyWith('ok')], baseUrl });
     await client.complete(sampleRequest());
     assert.equal(calls[0].url, CHAT_URL);
@@ -152,7 +160,7 @@ test('the endpoint is the same whether or not baseUrl ends with a slash', async 
 });
 
 test('a client made with the allowed API address works', async () => {
-  const { client, calls } = makeClient({ script: [replyWith('ok')], baseUrl: ALLOWED_BASE_URL });
+  const { client, calls } = makeClient({ script: [replyWith('ok')], baseUrl: BASE_URL });
   const text = await client.complete(sampleRequest());
   assert.equal(text, 'ok');
   assert.equal(calls[0].url, CHAT_URL);
@@ -161,7 +169,7 @@ test('a client made with the allowed API address works', async () => {
 test('a client made with the allowed API address without a trailing slash works', async () => {
   const { client, calls } = makeClient({
     script: [replyWith('ok')],
-    baseUrl: ALLOWED_BASE_URL.slice(0, -1),
+    baseUrl: BASE_URL.slice(0, -1),
   });
   const text = await client.complete(sampleRequest());
   assert.equal(text, 'ok');
@@ -169,7 +177,7 @@ test('a client made with the allowed API address without a trailing slash works'
 });
 
 // Host lock: the client only talks to the one allowed API address, and refuses anything else at construction time.
-test('a client made for any other host throws before any fetch or key read', () => {
+test('a platform not marked for the browser throws before any fetch or key read', () => {
   const fake = makeFakeFetch([replyWith('ok')]);
   let keyReads = 0;
   const vault = {
@@ -180,7 +188,7 @@ test('a client made for any other host throws before any fetch or key read', () 
   };
   assert.throws(
     () => createChatClient({
-      baseUrl: 'https://example.com/v1/',
+      platform: { id: 'ollama', base_url: 'http://localhost:11434/v1', browser: false },
       vault,
       budget: createBudget(null),
       fetchImpl: fake.fetchImpl,
@@ -446,7 +454,7 @@ test('a custom model is refused with a fixed message before any fetch or key rea
     },
   };
   const client = createChatClient({
-    baseUrl: BASE_URL,
+    platform: TEST_PLATFORM,
     customModels: [CUSTOM_MODEL],
     vault,
     budget: createBudget(null),
@@ -485,7 +493,7 @@ test('a custom entry whose display name differs from its API model id gives the 
 });
 
 test('a built-in model sends its name as the model id, exactly as before', async () => {
-  for (const name of readJson('config.json').models) {
+  for (const name of readJson('data/config.json').models) {
     const { client, calls } = makeClient({ script: [replyWith('ok')] });
     await client.complete(sampleRequest({ model: name }));
     assert.equal(JSON.parse(calls[0].options.body).model, name);
@@ -510,7 +518,7 @@ test('a custom model that fails the custom-model checks throws a fixed message b
       },
     };
     const error = syncErrorFrom(() => createChatClient({
-      baseUrl: BASE_URL,
+      platform: TEST_PLATFORM,
       customModels: [entry],
       vault,
       budget: createBudget(null),
@@ -527,7 +535,7 @@ test('two custom models with the same name are refused before any fetch', () => 
   const twin = { ...CUSTOM_MODEL, base_url: 'https://other.example.net/v1' };
   const fake = makeFakeFetch([replyWith('ok')]);
   const error = syncErrorFrom(() => createChatClient({
-    baseUrl: BASE_URL,
+    platform: TEST_PLATFORM,
     customModels: [CUSTOM_MODEL, twin],
     vault: createTokenVault(),
     budget: createBudget(null),
@@ -548,7 +556,7 @@ test('a custom model named like a built-in model is refused before any fetch or 
     },
   };
   const error = syncErrorFrom(() => createChatClient({
-    baseUrl: BASE_URL,
+    platform: TEST_PLATFORM,
     customModels: [twin],
     builtInModels: ['test-model', 'other-model'],
     vault,
@@ -560,16 +568,16 @@ test('a custom model named like a built-in model is refused before any fetch or 
   assert.equal(keyReads, 0);
 });
 
-test('look-alike hosts and plain http for the built-in API are refused before any fetch', () => {
-  const lookAlikes = [
+test('plain http and addresses with a user name are refused for any platform, before any fetch', () => {
+  const unsafe = [
     'http://api.tokenfactory.nebius.com/v1/',
-    'https://api.tokenfactory.nebius.com.evil.example/v1/',
-    'https://evil.example/v1/',
+    'https://user@evil.example/v1/',
+    'https://evil.example/v1/?key=1',
   ];
-  for (const baseUrl of lookAlikes) {
+  for (const baseUrl of unsafe) {
     const fake = makeFakeFetch([replyWith('ok')]);
     const error = syncErrorFrom(() => createChatClient({
-      baseUrl,
+      platform: platformAt(baseUrl),
       vault: createTokenVault(),
       budget: createBudget(null),
       fetchImpl: fake.fetchImpl,
@@ -594,7 +602,7 @@ test('MAX_ATTEMPTS_PER_STEP is one try plus the retries, and a step that keeps f
   const vault = createTokenVault();
   vault.set(FAKE_KEY);
   const client = createChatClient({
-    baseUrl: BASE_URL,
+    platform: TEST_PLATFORM,
     vault,
     budget: createBudget(null),
     fetchImpl: fake.fetchImpl,

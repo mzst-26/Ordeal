@@ -4,6 +4,7 @@
 // in this browser, so a reload can resume them without sending the saved steps again.
 
 import { askForToken } from "./token-dialog.js";
+import { activePlatform } from "./platform-choice.js";
 import { showToast } from "./toast.js";
 import { vault } from "./engine/token.js";
 import { VIEW_IDS } from "./view-ids.js";
@@ -15,6 +16,7 @@ import { createBudget, createChatClient, BudgetExhausted } from "./engine/api.js
 import * as rules from "./engine/rules.js";
 import * as adaptive from "./engine/adaptive.js";
 import { el } from "./ui.js";
+import { openPicker } from "./picker-dialog.js";
 import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
@@ -133,6 +135,10 @@ export function mountGauntlet(root) {
   page.dom.questionSet.addEventListener("change", onSuiteChanged);
   page.dom.pushbackSeed.addEventListener("input", onSuiteChanged);
   page.dom.questionSeed.addEventListener("input", onSuiteChanged);
+  page.dom.modelChoose.addEventListener("click", () =>
+    openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
+  page.dom.questionChoose.addEventListener("click", () =>
+    openChoicePicker(page.dom.question, "Choose a question", "Search questions", questionCard));
   renderAll();
   loadData();
 }
@@ -161,7 +167,9 @@ function findElements(root) {
     questionSeed: byId(root, VIEW_IDS.gauntlet["question-seed"]),
     suiteSummary: byId(root, VIEW_IDS.gauntlet["suite-summary"]),
     model: byId(root, "model-select"),
+    modelChoose: byId(root, "gauntlet-model-choose"),
     question: byId(root, "question-select"),
+    questionChoose: byId(root, "gauntlet-question-choose"),
     condition: byId(root, VIEW_IDS.gauntlet["condition-select"]),
     start: byId(root, VIEW_IDS.gauntlet["start-button"]),
     stop: byId(root, VIEW_IDS.gauntlet["stop-button"]),
@@ -361,6 +369,46 @@ function fillSelect(select, choices) {
 }
 
 /**
+ * Open the popup picker for a single-choice menu, the same popup the batch page uses. Picking a card sets the
+ * menu and closes the popup. The hidden select stays the record of the choice, so the rest of the page reads it.
+ */
+function openChoicePicker(select, title, searchPlaceholder, renderCard) {
+  const items = [...select.options].map((option) => ({ value: option.value, label: option.textContent }));
+  const dialog = openPicker({
+    title,
+    items,
+    bulk: false,
+    isSelected: (item) => item.value === select.value,
+    onToggle: (item) => {
+      select.value = item.value;
+      syncChoiceButtons();
+      dialog.close();
+    },
+    renderCard,
+    searchPlaceholder,
+  });
+}
+
+/** Build the card of one model in the picker: its name, the same as the model menu shows it. */
+function modelCard({ label }) {
+  return el("span", { className: "pick-model" }, [el("span", { className: "pick-model-name", text: label })]);
+}
+
+/** Build the card of one question in the picker: its id and the first words of its text. */
+function questionCard({ label }) {
+  return el("span", { className: "pick-question" }, [el("span", { className: "pick-question-text", text: label })]);
+}
+
+/** Show the chosen model and question on their buttons, so each button reads like the dropdown it replaces. */
+function syncChoiceButtons() {
+  for (const [select, trigger] of [[page.dom.model, page.dom.modelChoose], [page.dom.question, page.dom.questionChoose]]) {
+    const chosen = select.selectedOptions[0];
+    trigger.textContent = chosen ? chosen.textContent : "Choose";
+    trigger.disabled = select.disabled;
+  }
+}
+
+/**
  * Put a suite on the desk: its menus, its level cards, its spine and its footer. A different suite ends the
  * conversation on screen, because its levels and questions are not the ones it was built with. The choice is
  * { pushbackSet, pushbackSeed, questionSet, questionSeed }, with a null seed for the fixed order.
@@ -480,6 +528,7 @@ function buildLevelCard(entry) {
 
 /** Redraw everything that depends on the run: the meter, the conversation and the controls. */
 function renderAll() {
+  syncChoiceButtons();
   renderSpine();
   renderConversation();
   updateControls();
@@ -759,17 +808,18 @@ function conversationMessages(run) {
 }
 
 /** Return the chat client for this page session. It is made once, so every live call shares one cap. */
-function liveClient() {
+// The client is stored as a promise, so two calls that start together share one client and one cap.
+async function liveClient() {
   if (page.client === null) {
-    page.client = createChatClient({ baseUrl: page.data.config.base_url, vault, budget: page.budget });
+    page.client = activePlatform().then((platform) => createChatClient({ platform, vault, budget: page.budget }));
   }
   return page.client;
 }
 
 /** Send one chat request from the browser, with the key in the vault. Only live mode calls this. */
-function callModel(run, messages, signal) {
+async function callModel(run, messages, signal) {
   const { config } = page.data;
-  return liveClient().complete({
+  return (await liveClient()).complete({
     model: run.model,
     messages,
     temperature: config.temperature,

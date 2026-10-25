@@ -8,9 +8,17 @@ import { vault } from "./engine/token.js";
 import { VIEW_IDS } from "./view-ids.js";
 import { loadJson } from "./data-cache.js";
 import { createBudget, createChatClient } from "./engine/api.js";
+import { activePlatform } from "./platform-choice.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { ALL_FAMILIES } from "./engine/flows.js";
-import { buildCacheIndex, planAllModels } from "./engine/planner.js";
+import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
+import { openPageStorage } from "./persistence-ui.js";
+import { createRun, saveResult, setStatus as setRunStatus } from "./store/run-store.js";
+import {
+  createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache,
+} from "./saved-runs.js";
+import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
+import { choiceOfSuite } from "./suites.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
 import {
   BASELINE_STEP,
@@ -27,6 +35,8 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 
+// Saved run kind for the live theatre, so its runs are kept apart from batch and gauntlet runs.
+const KIND_LIVE = "live";
 // The saved replies and every live run use the "none" condition (no system prompt).
 const CONDITION = "none";
 // A live run asks each question once per model.
@@ -83,6 +93,13 @@ let run = emptyRun();
 let shownGrades = null;
 // Replay state: the steps to play, the next one to play, the pending timer, and the unit counter and totals for the status line.
 const replay = { items: [], cursor: 0, timerId: null, playing: false, unitCount: 0, totals: null };
+// True while skipReplay applies the remaining steps at once. Per-step redraws (charts, KPIs, pips) are then left out.
+let skipping = false;
+// Storage for live runs. Each finished unit is saved in order through liveQueue, after the run itself is created.
+let storage = null;
+const liveQueue = createSerialQueue();
+let liveRunReady = null;    // resolves to the saved run's id, or null when it could not be saved
+const liveUnitSteps = new Map();
 // Live run state. capTouched stops the cap following the plan once the visitor types one; budgetHit and
 // keyRefused remember why a run ended so the status line can say so.
 const live = {
@@ -450,10 +467,10 @@ function revealReply(ref, step, reply) {
     const lane = laneFor(ref.model);
     if (lane) {
       renderLane(lane, unit);
-      if (gaveNow) pulsePip(lane, unit.gaveWayAt);
+      if (gaveNow && !skipping) pulsePip(lane, unit.gaveWayAt);
     }
   }
-  renderKpis();
+  if (!skipping) renderKpis();
 }
 
 /** Close a unit: note a model that held firm, then redraw the charts from the records seen so far. */
@@ -464,7 +481,7 @@ function finishUnit(ref) {
   if (unit.gaveWayAt === null && isRight(unit, BASELINE_STEP) && unit.replies.has(topStep)) {
     addTicker("Held firm", `${shortName(unit.model)}: held through all ${suite.levelCount} levels`);
   }
-  refreshCharts();
+  if (!skipping) refreshCharts();
 }
 
 /** Return the grading settings for a redraw: fast while a run is going, the configured resamples after. */
@@ -847,6 +864,23 @@ function replayFinished() {
   return replay.cursor >= replay.items.length;
 }
 
+/**
+ * Return the replay steps still to play, from the cursor on. Returns an empty list when the cursor is at the end.
+ * Pure: it does not touch the page, so it can be tested under node.
+ */
+export function remainingReplaySteps(items, cursor) {
+  if (!Array.isArray(items) || cursor >= items.length) return [];
+  return items.slice(Math.max(0, cursor));
+}
+
+/**
+ * True when Skip to end may act: the replay is the mode on screen, a live run is not going, and steps remain.
+ * Pure: the caller passes the mode, cursor and length, so the rule can be tested under node.
+ */
+export function canSkipReplay({ mode, cursor, length, liveRunning }) {
+  return mode === "replay" && !liveRunning && cursor < length;
+}
+
 /** True while a live run is going, or while the saved run is being replayed and has not reached its end. */
 function runInProgress() {
   if (live.running) return true;
@@ -932,6 +966,33 @@ function togglePlay() {
 function restartReplay() {
   resetReplay();
   playReplay();
+}
+
+/**
+ * Apply every remaining replay step at once, then show the finale. The charts, KPIs and pips are drawn once
+ * at the end, not after each step. Does nothing when the replay is finished or the live run is the mode on screen.
+ */
+function skipReplay() {
+  const allowed = canSkipReplay({
+    mode: currentMode(),
+    cursor: replay.cursor,
+    length: replay.items.length,
+    liveRunning: live.running,
+  });
+  if (!allowed) return;
+  stopTimer();
+  skipping = true;
+  try {
+    for (const item of remainingReplaySteps(replay.items, replay.cursor)) {
+      replay.cursor += 1;
+      applyReplayItem(item);
+    }
+  } finally {
+    skipping = false;
+  }
+  refreshCharts();
+  renderKpis();
+  finishReplay();
 }
 
 /** Read a whole number from an input, keep it in range, and write the clamped value back. */
@@ -1025,7 +1086,8 @@ function setLiveControls(running) {
 }
 
 /** Handle the end of a live run: set the controls back and show the status. */
-function endLive(message) {
+function endLive(message, status = "stopped") {
+  finishLiveRecord(status);
   live.running = false;
   live.runner = null;
   setLiveControls(false);
@@ -1062,10 +1124,12 @@ function handleLiveEvent(event) {
     // A reused step came from the saved replies and made no API call, so only new steps count as calls.
     case "step-done":
       if (!event.reused) live.calls += 1;
+      bufferLiveStep(event);
       revealReply(ref, event.step, event.reply);
       break;
     case "unit-done":
       live.units += 1;
+      saveLiveUnit(event);
       finishUnit(ref);
       break;
     case "step-failed":
@@ -1073,6 +1137,7 @@ function handleLiveEvent(event) {
       break;
     case "unit-failed":
       live.failed += 1;
+      liveUnitSteps.delete(unitKeyFor(event.model, event.questionId, event.repeat));
       addTicker("Problem", `${shortName(event.model)} · ${event.questionId}: ${event.message}`);
       break;
     case "budget-exhausted":
@@ -1097,7 +1162,7 @@ function handleLiveEvent(event) {
       endLive(stoppedText());
       break;
     case "finished":
-      endLive("Live run finished.");
+      endLive("Live run finished.", "done");
       showFinale(
         `Live run complete: ${data.models.length} models, ${live.questionCount} questions, ` +
         `${live.units} units, ${event.calls} calls made.`,
@@ -1109,11 +1174,100 @@ function handleLiveEvent(event) {
   renderKpis();
 }
 
+/** Create the saved run for this live run. Returns a promise of its id, or null when storage is closed. */
+function startLiveRecord(questions, suite) {
+  liveUnitSteps.clear();
+  if (storage === null) {
+    return null;
+  }
+  const questionIds = questions.map((question) => question.id);
+  const config = {
+    kind: KIND_LIVE,
+    ...choiceOfSuite(suite),
+    models: data.models,
+    questions: questionIds,
+    families: [...ALL_FAMILIES],
+    repeats: LIVE_REPEATS,
+    condition: CONDITION,
+  };
+  const label = `Live ${suite.name}: ${data.models.length} models, ${questions.length} questions`.slice(0, 80);
+  const plannedUnits = plannedBatchUnits(data.models, questionIds, LIVE_REPEATS);
+  return liveQueue.run(async () => {
+    const created = await createRun(storage.adapter, { label, config, plannedUnits });
+    await setRunStatus(storage.adapter, created.id, "running");
+    return created.id;
+  }).catch(() => null);
+}
+
+/** Keep the record of a finished live step, so its unit can be saved whole. */
+function bufferLiveStep(event) {
+  const { suite } = activeView();
+  const record = cacheFor(suite.name).get(cacheKey(CONDITION, event.model, event.questionId, event.repeat, event.step));
+  if (record === undefined) {
+    return;
+  }
+  const key = unitKeyFor(event.model, event.questionId, event.repeat);
+  liveUnitSteps.set(key, [...(liveUnitSteps.get(key) ?? []), record]);
+}
+
+/** Save a finished live unit with all its step records, after the run has been created. */
+function saveLiveUnit(event) {
+  const key = unitKeyFor(event.model, event.questionId, event.repeat);
+  const records = liveUnitSteps.get(key) ?? [];
+  liveUnitSteps.delete(key);
+  if (liveRunReady === null) {
+    return;
+  }
+  liveRunReady
+    .then((runId) => runId === null ? null : liveQueue.run(() => saveResult(storage.adapter, runId, key, unitPayload(records))))
+    .catch(() => {});
+}
+
+/** Mark the saved live run with its final status, after its last unit has been saved. */
+function finishLiveRecord(status) {
+  if (liveRunReady === null) {
+    return;
+  }
+  const ready = liveRunReady;
+  liveRunReady = null;
+  ready
+    .then((runId) => runId === null ? null : liveQueue.run(() => setRunStatus(storage.adapter, runId, status)))
+    .catch(() => {});
+}
+
+/**
+ * Show the newest saved live run when the page opens: its replies go into the charts and the reply cache, so the next
+ * live run reuses them. Nothing is sent. A run on another suite is not shown.
+ */
+async function showLatestLiveRun() {
+  if (storage === null) {
+    return;
+  }
+  const saved = await latestRunOfKind(storage.adapter, KIND_LIVE).catch(() => null);
+  if (saved === null || !runMatchesSuite(saved, liveView.suite)) {
+    return;
+  }
+  const replies = recordsFromRun(saved).map((record) => ({ ...record, condition: CONDITION }));
+  addRecordsToCache(cacheFor(liveView.suite.name), replies);
+  run = { ...emptyRun(), seen: replies };
+  refreshCharts();
+  renderKpis();
+  setStatus(
+    `Loaded your last live run from ${runDateText(saved)}: ${replies.length} replies, shown in the charts. `
+    + "Nothing was sent.",
+  );
+}
+
 /** Build the batch runner for the chosen questions and the active suite, then start it. The run ends by its events. */
-function beginLiveRun(questions, cap) {
+function beginLiveRun(questions, cap, platform) {
   const { suite } = activeView();
   const budget = createBudget(cap);
-  const client = createChatClient({ baseUrl: data.config.base_url, vault, budget });
+  const client = createChatClient({
+    platform,
+    vault,
+    budget,
+    perModelLimit: data.config.per_model_concurrency,
+  });
   resetTheatre();
   live.running = true;
   live.units = 0;
@@ -1126,6 +1280,7 @@ function beginLiveRun(questions, cap) {
   setLiveControls(true);
   renderKpis();
   setStatus("Starting the live run.");
+  liveRunReady = startLiveRecord(questions, suite);
   live.runner = createBatchRunner({
     client,
     models: data.models,
@@ -1140,7 +1295,7 @@ function beginLiveRun(questions, cap) {
     onEvent: handleLiveEvent,
   });
   live.runner.start().catch((error) => {
-    endLive("The live run stopped with a problem.");
+    endLive("The live run stopped with a problem.", "failed");
     showToast(error.message, { tone: "error" });
   });
 }
@@ -1164,7 +1319,8 @@ async function startLive() {
     setStatus("The live run has not started.");
     return;
   }
-  beginLiveRun(questions, cap);
+  const platform = await activePlatform();
+  beginLiveRun(questions, cap, platform);
 }
 
 /** Stop a live run. Calls in flight are aborted, and the batch ends with a stopped event. */
@@ -1270,6 +1426,7 @@ function bindDom(root) {
   dom.speedOutput = byId(root, "speed-output");
   dom.playButton = byId(root, "play-button");
   dom.restartButton = byId(root, "restart-button");
+  dom.skipButton = byId(root, "skip-button");
   dom.questionInput = byId(root, "question-input");
   dom.capInput = byId(root, VIEW_IDS.live["cap-input"]);
   dom.modelList = byId(root, VIEW_IDS.live["model-list"]);
@@ -1315,6 +1472,7 @@ function wireControls() {
   });
   dom.playButton.addEventListener("click", togglePlay);
   dom.restartButton.addEventListener("click", restartReplay);
+  if (dom.skipButton) dom.skipButton.addEventListener("click", skipReplay);
   dom.startButton.addEventListener("click", startLive);
   dom.stopButton.addEventListener("click", stopLive);
   window.addEventListener("pagehide", teardown);
@@ -1358,4 +1516,6 @@ export async function mountLive(root) {
   }
   liveView = data.savedView;
   buildPage();
+  storage = await openPageStorage();
+  await showLatestLiveRun();
 }

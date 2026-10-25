@@ -1,4 +1,4 @@
-// The key dialog. It asks for the Nebius key and keeps it in memory only .
+// The key dialog. It asks for the key of the platform the visitor chose, and keeps it in memory unless asked to remember it.
 
 import { el } from "./ui.js";
 import { isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH } from "./engine/token.js";
@@ -7,9 +7,11 @@ const TITLE_ID = "token-dialog-title";
 const FIELD_ID = "token-dialog-field";
 const STATUS_ID = "token-dialog-status";
 
+const REMEMBER_ID = "token-dialog-remember";
 const PRIVACY_TEXT =
-  "Your key is kept in this browser tab's memory only. It is sent only to the Nebius Token Factory " +
-  "when you run an experiment. It is not saved, and closing the tab removes it.";
+  "Your key is sent only to the platform you chose, and only to that platform's own address, when you run a batch. " +
+  "With Remember ticked, it is saved in this browser's local storage, so it is still here after a reload. " +
+  "Anyone who can use this browser profile can read it. Untick Remember to keep the key for this tab only.";
 const SITE_TEXT =
   "We never see your key, because your browser calls the service directly. " +
   "The project's own .env key is never used on this site.";
@@ -94,6 +96,11 @@ function buildDialog(vault) {
     "aria-pressed": "false",
     "aria-controls": FIELD_ID,
   });
+  parts.remember = el("input", { type: "checkbox", id: REMEMBER_ID, checked: true });
+  parts.rememberLabel = el("label", { className: "field-check", for: REMEMBER_ID }, [
+    parts.remember,
+    el("span", { text: "Remember this key in this browser" }),
+  ]);
   parts.status = el("p", { className: "token-status", id: STATUS_ID, role: "status", "aria-live": "polite" });
   parts.saveButton = el("button", { type: "submit", className: "btn btn-primary", text: "Save key", disabled: true });
   parts.cancelButton = el("button", { type: "button", className: "btn", text: "Cancel" });
@@ -108,6 +115,7 @@ function buildDialog(vault) {
   const field = el("div", { className: "field" }, [
     el("label", { className: "field-label", for: FIELD_ID, text: "API key" }),
     keyRow,
+    parts.rememberLabel,
     parts.status,
   ]);
   const actions = el("div", { className: "dialog-actions" }, [
@@ -117,7 +125,7 @@ function buildDialog(vault) {
   ]);
   parts.form = el("form", { className: "token-form" }, [field, actions]);
   parts.dialog = el("dialog", { className: "token-dialog", "aria-labelledby": TITLE_ID }, [
-    el("h2", { className: "dialog-title", id: TITLE_ID, text: "Your key stays in this tab" }),
+    el("h2", { className: "dialog-title", id: TITLE_ID, text: "Your API key" }),
     el("p", { text: PRIVACY_TEXT }),
     el("p", { text: SITE_TEXT }),
     parts.form,
@@ -125,10 +133,10 @@ function buildDialog(vault) {
   return parts;
 }
 
-/** Store the key in the vault. Returns false and shows the vault's message when the vault refuses it. */
+/** Store the key in the vault, saved in storage only when Remember is ticked. Returns false and shows the vault's message when the vault refuses it. */
 function saveToken(vault, text, parts) {
   try {
-    vault.set(text);
+    vault.set(text, { remember: parts.remember.checked });
     return true;
   } catch (error) {
     parts.status.textContent = error.message;

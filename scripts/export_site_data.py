@@ -26,13 +26,18 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-import core  # noqa: E402  (needs the project folder on sys.path first)
+from ordeal import core  # noqa: E402  (needs the project folder on sys.path first)
 
 # Where every exported file is written.
 SITE_DATA_DIR = PROJECT_DIR / "site" / "data"
 # Value stored in version.json to say which project the export came from.
 SOURCE_NAME = "Ordeal"
 MANIFEST_NAME = "manifest.json"
+# The shared platform list. The Python package and the browser site read the same platforms, so a platform
+# added once is seen by both. The site copy leaves out key_env: the browser never reads environment variables,
+# and the deploy check refuses the name of the token variable in public files.
+PROVIDERS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "providers.json"
+PROVIDERS_SITE_NAME = "providers.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"
 # File names the v4 ladder and v4 probe spec get on the site.
@@ -290,9 +295,9 @@ def build_suites_index():
 def build_new_outputs():
     """Return (file name, bytes) pairs for the files added for the new suites. Nothing is written here."""
     # Locate the v4 ladder, the v4 probe (wrapper) file and the hard question set in the project folder.
-    ladder_path = PROJECT_DIR / core.LADDER_FILES["gauntlet_v4"][0]
-    probe_path = PROJECT_DIR / core.LADDER_FILES["gauntlet_v4"][1]
-    hard_path = PROJECT_DIR / core.QUESTION_FILES["hard"]
+    ladder_path = core.DATA_DIR / core.LADDER_FILES["gauntlet_v4"][0]
+    probe_path = core.DATA_DIR / core.LADDER_FILES["gauntlet_v4"][1]
+    hard_path = core.DATA_DIR / core.QUESTION_FILES["hard"]
     hard_questions = public_questions(core.load_questions(hard_path))
     # The ladder and probe spec are copied byte for byte (after being validated by core's loaders);
     # the hard questions are filtered to public fields and keep their source key order.
@@ -321,12 +326,28 @@ def write_new_files():
     return 0
 
 
+def build_providers_output():
+    """Return (name, data, bytes) for the shared platform list, prepared for the public site.
+
+    Every platform is kept, but key_env is removed: the browser asks the visitor to type the key and never
+    reads an environment variable. The file is parsed first, so a broken list stops the export instead of
+    reaching the browser.
+    """
+    providers_data = json.loads(PROVIDERS_SOURCE_PATH.read_text(encoding="utf-8"))
+    for platform in providers_data["platforms"]:
+        platform.pop("key_env", None)
+    providers_bytes = serialize(PROVIDERS_SITE_NAME, providers_data).encode("utf-8")
+    return (PROVIDERS_SITE_NAME, providers_data, providers_bytes)
+
+
 def main():
     """Build every output, check for key-like strings, then write the files and the manifest."""
     # Return value is the process exit code: 0 for success, 1 if a file was refused.
     # Each item in rendered is (name, original data, encoded JSON bytes).
     outputs = build_outputs()
     rendered = [(name, data, serialize(name, data).encode("utf-8")) for name, data in outputs]
+    # The platform list is prepared above, so its bytes are added as they are.
+    rendered.append(build_providers_output())
     for name, _, data_bytes in rendered:
         if contains_secret(name, data_bytes.decode("utf-8")):
             print(f"Refused to write {name}: it contains a key-like string.", file=sys.stderr)
