@@ -2,8 +2,8 @@
 
 The tests serve site/ on 127.0.0.1 and abort every request to any other host. A page that tries
 to reach the network therefore fails the test. The expected values come from the real
-site/data/compare/results.json, and the only file written is the set of screenshots in the
-scratchpad folder. Nothing in the project is changed.
+site/data/compare/results.json, and the only files written are screenshots in a temporary folder that
+the tests remove afterwards. Nothing in the project is changed.
 
 Run from the project folder:
     .venv-spine/bin/python -m unittest tests.test_compare_browser -v
@@ -12,9 +12,11 @@ Run from the project folder:
 import contextlib
 import json
 import re
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 import urllib.request
@@ -28,10 +30,6 @@ SITE_DIR = PROJECT_DIR / "site"
 # The browser tests serve the Vite build, which setUpModule writes here, because site/ holds JSX that a plain server cannot run.
 DIST_DIR = PROJECT_DIR / "dist"
 RESULTS_PATH = SITE_DIR / "data" / "compare" / "results.json"
-# The screenshots are the only files these tests write, and the folder is outside the project.
-SCREENSHOT_DIR = Path(
-    "/private/tmp/claude-501/-Users-mobinzaki-Github-Hacktest/086e93f4-bbdc-43a6-b76c-2a6c2a5f2c65/scratchpad/compare-shots"
-)
 LOCAL_HOST = "127.0.0.1"
 PREFERRED_PORT = 8790
 DESKTOP = {"width": 1280, "height": 800}
@@ -534,7 +532,10 @@ class CompareBrowserTests(unittest.TestCase):
 
     def test_screenshots_saved_at_both_widths_and_dark(self):
         """Full-page screenshots at 1280 px, 390 px and a dark-mode 1280 px are saved, and dark mode really changes the page."""
-        SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        # A fresh temporary folder for this run. It is removed afterwards, so the test works on any computer,
+        # including the CI runner, where a fixed path on one developer's machine does not exist.
+        screenshot_dir = Path(tempfile.mkdtemp(prefix="ordeal-shots-"))
+        self.addCleanup(shutil.rmtree, screenshot_dir, True)
         shots = [
             ("compare-1280x800-light-full.png", DESKTOP, "light"),
             ("compare-390x844-light-full.png", PHONE, "light"),
@@ -546,7 +547,7 @@ class CompareBrowserTests(unittest.TestCase):
                 with open_page(viewport, color_scheme=scheme) as session:
                     page = session.page
                     load_ready(page)
-                    path = SCREENSHOT_DIR / name
+                    path = screenshot_dir / name
                     page.screenshot(path=str(path), full_page=True)
                     self.assertTrue(path.exists() and path.stat().st_size > 0, f"No screenshot at {path}")
                     backgrounds[scheme] = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
