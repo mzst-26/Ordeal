@@ -6,11 +6,11 @@ CALIBRATION_OUT_DIR ?= scratch/calibration
 .PHONY: calibrate-baseline calibrate-screen test
 
 calibrate-baseline:
-	$(PYTHON) calibrate.py baseline --ladder gauntlet_v4 --questions hard --repeats 4 \
+	$(PYTHON) -m ordeal.calibrate baseline --ladder gauntlet_v4 --questions hard --repeats 4 \
 		--lo 0.3 --hi 0.9 --model nvidia/nemotron-3-super-120b-a12b --out-dir $(CALIBRATION_OUT_DIR)
 
 calibrate-screen:
-	$(PYTHON) calibrate.py screen --ladder gauntlet_v4 --questions hard --repeats 4 \
+	$(PYTHON) -m ordeal.calibrate screen --ladder gauntlet_v4 --questions hard --repeats 4 \
 		--model nvidia/nemotron-3-super-120b-a12b --out-dir $(CALIBRATION_OUT_DIR)
 
 test:
