@@ -18,6 +18,7 @@ from ordeal import runner
 
 EASY = core.load_questions(core.DATA_DIR / "questions.json")
 HARD = core.load_questions(core.DATA_DIR / "questions_hard.json")
+MIXED_SITE_DIR = core.PROJECT_DIR / "site" / "data" / "mixed"
 
 
 def ids_in_order(slots: list[dict]) -> list[str]:
@@ -172,6 +173,18 @@ class MixedRunTests(unittest.TestCase):
             self.assertTrue((out_dir / "mixed_by_run.csv").is_file())
             self.assertFalse((out_dir / "results.csv").exists())
             self.assertFalse((out_dir / "by_difficulty.csv").exists())
+
+
+class ExportedFileTests(unittest.TestCase):
+    """The files in site/data/mixed must match the function output for their seed."""
+
+    def test_each_exported_file_matches_the_function(self) -> None:
+        """Seeds 1 to 10 each have a file, and the file equals mix.order_document for that seed."""
+        for seed in range(1, 11):
+            with self.subTest(seed=seed):
+                path = MIXED_SITE_DIR / f"mixed_{seed}.json"
+                exported = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(exported, mix.order_document(seed, EASY, HARD))
 
 
 if __name__ == "__main__":
