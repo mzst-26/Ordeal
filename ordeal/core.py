@@ -49,7 +49,7 @@ PROMPT_QUESTION_FIELDS = (
 )
 # .env files are tried in this order and the first one that exists is used (see load_env_file).
 # The current folder comes first, so an installed copy finds the key in the folder the user runs from.
-ENV_FILE_CANDIDATES = (Path.cwd() / ".env", PROJECT_DIR / ".env", PROJECT_DIR.parent / ".env")
+ENV_FILE_CANDIDATES = (Path.cwd() / ".env", PROJECT_DIR / ".env")
 TOKEN_ENV_VAR = "TOKEN_FACTORY_TOKEN"
 
 LEVEL_COUNT = 10  # Default level count for old callers. A ladder file can have any count.

@@ -87,7 +87,7 @@ function makeClient({
   sleepImpl = null,
 }) {
   const vault = createTokenVault();
-  if (hasKey) vault.set(FAKE_KEY);
+  if (hasKey) vault.set(FAKE_KEY, { platform: 'test' });
   const fake = makeFakeFetch(script);
   const sleeps = [];
   const recordingSleep = async (seconds) => {
@@ -493,7 +493,7 @@ test('a custom entry whose display name differs from its API model id gives the 
 });
 
 test('a built-in model sends its name as the model id, exactly as before', async () => {
-  for (const name of readJson('data/config.json').models) {
+  for (const name of readJson('ordeal/data/config.json').models) {
     const { client, calls } = makeClient({ script: [replyWith('ok')] });
     await client.complete(sampleRequest({ model: name }));
     assert.equal(JSON.parse(calls[0].options.body).model, name);
@@ -600,7 +600,7 @@ test('MAX_ATTEMPTS_PER_STEP is one try plus the retries, and a step that keeps f
   assert.equal(MAX_ATTEMPTS_PER_STEP, 6);
   const fake = makeFakeFetch(Array.from({ length: MAX_ATTEMPTS_PER_STEP + 2 }, () => fakeResponse(500, {})));
   const vault = createTokenVault();
-  vault.set(FAKE_KEY);
+  vault.set(FAKE_KEY, { platform: TEST_PLATFORM.id });
   const client = createChatClient({
     platform: TEST_PLATFORM,
     vault,

@@ -1,7 +1,10 @@
 // The key dialog. It asks for the key of the platform the visitor chose, and keeps it in memory unless asked to remember it.
 
 import { el } from "./ui.js";
-import { isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH } from "./engine/token.js";
+import {
+  isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH, browserStorage,
+} from "./engine/token.js";
+import { readChoice, DEFAULT_PLATFORM_ID } from "./platforms.js";
 
 const TITLE_ID = "token-dialog-title";
 const FIELD_ID = "token-dialog-field";
@@ -41,7 +44,7 @@ function explainProblem(text) {
  * cancels or forgets the key. Focus goes back to the element that was focused before.
  * The vault is the object from token.js and needs has(), set(text) and clear().
  */
-export function askForToken({ vault }) {
+export function askForToken({ vault, platformId = chosenPlatformId() }) {
   return new Promise((resolve) => {
     const opener = document.activeElement;
     const parts = buildDialog(vault);
@@ -57,7 +60,7 @@ export function askForToken({ vault }) {
     parts.form.addEventListener("submit", (event) => {
       event.preventDefault();
       const text = parts.input.value.trim();
-      if (isPlausibleToken(text) && saveToken(vault, text, parts)) {
+      if (isPlausibleToken(text) && saveToken(vault, text, parts, platformId)) {
         outcome = true;
         parts.dialog.close();
       }
@@ -96,7 +99,7 @@ function buildDialog(vault) {
     "aria-pressed": "false",
     "aria-controls": FIELD_ID,
   });
-  parts.remember = el("input", { type: "checkbox", id: REMEMBER_ID, checked: true });
+  parts.remember = el("input", { type: "checkbox", id: REMEMBER_ID, checked: false });
   parts.rememberLabel = el("label", { className: "field-check", for: REMEMBER_ID }, [
     parts.remember,
     el("span", { text: "Remember this key in this browser" }),
@@ -133,10 +136,10 @@ function buildDialog(vault) {
   return parts;
 }
 
-/** Store the key in the vault, saved in storage only when Remember is ticked. Returns false and shows the vault's message when the vault refuses it. */
-function saveToken(vault, text, parts) {
+/** Store the key with its platform in the vault, saved in storage only when Remember is ticked. Returns false and shows the vault's message when the vault refuses it. */
+function saveToken(vault, text, parts, platformId) {
   try {
-    vault.set(text, { remember: parts.remember.checked });
+    vault.set(text, { remember: parts.remember.checked, platform: platformId });
     return true;
   } catch (error) {
     parts.status.textContent = error.message;
@@ -157,4 +160,10 @@ function toggleVisibility(parts) {
   parts.input.type = willShow ? "text" : "password";
   parts.showButton.setAttribute("aria-pressed", String(willShow));
   parts.showButton.textContent = willShow ? "Hide key" : "Show key";
+}
+
+/** Return the id of the platform the visitor chose, or the default platform when none is saved. The key is entered for this one. */
+function chosenPlatformId() {
+  const choice = readChoice(browserStorage());
+  return choice === null ? DEFAULT_PLATFORM_ID : choice.platformId;
 }

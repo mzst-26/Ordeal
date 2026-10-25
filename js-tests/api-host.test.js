@@ -39,6 +39,7 @@ function countingVault() {
   return {
     counts,
     has: () => true,
+    platformId: () => 'openrouter',
     get: () => {
       counts.reads += 1;
       return FAKE_KEY;
@@ -153,4 +154,22 @@ test('every browser platform with a fixed base URL gets an https address on its 
     assert.equal(new URL(chat).protocol, 'https:', platform.id + ' must use https');
     assert.equal(hostOf(chat), new URL(platform.base_url).hostname, platform.id + ' must keep its own host');
   }
+});
+
+test('a key saved for another platform is refused before any request is made', async () => {
+  // The vault says the key belongs to Nebius, but the client is for OpenRouter, so no request may be sent.
+  const fake = recordingFetch(fakeResponse(200, { choices: [{ message: { content: 'ok' } }] }));
+  const otherPlatformVault = { ...countingVault(), platformId: () => 'nebius' };
+  const client = createChatClient({
+    platform: OPENROUTER,
+    vault: otherPlatformVault,
+    budget: createBudget(null),
+    fetchImpl: fake.fetchImpl,
+    sleep: async () => {},
+  });
+  await assert.rejects(
+    client.complete({ model: 'org/name', messages: [], temperature: 0, maxTokens: 1 }),
+    { message: 'The saved key belongs to another platform. Enter the key for this platform.' },
+  );
+  assert.equal(fake.calls.length, 0);
 });
