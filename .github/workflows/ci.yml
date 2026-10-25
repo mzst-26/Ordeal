@@ -38,6 +38,16 @@ jobs:
       - name: Install Chromium for the browser tests
         run: python -m playwright install --with-deps chromium
 
+      # Some browser tests run `npm run build` (Vite) before they start, so this job needs Node and the npm packages too.
+      # Without `npm ci`, Vite is missing and the build fails with exit status 127 ("command not found").
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install the npm packages for the browser tests
+        run: npm ci
+
       # Every module under ordeal/, scripts/ and tests/ must at least compile, even the ones no test imports.
       - name: Compile every Python file
         run: python -m compileall -q ordeal scripts tests
