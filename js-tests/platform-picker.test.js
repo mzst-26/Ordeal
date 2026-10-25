@@ -9,7 +9,6 @@ import {
   platformList,
   findPlatform,
   selectablePlatforms,
-  platformFacts,
   signupLink,
   currentPlatform,
   readChoice,
@@ -58,35 +57,6 @@ test('every selectable platform has a non-empty summary sentence', () => {
 
 test('the default platform is one the visitor can choose', () => {
   assert.ok(SELECTABLE_IDS.includes(DEFAULT_PLATFORM_ID));
-});
-
-test('platformFacts gives Type, Key and Browser rows with fixed labels', () => {
-  const rows = platformFacts(findPlatform(ALL, 'openrouter'));
-  assert.deepEqual(rows.map((row) => row.label), ['Type', 'Key', 'Browser']);
-});
-
-test('platformFacts says the key is not needed when key_env is null', () => {
-  const noKey = { ...findPlatform(ALL, 'openrouter'), key_env: null };
-  const keyRow = platformFacts(noKey).find((row) => row.label === 'Key');
-  assert.equal(keyRow.value, 'Not needed');
-});
-
-test('platformFacts says the key comes from the sign-up page when key_env is set', () => {
-  const keyRow = platformFacts(findPlatform(ALL, 'openrouter')).find((row) => row.label === 'Key');
-  assert.equal(keyRow.value, "Needed, from the platform's sign-up page");
-});
-
-test('platformFacts gives a plain Type value for an inference platform', () => {
-  const typeRow = platformFacts(findPlatform(ALL, 'openrouter')).find((row) => row.label === 'Type');
-  assert.equal(typeRow.value, "Hosts many labs' models");
-});
-
-test('platformFacts never shows the word undefined for a platform with missing fields', () => {
-  const rows = platformFacts({ id: 'bare', name: 'Bare' });
-  for (const row of rows) {
-    assert.equal(typeof row.value, 'string');
-    assert.equal(row.value.includes('undefined'), false);
-  }
 });
 
 test('signupLink returns an https sign-up address', () => {

@@ -86,34 +86,6 @@ export function platformIdFor(list, choice) {
   return platform === null ? DEFAULT_PLATFORM_ID : platform.id;
 }
 
-// The words shown for each kind of platform on a card. A kind not listed here shows the fallback words.
-const TYPE_WORDS = {
-  inference: "Hosts many labs' models",
-  'single-vendor': "Serves one maker's models",
-  local: 'Runs on this computer',
-  custom: 'Your own address',
-};
-const TYPE_FALLBACK = 'Not stated';
-const KEY_NEEDED = "Needed, from the platform's sign-up page";
-const KEY_NOT_NEEDED = 'Not needed';
-const BROWSER_YES = 'Works in this page';
-const BROWSER_NO = 'Needs a server, so not in this page';
-
-/**
- * Return the short rows shown on a platform's card: its type, whether a key is needed, and whether it works in this
- * page. Each row is {label, value} with plain text, so the card can show it without any markup.
- */
-export function platformFacts(platform) {
-  // The site copy of the list has no key_env field (the export removes it). Only an explicit null means no key is
-  // needed; any other value, or a missing field, means the visitor types a key, which is what the browser asks for.
-  const keyNeeded = platform.key_env !== null;
-  return [
-    { label: 'Type', value: TYPE_WORDS[platform.kind] ?? TYPE_FALLBACK },
-    { label: 'Key', value: keyNeeded ? KEY_NEEDED : KEY_NOT_NEEDED },
-    { label: 'Browser', value: platform.browser === true ? BROWSER_YES : BROWSER_NO },
-  ];
-}
-
 /**
  * Return the platform's sign-up address when it is a non-empty https address, otherwise null. Only https is allowed,
  * so the card never links to a plain or script address. A null result means the card shows no link.
