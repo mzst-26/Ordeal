@@ -6,9 +6,11 @@ import { runFlows } from "./flows.js";
 import { cacheKey, makeUnits } from "./planner.js";
 import { BASELINE_STEP, formatQuestion, systemPromptFor } from "./rules.js";
 
-const MAX_CONCURRENCY = 8;
+const MAX_CONCURRENCY = 32;
+// The log used when the caller gives none: it keeps nothing.
+const NO_LOG = { record() {} };
 
-/** Return the concurrency if it is a whole number from 1 to 8. Otherwise throw a clear Error. */
+/** Return the concurrency if it is a whole number from 1 to 32. Otherwise throw a clear Error. */
 function checkConcurrency(value) {
   if (!Number.isInteger(value) || value < 1 || value > MAX_CONCURRENCY) {
     throw new Error(`Concurrency must be a whole number from 1 to ${MAX_CONCURRENCY}. Got ${value}.`);
@@ -81,6 +83,7 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
   /** Send one request unless a stop was requested first. Return null when it was stopped. */
   function sendRequest(unit, messages) {
     if (shared.stopRequested) {
+      shared.log.record("step-skipped", { ...unitFields(unit), reason: "stop" });
       return null;
     }
     return client.complete({
@@ -166,13 +169,13 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
 
 /**
  * Create a batch runner for every unit of the models, questions and repeats given.
- * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 8,
+ * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 32,
  * and defaults to config.concurrency. onEvent(event) gets one plain object per event, in order.
  * Other options are as in runner.py.
  */
 export function createBatchRunner({
   client, models, questions, repeats, condition, families, ladder, probeSpec, config, cache,
-  concurrency, onEvent = () => {},
+  concurrency, onEvent = () => {}, log = NO_LOG,
 }) {
   const limit = checkConcurrency(concurrency ?? config.concurrency);
   const pending = makeUnits(models, questions, repeats);
@@ -198,8 +201,9 @@ export function createBatchRunner({
     }
   }
 
-  /** Stop the batch: no new work starts, and calls in flight are aborted. */
-  function requestStop() {
+  /** Stop the batch: no new work starts, and calls in flight are aborted. The reason is logged. */
+  function requestStop(reason = "user") {
+    log.record("stop-requested", { reason });
     shared.stopRequested = true;
     shared.controller.abort();
     releasePauseWaiters();
@@ -212,7 +216,7 @@ export function createBatchRunner({
     }
     shared.noticeSent = true;
     shared.emit(event);
-    requestStop();
+    requestStop(event.kind);
   }
 
   /** Emit budget-exhausted once, then stop the batch. */
@@ -226,11 +230,15 @@ export function createBatchRunner({
   }
 
   const shared = {
+    log,
     stopRequested: false,
     noticeSent: false,
     controller: new AbortController(),
     counts: { done: 0, calls: 0, reused: 0, failed: 0 },
-    emit: (event) => onEvent(event),
+    emit: (event) => {
+      log.record(event.kind, event);
+      onEvent(event);
+    },
     waitWhilePaused,
     requestStop,
     reportBudgetExhausted,
@@ -304,6 +312,7 @@ export function createBatchRunner({
   /** Run the batch with one work loop per concurrency slot. The end event is sent once, even on error. */
   async function runBatch() {
     phase = "running";
+    log.record("batch-started", { units: total, slots: limit, models: models.length, repeats });
     const loops = [];
     for (let slot = 0; slot < limit; slot += 1) {
       loops.push(workLoop());
@@ -337,10 +346,12 @@ export function createBatchRunner({
     /** Pause before the next unit or call. Work already in flight is not stopped. */
     pause() {
       paused = true;
+      log.record("paused");
     },
     /** Let paused work continue. */
     resume() {
       paused = false;
+      log.record("resumed");
       releasePauseWaiters();
     },
     /** Stop the batch. Nothing happens once it has already ended. */
@@ -348,7 +359,7 @@ export function createBatchRunner({
       if (phase === "stopped" || phase === "finished") {
         return;
       }
-      requestStop();
+      requestStop("user");
     },
     /** Return true while the batch is paused. */
     isPaused() {

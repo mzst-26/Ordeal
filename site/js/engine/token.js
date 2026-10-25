@@ -1,4 +1,5 @@
-// Memory-only holder for the user's API key. Nothing here writes to storage, the URL, the DOM or the console.
+// Holder for the user's API key. The key is kept in memory, and is written to this browser's local storage only
+// when the user asks for it to be remembered. Nothing here writes the key to the URL, the DOM or the console.
 
 // Length limits for a key, counted after trimming. Keys in use range from short to long, so the
 // upper limit is generous. The check only has to catch blank values and pasted sentences.
@@ -28,33 +29,86 @@ export function maskToken(text) {
   return text.slice(0, 3) + '…' + text.slice(-4);
 }
 
-/** Create a vault that keeps one key in a closure variable and nowhere else. */
-export function createTokenVault() {
+/** Return the browser's local storage, or null when this page cannot use it (no storage, or it is blocked). */
+export function browserStorage() {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a vault that keeps one key in a closure variable. With a storage object, a key saved with
+ * remember: true is also kept there, so it is still there after a reload. Storage errors are never shown.
+ */
+export function createTokenVault({ storage = null } = {}) {
   let storedText = null;
+
+  /** Read the saved key from storage. Returns null when there is none, or when it is not a plausible key. */
+  function readRemembered() {
+    try {
+      const text = storage ? storage.getItem(REMEMBER_STORAGE_NAME) : null;
+      return isPlausibleToken(text) ? text.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Write or remove the saved key. A storage error is ignored, so the key still works for this tab. */
+  function writeRemembered(text) {
+    try {
+      if (!storage) return;
+      if (text === null) storage.removeItem(REMEMBER_STORAGE_NAME);
+      else storage.setItem(REMEMBER_STORAGE_NAME, text);
+    } catch {
+      // The key stays in memory for this tab only.
+    }
+  }
+
+  /** Return the key held in memory, loading a remembered key from storage the first time. */
+  function current() {
+    if (storedText === null) storedText = readRemembered();
+    return storedText;
+  }
+
   return {
-    /** Store the key. Throws a plain message if it does not look like a key. */
-    set(text) {
+    /**
+     * Store the key. Throws a plain message if it does not look like a key. With remember: true the key is
+     * also saved in storage; with remember: false any saved copy is removed, so the key lasts for this tab only.
+     */
+    set(text, { remember = false } = {}) {
       if (!isPlausibleToken(text)) throw new Error(BAD_KEY_MESSAGE);
       storedText = text.trim();
+      writeRemembered(remember ? storedText : null);
     },
-    /** Return the stored key, or null when none is set. */
+    /** Return the stored key, or null when none is set. A key saved in storage is loaded on first use. */
     get() {
-      return storedText;
+      return current();
     },
-    /** Return true when a key is stored. */
+    /** Return true when a key is stored, in memory or in storage. */
     has() {
-      return storedText !== null;
+      return current() !== null;
     },
-    /** Forget the stored key. */
+    /** Return true when the key is saved in storage, so it survives a reload. */
+    remembered() {
+      return readRemembered() !== null;
+    },
+    /** Forget the stored key, in memory and in storage. */
     clear() {
       storedText = null;
+      writeRemembered(null);
     },
     /** Return the masked key for display, or an empty string when none is set. */
     masked() {
-      return storedText === null ? '' : maskToken(storedText);
+      const text = current();
+      return text === null ? '' : maskToken(text);
     },
   };
 }
 
-// One shared vault for the pages.
-export const vault = createTokenVault();
+// The name the key is saved under in this browser's local storage.
+export const REMEMBER_STORAGE_NAME = 'ordeal.nebius-api-key';
+
+// One shared vault for the pages. It saves a key only when the user asks it to.
+export const vault = createTokenVault({ storage: browserStorage() });
