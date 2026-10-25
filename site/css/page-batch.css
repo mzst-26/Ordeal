@@ -20,7 +20,8 @@
 /* The setup form is the dash grid itself: its blocks are panels with span classes (see dashboard.css) */
 .setup {
   min-width: 0;
-  margin: 0;
+  margin: var(--space-6) 0 0;
+  gap: var(--dash-gap);
 }
 
 /* 2. Numbered blocks: each fieldset is a panel. Its legend is the panel title, set inside the card */
@@ -102,6 +103,109 @@ fieldset.panel > .add-model {
   font-family: var(--font-sans);
   font-size: var(--size-ui);
   min-height: 44px;
+}
+
+/* The model tick boxes stay in the page to hold the choice; the Choose models picker shows the models */
+.check-list.model-list[hidden] {
+  display: none;
+}
+
+/* Two columns of cards: the left holds Models and Questions, the right holds the plan and the probe families.
+   Each column stacks on its own, so a tall plan never moves the cards on the left */
+.setup-main,
+.setup-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-gap);
+  min-width: 0;
+}
+
+/* The question tick boxes stay in the page to hold the choice; the Choose questions picker shows the questions */
+.check-list.question-list[hidden] {
+  display: none;
+}
+
+/* The ticked items under the Models and Questions cards: one thin line each, in columns, scrolling when long */
+.selected-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0 var(--space-4);
+  max-height: 16rem;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.selected-list:empty {
+  display: none;
+}
+
+.selected-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.selected-lead {
+  flex: none;
+  min-width: 2.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-xs);
+  color: var(--ink-mute);
+}
+
+.selected-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A question card in the picker: the id and tier on a small line, the question text below */
+.pick-question {
+  display: grid;
+  row-gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.pick-question-meta {
+  color: var(--ink-mute);
+  font-size: var(--size-xs);
+  letter-spacing: var(--tracking-label);
+}
+
+.pick-question-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A model card in the picker: the rank in the first column, the name beside it, the facts under the name */
+.pick-model {
+  display: grid;
+  grid-template-columns: 8ch minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+}
+
+.pick-model-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pick-model .model-facts {
+  grid-column: 2;
+  grid-row: auto;
 }
 
 /* Model rows read at body size; the other tick lists keep the UI size */
@@ -429,7 +533,7 @@ fieldset:disabled .check-box {
   color: var(--ink);
 }
 
-/* 6. Results: one table per ticked model, then the fingerprint chart */
+/* 6. Results: a ranked comparison and a heatmap, then the fingerprint chart */
 .results {
   display: grid;
   gap: var(--space-6);
@@ -439,6 +543,171 @@ fieldset:disabled .check-box {
 
 .results > h2 {
   margin-bottom: 0;
+}
+
+.results-compare,
+.results-block,
+.results-body {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.results-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.results-label {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+}
+
+.results-select {
+  max-width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+}
+
+.results-section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.results-subhead {
+  margin: 0;
+  font-size: var(--size-base);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+/* Bars and heatmap scroll inside their own box, so the page never scrolls sideways */
+.results-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 28rem;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 2ch minmax(7rem, 14rem) minmax(8rem, 1fr) 6.5rem;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  font-variant-numeric: tabular-nums;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.rank-pos {
+  color: var(--ink-mute);
+  text-align: right;
+}
+
+.rank-name {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.rank-track {
+  display: block;
+  height: 0.75rem;
+  background: var(--wash);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.rank-bar {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+}
+
+.rank-value {
+  text-align: right;
+  color: var(--ink);
+}
+
+.rank-row.is-missing .rank-name,
+.rank-row.is-missing .rank-value {
+  color: var(--ink-mute);
+}
+
+.rank-row.is-highlight,
+.heat-table tbody tr.is-highlight th {
+  background: var(--wash);
+}
+
+.heat-table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-table th,
+.heat-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+
+.heat-table thead th {
+  font-weight: 400;
+  color: var(--ink-mute);
+  text-align: center;
+  vertical-align: bottom;
+  line-height: var(--leading-heading);
+  min-width: 6.5rem;
+}
+
+.heat-table tbody th {
+  font-weight: 400;
+  text-align: left;
+  color: var(--ink);
+  min-width: 10rem;
+  overflow-wrap: anywhere;
+}
+
+/* Tint is a share of the sage token, so the ramp follows the theme; text stays ink on the faintest to strongest tint */
+.heat-cell {
+  text-align: center;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--sage) calc(var(--heat, 10) * 1%), var(--paper-raised));
+}
+
+.heat-cell.is-missing {
+  color: var(--ink-mute);
+  background: transparent;
+  font-style: italic;
+}
+
+.results-details > summary {
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  cursor: pointer;
 }
 
 /* One table per model; from 760px they flow into as many columns as fit, each at least 18rem (or the full width if narrower) */
@@ -588,4 +857,241 @@ fieldset:disabled .check-box {
   font-family: var(--font-sans);
   font-size: var(--size-sm);
   color: var(--ink-soft);
+}
+
+/* Results figures */
+.results-figures {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.results-figures .figure-block {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.results-figures .figure-axes {
+  margin-bottom: 0;
+}
+
+.figure-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Every figure is drawn at about its own size (36rem at most), so its labels keep their size on a wide screen */
+.figure-svg {
+  display: block;
+  width: min(100%, 36rem);
+  min-width: 0;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* The hover note: one bubble, placed by tooltip.js next to the element it describes */
+.tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 22rem;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper-raised);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+/* A word with a plain-English meaning on hover: a dotted underline shows it can be hovered */
+.term {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.figure-grid {
+  stroke: var(--rule);
+  stroke-width: 1;
+  fill: none;
+}
+
+.figure-axis {
+  stroke: var(--ink-mute);
+  stroke-width: 1;
+}
+
+.figure-plot-bg {
+  fill: var(--paper-raised);
+}
+
+.figure-axis-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  fill: var(--ink-soft);
+  cursor: help;
+}
+
+.figure-tick {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: var(--ink-mute);
+}
+
+.figure-point-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  fill: var(--ink);
+}
+
+.figure-poly,
+.figure-point {
+  transition: stroke-width 120ms ease;
+}
+
+.figure-poly.is-highlight,
+.figure-point.is-highlight {
+  stroke-width: 3.5;
+}
+
+.figure-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.figure-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.figure-legend-item[aria-pressed="false"] {
+  color: var(--ink-mute);
+  opacity: 0.6;
+}
+
+.figure-legend-item.is-highlight {
+  border-color: var(--ink-soft);
+}
+
+.figure-swatch {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 2px;
+}
+
+.figure-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.figure-key {
+  counter-reset: figure-key;
+}
+
+.figure-key li {
+  counter-increment: figure-key;
+}
+
+.figure-key li::before {
+  content: counter(figure-key) ". ";
+  color: var(--ink-mute);
+}
+
+.figure-profile-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) minmax(320px, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.figure-profile-row.is-highlight {
+  background: var(--paper-raised);
+}
+
+.figure-profile-name {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.figure-profile-track {
+  min-width: 0;
+}
+
+.figure-profile-svg {
+  display: block;
+  width: 100%;
+  max-width: 36rem;
+  min-width: 320px;
+  height: auto;
+}
+
+.figure-missing {
+  fill: var(--ink-mute);
+}
+
+@media (max-width: 640px) {
+  .figure-profile-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
+
+/* The "Platform and model" section sits above the batch setup. Its fields stack with the usual gaps. */
+.platform-section {
+  margin-bottom: var(--dash-section-gap);
+}
+
+.platform-section .field {
+  margin-top: var(--space-4);
+}
+
+/* Each close model name is a button. The list wraps, and it is hidden when there are no names to show. */
+.platform-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.platform-suggestions[hidden] {
+  display: none;
+}
+
+/* Reserve one line for the status text, so the layout does not jump when a message appears. */
+.platform-status {
+  min-height: 1.55em;
 }

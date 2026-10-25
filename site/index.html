@@ -18,8 +18,10 @@
   <script src="/js/load-fallback.js"></script>
 </head>
 <body>
-  <!-- All three views live in this one document. /js/app.js shows one section at a time (chosen by the -->
-  <!-- URL hash: #gauntlet, #batch or #live) and builds the site header at the start of body. -->
+  <!-- The site header is drawn by React into this element. -->
+  <div id="site-header"></div>
+  <!-- All three views live in this one document. /js/main.jsx starts the router in app.js, which shows one section at a time (chosen by the -->
+  <!-- URL hash: #gauntlet, #batch or #live). -->
   <main class="page">
     <!-- VIEW I: Gauntlet. One model, one question, pressed level by level. -->
     <section data-view="gauntlet">
@@ -31,40 +33,39 @@
         </p>
       </header>
 
-      <!-- Summary figure cards. They start empty (is-empty) and the page script fills them. -->
-      <div class="dash-kpis gauntlet-kpis">
-        <div class="kpi-card is-empty" id="gauntlet-kpi-breaking">
-          <p class="kpi-label">Breaking Point</p>
-          <p class="kpi-value">No data loaded</p>
-          <p class="kpi-note">Where this run gave in, from the conversation below.</p>
-        </div>
-        <div class="kpi-card is-empty" id="gauntlet-kpi-levels">
-          <p class="kpi-label">Levels</p>
-          <p class="kpi-value">No data loaded</p>
-          <p class="kpi-note">Levels on the ladder of the pushback set on the desk.</p>
-        </div>
-        <div class="kpi-card is-empty" id="gauntlet-kpi-passed">
-          <p class="kpi-label">Levels passed</p>
-          <p class="kpi-value">No data loaded</p>
-          <p class="kpi-note">Answers held right in this run, counted from the Breaking Point.</p>
-        </div>
-        <div class="kpi-card is-empty" id="gauntlet-kpi-saved">
-          <p class="kpi-label">Saved replies</p>
-          <p class="kpi-value">No data loaded</p>
-          <p class="kpi-note">Steps in the saved run file, counted when the page loads.</p>
-        </div>
-      </div>
-
       <!-- Empty container: the page script puts notices about resuming a saved run here. -->
       <div class="notice-region" id="gauntlet-resume-notices"></div>
 
       <div class="dash">
-        <!-- Left column: controls for setting up the run. -->
+        <!-- Summary figure cards: a rail beside the conversation from 1024px, a 2x2 grid below. They start empty (is-empty) and the page script fills them. -->
+        <div class="dash-kpis gauntlet-kpis">
+          <div class="kpi-card is-empty" id="gauntlet-kpi-breaking">
+            <p class="kpi-label">Breaking Point</p>
+            <p class="kpi-value">No data loaded</p>
+            <p class="kpi-note">Where this run gave in, from the conversation below.</p>
+          </div>
+          <div class="kpi-card is-empty" id="gauntlet-kpi-levels">
+            <p class="kpi-label">Levels</p>
+            <p class="kpi-value">No data loaded</p>
+            <p class="kpi-note">Levels on the ladder of the pushback set on the desk.</p>
+          </div>
+          <div class="kpi-card is-empty" id="gauntlet-kpi-passed">
+            <p class="kpi-label">Levels passed</p>
+            <p class="kpi-value">No data loaded</p>
+            <p class="kpi-note">Answers held right in this run, counted from the Breaking Point.</p>
+          </div>
+          <div class="kpi-card is-empty" id="gauntlet-kpi-saved">
+            <p class="kpi-label">Saved replies</p>
+            <p class="kpi-value">No data loaded</p>
+            <p class="kpi-note">Steps in the saved run file, counted when the page loads.</p>
+          </div>
+        </div>
+
+        <!-- Full-width row above the conversation: controls for setting up the run. -->
         <section class="desk panel span-12" aria-labelledby="desk-heading">
           <h2 class="panel-title" id="desk-heading">Set up the run</h2>
 
           <div class="presets">
-            <h3 class="label">Presets</h3>
             <!-- Empty: preset buttons are rendered here by the script. -->
             <div id="gauntlet-preset-panel"></div>
           </div>
@@ -98,13 +99,17 @@
             </div>
 
             <div class="control">
-              <label class="label" for="model-select"><span class="section-number">3.</span> Model</label>
-              <select class="select" id="model-select"></select>
+              <label class="label" for="gauntlet-model-choose"><span class="section-number">3.</span> Model</label>
+              <select class="select" id="model-select" hidden></select>
+              <button type="button" class="select choice-trigger" id="gauntlet-model-choose"
+                aria-haspopup="dialog"></button>
             </div>
 
             <div class="control">
-              <label class="label" for="question-select"><span class="section-number">4.</span> Question</label>
-              <select class="select" id="question-select"></select>
+              <label class="label" for="gauntlet-question-choose"><span class="section-number">4.</span> Question</label>
+              <select class="select" id="question-select" hidden></select>
+              <button type="button" class="select choice-trigger" id="gauntlet-question-choose"
+                aria-haspopup="dialog"></button>
             </div>
 
             <div class="control">
@@ -149,7 +154,7 @@
           </div>
         </section>
 
-        <!-- Right column: the conversation and the ladder of levels. -->
+        <!-- The conversation: beside the KPI rail from 1024px, full width below. -->
         <section class="spread panel span-12" aria-labelledby="spread-heading">
           <h2 class="panel-title" id="spread-heading">The conversation</h2>
 
@@ -163,10 +168,17 @@
         </section>
 
         <!-- The ladder of levels sits beside the conversation. The script fills the list. -->
-        <section class="levels panel span-12" aria-labelledby="levels-heading">
-          <h2 class="panel-title" id="levels-heading">The levels</h2>
-          <ol class="level-list" id="level-list" aria-labelledby="levels-heading"></ol>
-        </section>
+        <div class="levels-drawer">
+          <button type="button" class="levels-drawer-toggle" aria-expanded="true" aria-controls="levels-drawer-body">
+            <span class="levels-drawer-toggle-label">The levels</span>
+            <span class="levels-drawer-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <section class="levels panel span-12" id="levels-drawer-body" aria-labelledby="levels-heading">
+            <h2 class="panel-title" id="levels-heading">The levels</h2>
+            <ol class="level-list" id="level-list" aria-labelledby="levels-heading"></ol>
+          </section>
+        </div>
+        <script type="module" src="/js/levels-drawer.js"></script>
       </div>
 
       <!-- Saved runs: the storage note and the list are filled in by the script. -->
@@ -220,6 +232,9 @@
 
       <div class="notice-region" id="batch-resume-notices"></div>
 
+      <!-- Platform and model: filled by platform-section.js. The choice applies to the batch and live pages. -->
+      <div id="platform-section"></div>
+
       <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
       <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
           <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
@@ -267,8 +282,8 @@
                   inputmode="numeric">
               </div>
               <div class="field">
-                <label class="field-label" for="concurrency-input">Concurrency (1 to 8)</label>
-                <input class="text-input" id="concurrency-input" type="number" min="1" max="8" step="1"
+                <label class="field-label" for="concurrency-input">Concurrency (1 to 32)</label>
+                <input class="text-input" id="concurrency-input" type="number" min="1" max="32" step="1"
                   inputmode="numeric">
               </div>
             </div>
@@ -295,15 +310,18 @@
             <p class="field-hint" id="fixed-settings"></p>
           </fieldset>
 
-          <fieldset class="panel span-8">
+          <div class="setup-main span-8">
+          <fieldset class="panel">
             <legend class="panel-title"><span class="section-number">4.</span> Models</legend>
             <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
-            <p class="field-hint" id="model-rank-note">Rank: highest public score first. Hover a row for its source.</p>
+            <p class="field-hint" id="model-rank-note">Rank: highest public score first. Hover a card for its source.</p>
             <div class="button-row">
+              <button type="button" class="btn btn-primary" id="model-choose" aria-haspopup="dialog">Choose models</button>
               <button type="button" class="btn" id="model-select-all">Select all</button>
               <button type="button" class="btn" id="model-clear">Clear</button>
             </div>
-            <div class="check-list model-list" id="batch-model-list" role="group" aria-label="Models"></div>
+            <!-- Holds the tick boxes that store the model choice. Hidden: the Choose models picker ticks them. -->
+            <div class="check-list model-list" id="batch-model-list" role="group" aria-label="Models" hidden></div>
             <div class="add-model">
               <label class="field-label" for="custom-model-name">Add another model name</label>
               <div class="add-model-row">
@@ -313,10 +331,38 @@
               </div>
               <p class="field-hint" id="custom-model-message"></p>
             </div>
+            <!-- The ticked models, one thin line each. The page fills it on every change. -->
+            <ul class="selected-list" id="batch-model-selected" aria-label="Selected models"></ul>
           </fieldset>
 
+          <fieldset class="panel">
+            <legend class="panel-title"><span class="section-number">5.</span> Questions</legend>
+            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
+            <div class="button-row">
+              <button type="button" class="btn btn-primary" id="question-choose" aria-haspopup="dialog">Choose questions</button>
+              <button type="button" class="btn" id="question-all">All</button>
+              <button type="button" class="btn" id="question-none">None</button>
+              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
+              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
+            </div>
+            <div class="field">
+              <label class="field-label" for="tier-filter">Show tier</label>
+              <select class="select" id="tier-filter">
+                <option value="all">All tiers</option>
+              </select>
+            </div>
+            <!-- The ticked questions, one thin line each. The page fills it on every change. -->
+            <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
+            <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
+            <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
+              hidden></div>
+          </fieldset>
+
+          </div>
+
+          <div class="setup-side span-4">
           <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
-          <section class="run-panel panel span-4" aria-labelledby="plan-heading">
+          <section class="run-panel panel" aria-labelledby="plan-heading">
             <h2 class="panel-title" id="plan-heading">The plan</h2>
             <ul class="plan-list" id="plan-models"></ul>
             <p class="plan-totals" id="plan-totals"></p>
@@ -353,26 +399,7 @@
               tabindex="0"></ol>
           </section>
 
-          <fieldset class="panel span-8">
-            <legend class="panel-title"><span class="section-number">5.</span> Questions</legend>
-            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
-            <div class="button-row">
-              <button type="button" class="btn" id="question-all">All</button>
-              <button type="button" class="btn" id="question-none">None</button>
-              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
-              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
-            </div>
-            <div class="field">
-              <label class="field-label" for="tier-filter">Show tier</label>
-              <select class="select" id="tier-filter">
-                <option value="all">All tiers</option>
-              </select>
-            </div>
-            <div class="check-list check-list-tall" id="question-list" role="group" aria-label="Questions"
-              tabindex="0"></div>
-          </fieldset>
-
-          <fieldset class="panel span-4">
+          <fieldset class="panel">
             <legend class="panel-title"><span class="section-number">6.</span> Probe families</legend>
             <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
             <div class="check-list" id="family-list" role="group" aria-label="Probe families">
@@ -426,14 +453,16 @@
               </div>
             </div>
           </fieldset>
+          </div>
 
       </form>
 
-      <!-- Results: tables, the fingerprint chart and its table. -->
+      <!-- Results: a ranked comparison and heatmap of the gauntlet measures, the fingerprint chart and its table. -->
       <section class="results panel" aria-labelledby="results-heading">
         <h2 class="panel-title" id="results-heading">Results</h2>
         <p class="field-hint" id="results-message">Tick models and questions to see results.</p>
-        <div class="model-tables" id="gauntlet-tables"></div>
+        <div class="results-compare" id="gauntlet-tables"></div>
+        <div class="results-figures" id="results-figures"></div>
 
         <figure class="chart-frame">
           <figcaption class="label chart-label">Fig. 1 · Fingerprint flip rates</figcaption>
@@ -484,6 +513,7 @@
           <button type="button" class="btn" id="export-gauntlet" disabled>Download results (CSV)</button>
           <button type="button" class="btn" id="export-probes" disabled>Download probe results (CSV)</button>
           <button type="button" class="btn" id="export-replies" disabled>Download all replies (JSON)</button>
+          <button type="button" class="btn" id="export-batch-log" disabled>Download batch log (JSON Lines)</button>
         </div>
       </section>
 
@@ -559,6 +589,7 @@
           <div class="transport">
             <button type="button" class="btn btn-primary" id="play-button">Play</button>
             <button type="button" class="btn" id="restart-button">Restart</button>
+            <button type="button" class="btn btn-quiet" id="skip-button">Skip to end</button>
           </div>
         </div>
 
@@ -692,6 +723,6 @@
     </section>
   </main>
   <!-- Entry point: builds the header, routes between the three views and loads each view's script on first use. -->
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/main.jsx"></script>
 </body>
 </html>

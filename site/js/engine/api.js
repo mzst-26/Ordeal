@@ -1,7 +1,8 @@
-// Chat client for the Token Factory API, and for any custom endpoint the visitor has checked. It runs in the
-// browser and reads the key from the token vault.
+// Chat client for the platform the visitor chose, and the model-list check for the same platform. It runs in the
+// browser and reads the key from the token vault. The key is sent only to the chosen platform's own address.
 
-import { validateCustomModel } from './custom-model.js';
+import { isSafeCustomUrl, validateCustomModel } from './custom-model.js';
+import { createModelLimiter } from './limiter.js';
 
 const MAX_BACKOFF_SECONDS = 60;
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -13,14 +14,18 @@ const NETWORK_MESSAGE = 'A network problem stopped the request. Check your conne
 const TIMEOUT_MESSAGE = 'The request timed out.';
 const WRONG_ADDRESS_MESSAGE = 'The API address is not the one this site is allowed to use.';
 const CUSTOM_REFUSED_MESSAGE = 'Custom endpoints cannot be used yet. Each one needs its own key first.';
-// The key must only ever be sent to this host, so the client refuses any other address.
-export const ALLOWED_BASE_URL = 'https://api.tokenfactory.nebius.com/v1/';
-// The one URL the key is ever sent to. A custom endpoint is refused before any request is made.
-const ALLOWED_CHAT_URL = ALLOWED_BASE_URL + 'chat/completions';
+const NO_MODEL_LIST_MESSAGE = 'The service sent no model list.';
+// The key must only ever go to the chosen platform's own host. The address is built from the platform in
+// platformAddressFor, so there is no fixed host in this file.
 // The retries the client makes after a failed try. Each try is one HTTP attempt.
 export const MAX_RETRIES = 5;
 // One try plus the retries, so one step makes at most this many HTTP attempts. The batch page states this number.
 export const MAX_ATTEMPTS_PER_STEP = MAX_RETRIES + 1;
+// Calls in flight to one model at once, unless the page sets another value. It keeps each model under its provider rate limit.
+export const DEFAULT_PER_MODEL_LIMIT = 4;
+
+// The log used when the caller gives none: it keeps nothing.
+const NO_LOG = { record() {} };
 
 /** Thrown when a run has used up its call budget. */
 export class BudgetExhausted extends Error {
@@ -123,9 +128,20 @@ export function chatBody(apiModel, { messages, temperature, maxTokens }) {
   return JSON.stringify({ model: apiModel, messages, temperature, max_tokens: maxTokens });
 }
 
-/** Throw the fixed address message unless the endpoint is exactly the built-in chat endpoint. */
-function assertBuiltInEndpoint(endpoint) {
-  if (endpoint !== ALLOWED_CHAT_URL) throw new Error(WRONG_ADDRESS_MESSAGE);
+/**
+ * Return the full address for one API path on a platform, such as "chat/completions" or "models".
+ * It throws the fixed address message unless the platform is a browser platform with a safe https base URL.
+ * Every address the key is sent to is built here, so the key can only go to that platform's own host.
+ */
+export function platformAddressFor(platform, path) {
+  const base = platform && platform.browser === true ? platform.base_url : null;
+  if (typeof base !== 'string' || !isSafeCustomUrl(base)) throw new Error(WRONG_ADDRESS_MESSAGE);
+  return withTrailingSlash(base) + path;
+}
+
+/** Throw the fixed address message unless the endpoint is exactly the address that was checked when the client was made. */
+function assertSameEndpoint(endpoint, allowedEndpoint) {
+  if (endpoint !== allowedEndpoint) throw new Error(WRONG_ADDRESS_MESSAGE);
 }
 
 /** Return true for a 2xx status. */
@@ -182,9 +198,9 @@ function waitUnlessStopped(pendingSleep, signal) {
 function classifyFailure(error, signal) {
   throwIfStopped(signal);
   if (error && error.name === 'AbortError') {
-    return { ok: false, retryable: true, message: TIMEOUT_MESSAGE };
+    return { ok: false, retryable: true, status: null, message: TIMEOUT_MESSAGE };
   }
-  return { ok: false, retryable: true, message: NETWORK_MESSAGE };
+  return { ok: false, retryable: true, status: null, message: NETWORK_MESSAGE };
 }
 
 /** Turn a completed HTTP response into a reply, a retry decision, or a final error. */
@@ -192,10 +208,10 @@ function interpretResponse(status, json) {
   if (isSuccess(status)) {
     const text = readReplyText(json);
     if (text === null) throw new Error(NO_TEXT_MESSAGE);
-    return { ok: true, text };
+    return { ok: true, text, status };
   }
   if (status === 401 || status === 403) throw new KeyRefused();
-  return { ok: false, retryable: isRetryable(status, false), message: describeStatus(status) };
+  return { ok: false, retryable: isRetryable(status, false), status, message: describeStatus(status) };
 }
 
 /**
@@ -204,9 +220,10 @@ function interpretResponse(status, json) {
  */
 async function attemptOnce(context) {
   throwIfStopped(context.signal);
-  // The key is added to the request below, so this check runs first and only the built-in endpoint gets it.
-  assertBuiltInEndpoint(context.endpoint);
+  // The key is added to the request below, so this check runs first and only the checked endpoint gets it.
+  assertSameEndpoint(context.endpoint, context.allowedEndpoint);
   context.budget.spend();
+  context.log.record('request-attempt', { model: context.model, attempt: context.attempt + 1 });
 
   // The timer and the caller's signal both abort this one request.
   const controller = new AbortController();
@@ -232,22 +249,79 @@ async function attemptOnce(context) {
     });
     if (isSuccess(response.status)) json = await readJson(response);
   } catch (error) {
-    return classifyFailure(error, context.signal);
+    const failure = classifyFailure(error, context.signal);
+    context.log.record('request-result', { model: context.model, attempt: context.attempt + 1, ...describeOutcome(failure) });
+    return failure;
   } finally {
     clearTimeout(timer);
     if (context.signal) context.signal.removeEventListener('abort', stopWithCaller);
   }
-  return interpretResponse(response.status, json);
+  try {
+    const outcome = interpretResponse(response.status, json);
+    context.log.record('request-result', { model: context.model, attempt: context.attempt + 1, ...describeOutcome(outcome) });
+    return outcome;
+  } catch (error) {
+    context.log.record('request-refused', { model: context.model, attempt: context.attempt + 1, status: response.status });
+    throw error;
+  }
+}
+
+/** Return the fields of an attempt's outcome for the log: the status, whether it worked, and the plain message. */
+function describeOutcome(outcome) {
+  return { ok: outcome.ok, status: outcome.status, retryable: Boolean(outcome.retryable), message: outcome.message ?? null };
 }
 
 /**
- * Create a chat client. complete() sends one chat request to the built-in API and retries transient failures.
+ * Ask the chosen platform for the ids of the models it offers, sorted. The key goes only to that platform's
+ * /models address, which is built by the same check as the chat address. Redirects are refused. Returns the ids,
+ * or throws a plain message. The key is never part of a message.
+ */
+export async function fetchModelIds({ platform, token, fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+  // The address is checked before the key is used, so a bad platform never sees the key.
+  const url = platformAddressFor(platform, 'models');
+  if (typeof token !== 'string' || token === '') throw new Error(NO_KEY_MESSAGE);
+
+  // The timer aborts a request that hangs, so the page never waits forever on a silent service.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  let json = null;
+  try {
+    response = await fetchImpl(url, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token },
+      signal: controller.signal,
+      redirect: 'error',
+    });
+    if (isSuccess(response.status)) json = await readJson(response);
+  } catch (error) {
+    throw new Error(error && error.name === 'AbortError' ? TIMEOUT_MESSAGE : NETWORK_MESSAGE);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (response.status === 401 || response.status === 403) throw new KeyRefused();
+  if (!isSuccess(response.status)) throw new Error(describeStatus(response.status));
+  return readModelIds(json);
+}
+
+/** Return the sorted model ids from a parsed model list. Throws a plain message when the list is missing. */
+function readModelIds(json) {
+  if (!json || !Array.isArray(json.data)) throw new Error(NO_MODEL_LIST_MESSAGE);
+  return json.data
+    .map((model) => (model && typeof model.id === 'string' ? model.id : null))
+    .filter((id) => id !== null)
+    .sort();
+}
+
+/**
+ * Create a chat client. complete() sends one chat request to the chosen platform and retries transient failures.
  * A custom model is refused with a fixed message until it has its own key, so no request is made for it.
- * @param {object} options - baseUrl, customModels, builtInModels, vault, budget, and optional maxRetries,
- *   timeoutMs, fetchImpl, sleep. builtInModels lists the built-in model names that no custom model may use.
+ * @param {object} options - platform (a browser platform from providers.json), customModels, builtInModels, vault,
+ *   budget, and optional maxRetries, timeoutMs, fetchImpl, sleep. builtInModels lists the built-in model names
+ *   that no custom model may use.
  */
 export function createChatClient({
-  baseUrl,
+  platform,
   customModels = [],
   builtInModels = [],
   vault,
@@ -256,10 +330,13 @@ export function createChatClient({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = fetch,
   sleep = defaultSleep,
+  log = NO_LOG,
+  perModelLimit = DEFAULT_PER_MODEL_LIMIT,
 }) {
-  // Check the address before any request is made and before the key is read.
-  if (withTrailingSlash(baseUrl) !== ALLOWED_BASE_URL) throw new Error(WRONG_ADDRESS_MESSAGE);
+  // Check the address before any request is made and before the key is read. The chat address comes from the platform.
+  const chatUrl = platformAddressFor(platform, 'chat/completions');
   checkCustomModels(customModels, builtInModels);
+  const limiter = createModelLimiter(perModelLimit);
 
   /** Send one chat request and return the reply text. Throws a plain message on failure. */
   async function complete({ model, messages, temperature, maxTokens, signal }) {
@@ -269,25 +346,32 @@ export function createChatClient({
     if (token === null) throw new Error(NO_KEY_MESSAGE);
 
     const context = {
-      endpoint: ALLOWED_CHAT_URL,
+      endpoint: chatUrl,
+      allowedEndpoint: chatUrl,
       body: chatBody(apiModelFor(model, customModels), { messages, temperature, maxTokens }),
       token,
       signal,
       timeoutMs,
       budget,
       fetchImpl,
+      model,
+      attempt: 0,
+      log,
     };
 
-    let attempt = 0;
-    let outcome = await attemptOnce(context);
-    while (!outcome.ok && outcome.retryable && attempt < maxRetries) {
-      await waitUnlessStopped(sleep(backoffSeconds(attempt), signal), signal);
-      attempt += 1;
-      outcome = await attemptOnce(context);
+    // Each attempt takes a place for its model. A wait before a retry holds no place, so other calls can run.
+    let outcome = await limiter.run(model, () => attemptOnce(context));
+    while (!outcome.ok && outcome.retryable && context.attempt < maxRetries) {
+      const seconds = backoffSeconds(context.attempt);
+      log.record('retry-wait', { model, after_attempt: context.attempt + 1, seconds });
+      await waitUnlessStopped(sleep(seconds, signal), signal);
+      context.attempt += 1;
+      outcome = await limiter.run(model, () => attemptOnce(context));
     }
 
     if (!outcome.ok) {
-      const suffix = outcome.retryable ? ` Gave up after ${attempt + 1} tries.` : '';
+      if (outcome.retryable) log.record('request-gave-up', { model, tries: context.attempt + 1 });
+      const suffix = outcome.retryable ? ` Gave up after ${context.attempt + 1} tries.` : '';
       throw new Error(outcome.message + suffix);
     }
     return outcome.text;

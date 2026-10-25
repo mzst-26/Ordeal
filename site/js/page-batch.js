@@ -5,19 +5,26 @@
 import { loadJson } from "./data-cache.js";
 import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
+import { initTooltips } from "./tooltip.js";
 import { vault } from "./engine/token.js";
+import { createBatchLog } from "./engine/batch-log.js";
+import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
 import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
+import { activePlatform } from "./platform-choice.js";
 import { csvCell } from "./engine/csv.js";
 import { hostOfCustomUrl, modelNameProblem, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
 import { barErrorChart } from "./charts/index.js";
+import { MEASURES, heatmapMatrix, normalise, rankModels } from "./analytics.js";
+import { renderResultsFigures } from "./batch-figures.js";
 import {
   barTable, clearPanel, destroyChart, drawPanel, makeChartPanel, seriesStyle, watchThemeChanges,
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
+import { openPicker } from "./picker-dialog.js";
 import { modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
@@ -54,7 +61,7 @@ const FINGERPRINT_FAMILY = "fingerprint";
 const FLIP_MEASURE = "flip_rate";
 // Upper limits for the Repeats and Concurrency inputs; readChoices treats anything outside 1..max as invalid.
 const MAX_REPEATS = 4;
-const MAX_CONCURRENCY = 8;
+const MAX_CONCURRENCY = 32;
 // The most API attempts one batch may be given. It is the same limit as the live page's cap.
 const MAX_BATCH_CALLS = 400;
 // The default call cap is the planned attempt bound rounded up to a multiple of this.
@@ -122,18 +129,22 @@ const IDS = {
   fixedSettings: "fixed-settings",
   modelList: VIEW_IDS.batch["model-list"],
   modelCount: VIEW_IDS.batch["model-count"],
+  modelChoose: "model-choose",
   modelSelectAll: "model-select-all",
   modelClear: "model-clear",
+  modelSelected: "batch-model-selected",
   customName: "custom-model-name",
   customAdd: "custom-model-add",
   customMessage: "custom-model-message",
   questionList: "question-list",
+  questionChoose: "question-choose",
   questionCount: VIEW_IDS.batch["question-count"],
   tierFilter: "tier-filter",
   questionAll: "question-all",
   questionNone: "question-none",
   questionCorrection: "question-correction",
   questionWrapper: "question-wrapper",
+  questionSelected: "batch-question-selected",
   familyList: "family-list",
   familyCount: VIEW_IDS.batch["family-count"],
   condition: VIEW_IDS.batch["condition-select"],
@@ -167,6 +178,7 @@ const IDS = {
   exportGauntlet: "export-gauntlet",
   exportProbes: "export-probes",
   exportReplies: "export-replies",
+  exportBatchLog: "export-batch-log",
 };
 
 // Everything the page needs at any moment. Controls are read from the page; this object holds the rest.
@@ -181,8 +193,11 @@ const page = {
   cache: new Map(),           // the reply cache of the suite on the form
   questionsById: new Map(),   // question objects by id, for the suite on the form
   allModels: [],              // config models, then names the user added; kept only in memory
+  modelRows: [],              // one per model row: its tick box, its text for the picker card, and its note
+  questionRows: [],           // one per question row of the suite on the form: its tick box and its question
   customModels: [],           // custom models from config.json that passed the checks in custom-model.js
   newRecords: [],             // replies made in this page session, for the JSON export
+  log: null,                  // the operation log of the batch run on this page, for the log download
   phase: "idle",              // "idle", "running", "stopping", "stopped" or "finished"
   runner: null,               // the batch runner while a batch exists
   runCondition: SAVED_CONDITION,
@@ -219,6 +234,7 @@ export function mountBatch(root) {
     (options) => barTable("Fingerprint flip rates by probe and model", options),
   );
   wireControls();
+  initTooltips();
   watchThemeChanges(redrawShownChart);
   loadData();
 }
@@ -241,8 +257,10 @@ function wireControls() {
   dom.questionSetSelect.addEventListener("change", onSuiteChanged);
   dom.pushbackSeed.addEventListener("input", onSuiteChanged);
   dom.questionSeed.addEventListener("input", onSuiteChanged);
+  dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setChecks(dom.modelList, () => true));
   dom.modelClear.addEventListener("click", () => setChecks(dom.modelList, () => false));
+  dom.questionChoose.addEventListener("click", openQuestionPicker);
   dom.questionAll.addEventListener("click", () => setChecks(dom.questionList, () => true));
   dom.questionNone.addEventListener("click", () => setChecks(dom.questionList, () => false));
   dom.questionCorrection.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("correction_test")));
@@ -262,6 +280,7 @@ function wireControls() {
   dom.exportGauntlet.addEventListener("click", exportGauntletCsv);
   dom.exportProbes.addEventListener("click", exportProbesCsv);
   dom.exportReplies.addEventListener("click", exportRepliesJson);
+  dom.exportBatchLog.addEventListener("click", exportBatchLog);
 }
 
 /**
@@ -350,6 +369,33 @@ async function startStorage() {
   page.dom.resumeNotices.replaceChildren(page.panels.notices.root);
   page.dom.runsList.replaceChildren(page.panels.list.root);
   await refreshRuns();
+  await showLatestBatchRun();
+}
+
+/**
+ * Show the newest saved batch when the page opens: its settings, its saved replies and its results. Nothing is sent,
+ * and a batch on another suite is not shown. Start still runs only what is left.
+ */
+async function showLatestBatchRun() {
+  if (page.storage === null || page.suite === null || isRunning()) {
+    return;
+  }
+  const run = await latestRunOfKind(page.storage.adapter, KIND_BATCH).catch(() => null);
+  if (run === null || !runMatchesSuite(run, page.suite) || restorePlanProblem(run.config) !== "") {
+    return;
+  }
+  const { savedKeys, records } = resumeState(run);
+  restoreChoices(run.config);
+  page.runCondition = run.config.condition;
+  addRecordsToCache(page.cache, records);
+  page.counts = { done: savedKeys.length, total: run.plannedUnits.length, calls: 0, reused: 0, failed: 0 };
+  renderProgress();
+  onSelectionChanged();
+  scheduleResults();
+  setStatus(
+    `Loaded your last batch from ${runDateText(run)}: ${formatCount(savedKeys.length)} of ${formatCount(run.plannedUnits.length)} units saved. `
+    + "Nothing was sent. Press Start to run what is left, or see the results below.",
+  );
 }
 
 /** Redraw the notices and the Saved runs list from storage. A storage problem leaves the lists as they were. */
@@ -403,12 +449,12 @@ function setupControls(config) {
   page.allModels = choices.map((entry) => entry.id);
   page.dom.modelList.append(buildModelHeading());
   for (const entry of sortByRank(choices)) {
-    page.dom.modelList.append(buildModelRow(entry, { checked: defaults.has(entry.id), note: entry.kind }));
+    addModelRow(entry, { checked: defaults.has(entry.id), note: entry.kind });
   }
   page.customModels = checkedCustomModels(config, page.allModels);
   for (const entry of page.customModels) {
     page.allModels.push(entry.name);
-    page.dom.modelList.append(buildModelRow({ id: entry.name }, { note: "custom endpoint" }));
+    addModelRow({ id: entry.name }, { note: "custom endpoint" });
   }
   fillConditionSelect(config.system_prompts);
   page.dom.repeats.value = String(config.repeats);
@@ -551,9 +597,8 @@ async function onSuiteChanged() {
 /** Redraw the question tick boxes for a suite, keeping the ticks of questions the suite still has. */
 function rebuildQuestionList(suite) {
   const kept = new Set(checkedValues(page.dom.questionList));
-  page.dom.questionList.replaceChildren(
-    ...suite.questions.map((question) => buildQuestionRow(question, kept.has(question.id))),
-  );
+  page.questionRows = suite.questions.map((question) => buildQuestionRow(question, kept.has(question.id)));
+  page.dom.questionList.replaceChildren(...page.questionRows.map((entry) => entry.row));
 }
 
 /**
@@ -590,6 +635,49 @@ function buildModelRow(entry, { checked = false, note = "" } = {}) {
 }
 
 /**
+ * Add a model's tick box to the list, and remember its row text so the picker can show a card for it. The tick
+ * box stays the record of the choice: the picker only ticks and unticks it.
+ */
+function addModelRow(entry, options) {
+  const label = buildModelRow(entry, options);
+  page.dom.modelList.append(label);
+  page.modelRows.push({ input: label.querySelector("input"), row: modelRowText(entry), note: options.note ?? "" });
+}
+
+/** Open the model picker. Its cards tick and untick the same boxes the rest of the page reads. */
+function openModelPicker() {
+  openPicker({
+    title: "Choose models",
+    items: page.modelRows,
+    isSelected: (item) => item.input.checked,
+    onToggle: toggleModel,
+    renderCard: buildModelCard,
+    onSelectAll: () => setChecks(page.dom.modelList, () => true),
+    onClear: () => setChecks(page.dom.modelList, () => false),
+    searchPlaceholder: "Search models",
+  });
+}
+
+/** Tick or untick one model from the picker. Does what a tick box change does: a fresh run, then a refresh. */
+function toggleModel(item) {
+  item.input.checked = !item.input.checked;
+  if (!page.confirming) {
+    page.resumeRunId = null;
+  }
+  onSelectionChanged();
+}
+
+/** Build the text of one picker card: the rank, the short name (with its kind) and the facts under the name. */
+function buildModelCard({ row, note }) {
+  const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
+  return el("span", { className: "pick-model", title: row.basis }, [
+    el("span", { className: "model-rank", text: row.rank }),
+    el("span", { className: "pick-model-name", text: name }),
+    buildModelFacts(row),
+  ]);
+}
+
+/**
  * Build the line of facts under a model's name: context, reasoning and price. Each one has a fixed-width slot,
  * the same slot as in the heading, so the figures line up from one row to the next.
  */
@@ -619,10 +707,50 @@ function buildModelHeading() {
   ]);
 }
 
-/** Build one question row: a tick box labelled with the id, tier and first words of the question. */
+/**
+ * Build one question row: a tick box labelled with the id, tier and first words of the question. Returns the row
+ * and its picker entry, which keeps the tick box and the question for the picker card.
+ */
 function buildQuestionRow(question, checked = false) {
   const label = buildCheckbox(question.id, { text: questionLabel(question), checked });
-  return el("div", { className: "check-row", "data-tier": question.tier }, [label]);
+  const row = el("div", { className: "check-row", "data-tier": question.tier }, [label]);
+  return { row, input: label.querySelector("input"), question };
+}
+
+/**
+ * Open the question picker. It shows the questions of the chosen tier; its cards tick and untick the same boxes
+ * the rest of the page reads.
+ */
+function openQuestionPicker() {
+  const tier = page.dom.tierFilter.value;
+  const items = page.questionRows.filter((entry) => tier === "all" || entry.question.tier === tier);
+  openPicker({
+    title: tier === "all" ? "Choose questions" : `Choose questions (${tier})`,
+    items,
+    isSelected: (item) => item.input.checked,
+    onToggle: toggleQuestion,
+    renderCard: buildQuestionCard,
+    onSelectAll: () => setChecks(page.dom.questionList, () => true),
+    onClear: () => setChecks(page.dom.questionList, () => false),
+    searchPlaceholder: "Search questions",
+  });
+}
+
+/** Tick or untick one question from the picker. Does what a tick box change does: a fresh run, then a refresh. */
+function toggleQuestion(item) {
+  item.input.checked = !item.input.checked;
+  if (!page.confirming) {
+    page.resumeRunId = null;
+  }
+  onSelectionChanged();
+}
+
+/** Build the text of one picker card: the id and tier on a small line, the question text below. */
+function buildQuestionCard({ question }) {
+  return el("span", { className: "pick-question" }, [
+    el("span", { className: "pick-question-meta", text: `${question.id} · ${question.tier}` }),
+    el("span", { className: "pick-question-text", text: question.question }),
+  ]);
 }
 
 /** Return the question's label: "m01 · tier · first 60 characters of the question". */
@@ -790,7 +918,7 @@ function isSuiteControl(target) {
   return controls.includes(target);
 }
 
-/** Handle a change in the setup form: a tier change re-filters the questions, then the plan is refreshed. */
+/** Handle a change in the setup form, then refresh the plan. */
 function onFormEdited(event) {
   const target = event.target;
   // The preset panel and the suite menus have their own handlers, and the plan does not depend on them.
@@ -801,21 +929,10 @@ function onFormEdited(event) {
   if (!page.confirming) {
     page.resumeRunId = null;
   }
-  if (target === page.dom.tierFilter) {
-    applyTierFilter();
-  }
   if (target === page.dom.cap) {
     page.capTouched = true;
   }
   onSelectionChanged();
-}
-
-/** Hide the questions outside the chosen tier. Hidden questions stay ticked or unticked as they were. */
-function applyTierFilter() {
-  const tier = page.dom.tierFilter.value;
-  for (const row of page.dom.questionList.querySelectorAll(".check-row")) {
-    row.hidden = tier !== "all" && row.dataset.tier !== tier;
-  }
 }
 
 /** Refresh everything that depends on the choices: the plan, the counts, the buttons and the results. */
@@ -833,6 +950,7 @@ function onSelectionChanged() {
   renderPlan(choices, plan);
   renderKpis(choices, plan);
   updateCountLines();
+  renderSelectedLists();
   if (page.phase === "idle") {
     resetCounts(unitCount(choices));
     renderProgress();
@@ -852,6 +970,26 @@ function updateCountLines() {
 function updateGroupCount(countElement, container, noun) {
   const total = container.querySelectorAll("input[type='checkbox']").length;
   updateSelectionCount(countElement, checkedValues(container).length, total, noun);
+}
+
+/** Fill the thin lists under the Models and Questions cards with the ticked items, so the choice reads at a glance. */
+function renderSelectedLists() {
+  const models = page.modelRows.filter((entry) => entry.input.checked);
+  const questions = page.questionRows.filter((entry) => entry.input.checked);
+  page.dom.modelSelected.replaceChildren(
+    ...models.map((entry) => selectedItem(entry.row.rank, shortName(entry.row.name))),
+  );
+  page.dom.questionSelected.replaceChildren(
+    ...questions.map((entry) => selectedItem(entry.question.id, entry.question.question)),
+  );
+}
+
+/** Build one line of a selected list: a small lead (rank or id) and the name or question text after it. */
+function selectedItem(lead, text) {
+  return el("li", { className: "selected-item" }, [
+    el("span", { className: "selected-lead", text: lead }),
+    el("span", { className: "selected-text", text }),
+  ]);
 }
 
 /** Fill the plan panel: one line per model, the totals, the cost estimate, and any problem to fix. */
@@ -946,7 +1084,7 @@ function addCustomModel() {
     return;
   }
   page.allModels.push(name);
-  page.dom.modelList.append(buildModelRow({ id: name }, { checked: true }));
+  addModelRow({ id: name }, { checked: true });
   page.dom.customName.value = "";
   page.dom.customMessage.textContent = `Added ${shortName(name)}. It is ticked.`;
   onSelectionChanged();
@@ -1097,13 +1235,30 @@ async function beginRun() {
     setStatus(`Running. ${NOT_SAVED_TEXT}`);
   }
   page.resumeRunId = null;
+  // The log is new for each start. It records what the run did, and never the key or a reply.
+  page.log = createBatchLog();
+  page.log.record("run-started", {
+    run_id: page.runId,
+    models: choices.models.length,
+    questions: selectedQuestions(choices.questions).length,
+    repeats: choices.repeats,
+    condition: choices.condition,
+    cap: choices.cap,
+    concurrency: choices.concurrency,
+    key_remembered: vault.remembered(),
+  });
+  updateExportButtons();
+  // The platform is read now, so the batch uses the platform chosen when it starts.
+  const platform = await activePlatform();
   // The budget enforces the call cap; the runner stops the batch when it is used up (see onBudgetExhausted).
   const client = createChatClient({
-    baseUrl: config.base_url,
+    platform,
     customModels: page.customModels,
     vault,
     budget: createBudget(choices.cap),
     timeoutMs: config.request_timeout_seconds * 1000,
+    log: page.log,
+    perModelLimit: config.per_model_concurrency,
   });
   page.runner = createBatchRunner({
     client,
@@ -1118,6 +1273,7 @@ async function beginRun() {
     cache: page.cache,
     concurrency: choices.concurrency,
     onEvent: handleEvent,
+    log: page.log,
   });
   updateControls();
   page.runner.start().catch(handleRunError);
@@ -1187,7 +1343,6 @@ function restoreChoices(config) {
   dom.cap.value = String(config.callCap);
   page.capTouched = true;
   dom.condition.value = config.condition;
-  applyTierFilter();
 }
 
 /** Tick exactly the boxes whose values are in the list, and untick the rest. Does not refresh the plan. */
@@ -1363,6 +1518,8 @@ function onFinished(event) {
 
 /** Show a batch that stopped with an unexpected error, then give the controls back. */
 function handleRunError(error) {
+  page.log?.record("run-error", { message: errorText(error) });
+  updateExportButtons();
   page.phase = "stopped";
   finishSavedRun("failed");
   setStatus(`The batch stopped because of a problem: ${errorText(error)}`);
@@ -1519,6 +1676,8 @@ function drawResults() {
   page.exportRows = { gauntlet: gauntletRows, probes: probeRows };
   page.shown = { models: choices.models, probeRows };
   renderGauntletTables(choices.models, gauntletRows);
+  const figureMeasures = resultMeasures(page.suite.levelCount);
+  renderResultsFigures(document.getElementById("results-figures"), analyticsRows(choices.models, gauntletRows, figureMeasures), figureMeasures);
   drawProbeChart(choices.models, probeRows);
   renderProbeTable(choices.models, probeRows);
   setResultsMessage(choices, records);
@@ -1543,12 +1702,165 @@ function setResultsMessage(choices, records) {
   page.dom.resultsMessage.textContent = text;
 }
 
-/** Draw one table per ticked model with the gauntlet measures. */
+// Results view state. The measure choice survives redraws; the last models and grade rows let the switcher
+// redraw without grading again; the shell is the persistent block that holds the switcher and the table disclosure.
+const RESULTS_MEASURE_DEFAULT = "baseline_accuracy";
+const FLIP_MEASURE_KEY = "flip_rate_level_10";
+let resultsMeasureKey = RESULTS_MEASURE_DEFAULT;
+let resultsShell = null;
+let lastGauntlet = { models: [], rows: [] };
+
+/** Return the analytics measures for this suite: MEASURES keys, with the label and digits of each gauntlet field. */
+function resultMeasures(levelCount) {
+  const fields = gauntletMeasures(levelCount);
+  return MEASURES.map((measure) => {
+    const field = measure.key === FLIP_MEASURE_KEY ? `flip_rate_level_${levelCount}` : measure.key;
+    const [label, , digits] = fields.find(([, name]) => name === field);
+    return { key: measure.key, field, label, digits, higherIsBetter: measure.higherIsBetter, definition: measure.definition };
+  });
+}
+
+/** Turn the grade rows into analytics rows: one per ticked model, with null for any missing or unusable value. */
+function analyticsRows(models, rows, measures) {
+  return models.map((model, index) => {
+    const row = rows.find((candidate) => candidate.model === model);
+    const values = Object.fromEntries(measures.map((measure) => {
+      const value = row === undefined ? null : row[measure.field];
+      return [measure.key, Number.isFinite(value) ? value : null];
+    }));
+    return { model, index, measures: values };
+  });
+}
+
+/** Draw the comparison: a measure switcher, a ranked bar list, a heatmap, and a collapsed table of the raw numbers. */
 function renderGauntletTables(models, rows) {
-  const measures = gauntletMeasures(page.suite.levelCount);
-  page.dom.gauntletTables.replaceChildren(
-    ...models.map((model) => buildModelTable(model, rows.find((row) => row.model === model), measures)),
+  lastGauntlet = { models, rows };
+  const host = page.dom.gauntletTables;
+  if (models.length === 0 || rows.length === 0) {
+    resultsShell = null;
+    host.replaceChildren();
+    return;
+  }
+  const levelCount = page.suite.levelCount;
+  const measures = resultMeasures(levelCount);
+  if (resultsShell === null || !host.contains(resultsShell.root)) {
+    resultsShell = buildResultsShell();
+    host.replaceChildren(resultsShell.root);
+  }
+  const selected = measures.find((measure) => measure.key === resultsMeasureKey) ?? measures[0];
+  resultsShell.select.replaceChildren(...measures.map((measure) => el("option", { value: measure.key, text: measure.label })));
+  resultsShell.select.value = selected.key;
+  const ranked = rankModels(analyticsRows(models, rows, measures), selected.key);
+  resultsShell.body.replaceChildren(buildRankBlock(ranked, selected), buildHeatBlock(ranked, measures));
+  resultsShell.tables.replaceChildren(
+    ...models.map((model) => buildModelTable(model, rows.find((row) => row.model === model), gauntletMeasures(levelCount))),
   );
+}
+
+/** Build the persistent parts of the comparison once: the switcher, the body and the table disclosure. */
+function buildResultsShell() {
+  const select = el("select", { id: "results-measure", className: "results-select" });
+  select.addEventListener("change", () => {
+    resultsMeasureKey = select.value;
+    renderGauntletTables(lastGauntlet.models, lastGauntlet.rows);
+  });
+  const body = el("div", { className: "results-body" });
+  const tables = el("div", { className: "model-tables" });
+  const root = el("div", { className: "results-block" }, [
+    el("div", { className: "results-controls" }, [el("label", { for: "results-measure", className: "results-label", text: "Measure" }), select]),
+    body,
+    el("details", { className: "results-details" }, [
+      el("summary", { text: "Show as table" }),
+      el("div", { className: "table-scroll" }, [tables]),
+    ]),
+  ]);
+  return { root, select, body, tables };
+}
+
+/** Highlight, or un-highlight, every row for one model in both the bar list and the heatmap. */
+function setModelHighlight(index, on) {
+  if (resultsShell === null) return;
+  for (const node of resultsShell.root.querySelectorAll(`[data-model-index="${index}"]`)) {
+    node.classList.toggle("is-highlight", on);
+  }
+}
+
+/** Make hovering a row highlight that model in both views. */
+function linkModelHover(node, index) {
+  node.addEventListener("mouseenter", () => setModelHighlight(index, true));
+  node.addEventListener("mouseleave", () => setModelHighlight(index, false));
+}
+
+/** Build the ranked bar list for the chosen measure. Bars are scaled with normalise; null values show "No data". */
+function buildRankBlock(ranked, measure) {
+  const values = ranked.map((row) => row.measures[measure.key]);
+  const scaled = normalise(values, measure.higherIsBetter);
+  const items = ranked.map((row, position) => {
+    const missing = values[position] === null;
+    const track = el("span", { className: "rank-track", "aria-hidden": "true" });
+    if (!missing) {
+      const bar = el("span", { className: "rank-bar" });
+      bar.style.width = `${Math.round(scaled[position] * 100)}%`;
+      track.append(bar);
+    }
+    const item = el("li", { className: missing ? "rank-row is-missing" : "rank-row", "data-model-index": row.index }, [
+      el("span", { className: "rank-pos", text: String(position + 1) }),
+      el("span", { className: "rank-name", text: shortName(row.model), title: row.model }),
+      track,
+      el("span", { className: "rank-value", text: missing ? "No data" : formatNumber(values[position], measure.digits) }),
+    ]);
+    linkModelHover(item, row.index);
+    return item;
+  });
+  return el("section", { className: "results-section" }, [
+    el("h3", { className: "results-subhead", text: `Ranked by ${measure.label}` }),
+    el("p", { className: "field-hint", text: "Longest bar is the best model. Hover a row to find that model in the heatmap." }),
+    el("div", { className: "results-scroll" }, [el("ol", { className: "rank-list", "aria-label": `Models ranked by ${measure.label}` }, items)]),
+  ]);
+}
+
+/** Build the heatmap: models in ranked order as rows, measures as columns, each column scaled by normalise. */
+function buildHeatBlock(ranked, measures) {
+  const matrix = heatmapMatrix(ranked, measures.map((measure) => measure.key));
+  const header = el("tr", {}, [
+    el("th", { scope: "col", text: "Model" }),
+    ...measures.map((measure) => el("th", { scope: "col", text: measure.label })),
+  ]);
+  const bodyRows = ranked.map((row, rowIndex) => {
+    const cells = measures.map((measure, columnIndex) => heatCell(row, measure, matrix.cells[rowIndex][columnIndex]));
+    const tr = el("tr", { "data-model-index": row.index }, [
+      el("th", { scope: "row", text: shortName(row.model), title: row.model }),
+      ...cells,
+    ]);
+    linkModelHover(tr, row.index);
+    return tr;
+  });
+  return el("section", { className: "results-section" }, [
+    el("h3", { className: "results-subhead", text: "Heatmap" }),
+    el("p", { className: "field-hint", text: "Each column is scaled across the ticked models: the strongest tint is the best model, the faintest the worst." }),
+    el("div", { className: "results-scroll" }, [
+      el("table", { className: "heat-table" }, [
+        el("caption", { className: "visually-hidden", text: "Heatmap of the gauntlet measures for each ticked model" }),
+        el("thead", {}, [header]),
+        el("tbody", {}, bodyRows),
+      ]),
+    ]),
+  ]);
+}
+
+/** Build one heatmap cell. Its tint comes from a colour-mix on the sage token, and the title gives the raw value. */
+function heatCell(row, measure, scaled) {
+  const raw = row.measures[measure.key];
+  if (scaled === null) {
+    return el("td", { className: "heat-cell is-missing", text: "No data", title: `${shortName(row.model)}, ${measure.label}: no data` });
+  }
+  const cell = el("td", {
+    className: "heat-cell",
+    text: formatNumber(raw, measure.digits),
+    title: `${shortName(row.model)}, ${measure.label}: ${raw}`,
+  });
+  cell.style.setProperty("--heat", String(Math.round(10 + scaled * 40)));
+  return cell;
 }
 
 /** Build the table for one model. A model with no replies gets a short note instead. */
@@ -1666,6 +1978,7 @@ function updateExportButtons() {
   page.dom.exportGauntlet.disabled = page.exportRows.gauntlet.length === 0;
   page.dom.exportProbes.disabled = page.exportRows.probes.length === 0;
   page.dom.exportReplies.disabled = page.newRecords.length === 0;
+  page.dom.exportBatchLog.disabled = page.log === null || page.log.entries().length === 0;
 }
 
 /** Turn rows of plain objects into CSV text. The first line names the columns. */
@@ -1679,6 +1992,15 @@ function toCsv(rows) {
     lines.push(columns.map((column) => csvCell(row[column])).join(","));
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** Download the operation log of the batch run as JSON Lines. It has no key and no reply text. */
+function exportBatchLog() {
+  if (page.log === null) {
+    return;
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadText(`ordeal-batch-log-${stamp}.jsonl`, page.log.toJsonl(), "application/x-ndjson");
 }
 
 /** Download the gauntlet rows for the ticked models as CSV, with full intervals. */
