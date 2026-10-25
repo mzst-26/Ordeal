@@ -23,6 +23,7 @@ from typing import Callable
 import numpy as np
 
 from ordeal import core
+from ordeal import mix
 
 # The two wordings of the correction test (variant A and variant B); acceptance is reported for each.
 CORRECTION_STEP_A, CORRECTION_STEP_B = core.CORRECTION_STEPS
@@ -38,6 +39,12 @@ V3_LEVEL_COUNT = 10  # flip columns up to this level keep their old place in res
 LEVELS = range(1, V3_LEVEL_COUNT + 1)  # the gauntlet_v3 levels. Other ladders use suite.level_count.
 RESULTS_FILE_NAME = "results.csv"
 PROBES_FILE_NAME = "probes.csv"
+# The mixed run writes its own files. results.csv and by_difficulty.csv are never touched by a mixed grade.
+MIXED_RESULTS_FILE_NAME = "mixed_results.csv"
+MIXED_PROBES_FILE_NAME = "mixed_probes.csv"
+MIXED_BY_RUN_FILE_NAME = "mixed_by_run.csv"
+MIXED_BY_RUN_COLUMNS = ["mix_seed", "question_set", "pushback_set", "planned_questions", "planned_percent", "graded_questions"]
+MIXED_BY_RUN_KEY = ("mix_seed", "question_set")
 # Identifies a row when merging: new rows replace saved rows with the same suite, condition and model.
 SUITE_KEY = ("suite", "condition", "model")
 # Matches a flip-rate column name and captures its level; low/high interval columns do not match.
@@ -820,7 +827,123 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--shuffle-mix",
+        type=int,
+        default=None,
+        metavar="SEED",
+        help="grade the mixed run of this seed into mixed_results.csv and mixed_by_run.csv, "
+        "leaving results.csv alone. Cannot be combined with --ladder or --questions.",
+    )
+    args = parser.parse_args(argv)
+    if args.shuffle_mix is not None and (args.ladder is not None or args.questions is not None):
+        parser.error("--shuffle-mix cannot be combined with --ladder or --questions: a mixed run sets both itself.")
+    return args
+
+
+def mixed_order_for(seed: int, mixed: core.MixedSuite, record_path: Path) -> list[dict]:
+    """Return the planned order of one mixed run: from its saved record, or rebuilt from the full lists.
+
+    The saved record knows the questions that were really asked (for example after --limit). Without a
+    record the whole order is rebuilt from the full question lists, and a warning says so.
+    """
+    run = core.find_run_record(record_path, mixed.experiment, seed)
+    if run is not None:
+        return run["order"]
+    print(f"No mixed run record for seed {seed} in {record_path}; grading the full order of 91 questions.", file=sys.stderr)
+    easy = mixed.suites["easy"].questions
+    hard = mixed.suites["hard"].questions
+    return mix.order_rows(mix.build_mixed_order(easy, hard, seed))
+
+
+def grade_mixed_set(
+    set_name: str,
+    seed: int,
+    order: list[dict],
+    records: list[dict],
+    questions_by_id: dict[str, dict],
+    suite: core.Suite,
+    config: dict,
+    condition: str,
+) -> tuple[list[dict], list[dict], dict]:
+    """Grade one question set of a mixed run. Returns its gauntlet rows, probe rows and its 'by run' row.
+
+    Only the questions planned for this set in this seed's order are graded, and a warning is printed
+    when some of them have no saved reply yet.
+    """
+    planned_ids = [row["id"] for row in order if row["question_set"] == set_name]
+    planned_set = set(planned_ids)
+    questions = [questions_by_id[question_id] for question_id in planned_ids]
+    set_records = [
+        record for record in records
+        if record["question_set"] == set_name and record["question_id"] in planned_set
+    ]
+    graded_count = len({record["question_id"] for record in set_records})
+    if graded_count != len(planned_ids):
+        print(
+            f"Warning: seed {seed}, {set_name} questions: {len(planned_ids)} planned, "
+            f"{graded_count} with saved replies. The rest are not graded yet.",
+            file=sys.stderr,
+        )
+    gauntlet_rows = grade_condition(set_records, questions, config, condition, suite)
+    probe_rows = grade_probes(set_records, questions, config, condition, suite)
+    by_run_row = {
+        "mix_seed": str(seed),
+        "question_set": set_name,
+        "pushback_set": suite.ladder_name,
+        "planned_questions": len(planned_ids),
+        "planned_percent": mix.mix_counts(order)[set_name]["percent"],
+        "graded_questions": graded_count,
+    }
+    return gauntlet_rows, probe_rows, by_run_row
+
+
+def grade_mixed(args: argparse.Namespace, config: dict) -> int:
+    """Grade one mixed run. Writes mixed_results.csv and mixed_by_run.csv in --out-dir, and nothing else.
+
+    Each set is graded with its own pushback set, so the numbers mean what they meant in a fixed run.
+    Returns 1 if nothing was graded.
+    """
+    mixed = core.load_mixed_suite()
+    replies, other_count = read_cache_by_experiment(args.cache, {mixed.experiment})
+    records = list(replies[mixed.experiment].values())
+    if other_count:
+        print(f"Other versions: {other_count} saved replies match no suite graded here, so they are not graded.")
+    order = mixed_order_for(args.shuffle_mix, mixed, core.mixed_runs_path(args.cache))
+    questions_by_id = index_questions([question for suite in mixed.suites.values() for question in suite.questions])
+    gauntlet_rows: list[dict] = []
+    probe_rows: list[dict] = []
+    by_run_rows: list[dict] = []
+    for set_name in mix.SET_NAMES:
+        set_gauntlet, set_probes, by_run = grade_mixed_set(
+            set_name, args.shuffle_mix, order, records, questions_by_id, mixed.suites[set_name], config, args.condition,
+        )
+        gauntlet_rows.extend(set_gauntlet)
+        probe_rows.extend(set_probes)
+        by_run_rows.append(by_run)
+        # Each set has its own number of levels, so each set gets its own table.
+        if set_gauntlet:
+            print(f"\n{set_name} questions, {mixed.suites[set_name].name}")
+            print_gauntlet_table(set_gauntlet, mixed.suites[set_name])
+    if not gauntlet_rows:
+        print(
+            f"No saved replies found for mixed seed {args.shuffle_mix} and condition '{args.condition}'. "
+            "Run runner.py --shuffle-mix first.",
+            file=sys.stderr,
+        )
+        return 1
+    results_path = args.results_csv or args.out_dir / MIXED_RESULTS_FILE_NAME
+    probes_path = args.probes_csv or args.out_dir / MIXED_PROBES_FILE_NAME
+    by_run_path = args.out_dir / MIXED_BY_RUN_FILE_NAME
+    columns = gauntlet_columns(max(suite.level_count for suite in mixed.suites.values()))
+    merge_csv_rows(gauntlet_rows, results_path, columns, SUITE_KEY)
+    merge_csv_rows(probe_rows, probes_path, PROBE_COLUMNS, SUITE_KEY)
+    merge_csv_rows(by_run_rows, by_run_path, MIXED_BY_RUN_COLUMNS, MIXED_BY_RUN_KEY)
+    print(f"Mixed results for seed {args.shuffle_mix}, condition '{args.condition}' written to {results_path}")
+    print(f"Probe results written to {probes_path}")
+    print(f"Counts by run written to {by_run_path}")
+    print_probe_table(probe_rows)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -830,6 +953,8 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = parse_args(argv)
     config = core.load_config()
+    if args.shuffle_mix is not None:
+        return grade_mixed(args, config)
     suite = core.load_suite(ladder=args.ladder, questions=args.questions)
     experiments = {registered.experiment for registered in registered_suites()}
     # The suite's own code is read too, so it is never missed if the registry does not list it.

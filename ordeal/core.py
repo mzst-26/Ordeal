@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
+from ordeal import mix
+
 # All paths hang off the project folder (the one above this package), so scripts work from any current directory.
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -40,6 +42,9 @@ CACHE_PATH = RESULTS_DIR / "cache.jsonl"
 STUB_CACHE_PATH = RESULTS_DIR / "stub_cache.jsonl"
 RESULTS_CSV_PATH = RESULTS_DIR / "results.csv"
 PROBES_CSV_PATH = RESULTS_DIR / "probes.csv"
+# One entry per mixed experiment and seed: the planned order, its counts and how far the run got.
+MIXED_RUNS_FILE_NAME = "mixed_runs.json"
+MIXED_NAME = "mixed"
 # The question fields that are part of the experiment fingerprint (see prompt_settings). Any other
 # field in a question file is left out, so changing it does not invalidate saved replies.
 PROMPT_QUESTION_FIELDS = (
@@ -221,6 +226,42 @@ class Suite:
     probe_spec: dict
     questions: list
     experiment: str  # the fingerprint of this suite's settings
+
+
+@dataclass(frozen=True)
+class MixedSuite:
+    """The two suites of a mixed run, one per question set, plus the code that names the whole mixed run.
+
+    The mixed run has one experiment code for both sets together. It does not depend on the seed,
+    because the seed only changes the order, and the order does not change any answer.
+    """
+
+    name: str  # always MIXED_NAME
+    suites: dict  # question set name -> its Suite (easy -> gauntlet_v3 + easy, hard -> gauntlet_v4 + hard)
+    experiment: str  # the fingerprint of both suites' settings together
+
+
+def load_mixed_suite() -> MixedSuite:
+    """Return the mixed run's two suites and its experiment code.
+
+    Each set uses its own fixed pushback set (mix.PUSHBACK_FOR_SET), so the code also records the pairing.
+    Fixed suites are not changed by this, so their codes stay the same.
+    """
+    config = load_config()
+    suites = {
+        set_name: load_suite(ladder=mix.PUSHBACK_FOR_SET[set_name], questions=set_name)
+        for set_name in mix.SET_NAMES
+    }
+    # Each set's settings are kept under its name, so swapping the pushback sets would change the code.
+    pairs = {
+        set_name: prompt_settings(config, suite.ladder, suite.probe_spec, suite.questions)
+        for set_name, suite in suites.items()
+    }
+    return MixedSuite(
+        name=MIXED_NAME,
+        suites=suites,
+        experiment=fingerprint({"name": MIXED_NAME, "pairs": pairs}),
+    )
 
 
 def load_suite(ladder=None, questions=None):
@@ -406,12 +447,13 @@ def make_key(condition, model, question_id, repeat, step):
     return (condition, model, question_id, repeat, step)
 
 
-def make_record(condition, model, question, repeat, step, messages, reply, temperature, suite=None):
+def make_record(condition, model, question, repeat, step, messages, reply, temperature, suite=None, extra=None):
     """Build one saved line for the cache. 'messages' is the full list sent to the model.
 
     'suite' is optional. When given, the record carries the suite name and that suite's experiment code.
     When it is not given, the record gets the default suite's experiment code (default_suite(): config.json,
     which is gauntlet_v3 + easy here) and no 'suite' field. Callers that run a ladder must pass its suite.
+    'extra' adds more fields, such as the mixed run's seed and position. Fixed runs pass none, so their keys do not change.
     """
     record = {
         "experiment": current_experiment(suite),
@@ -427,6 +469,8 @@ def make_record(condition, model, question, repeat, step, messages, reply, tempe
     }
     if suite is not None:
         record["suite"] = suite.name
+    if extra:
+        record.update(extra)
     return record
 
 
@@ -478,3 +522,47 @@ def append_record(record, path=CACHE_PATH):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as file:
         file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def read_run_records(path):
+    """Return the mixed run records saved in a file, or an empty list if there is no file yet."""
+    if not path.is_file():
+        return []
+    return load_json(path)
+
+
+def same_run(first, second):
+    """True when two mixed run records are for the same experiment version and the same seed."""
+    return first["experiment"] == second["experiment"] and first["seed"] == second["seed"]
+
+
+def write_run_record(record, path):
+    """Save one mixed run record, replacing any earlier record for the same experiment and seed.
+
+    The whole file is rewritten through a temporary file, so a crash never leaves it half-written.
+    """
+    records = [saved for saved in read_run_records(path) if not same_run(saved, record)]
+    records.append(record)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f"{path.name}.tmp")
+    temp_path.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(temp_path, path)
+
+
+def mixed_runs_path(cache_path):
+    """Return the mixed run record file that goes with a cache file.
+
+    The default stub cache gets its own record file, so a stub run can never overwrite a real run's record:
+    both use the same experiment code.
+    """
+    if cache_path == STUB_CACHE_PATH:
+        return cache_path.parent / f"stub_{MIXED_RUNS_FILE_NAME}"
+    return cache_path.parent / MIXED_RUNS_FILE_NAME
+
+
+def find_run_record(path, experiment, seed):
+    """Return the saved mixed run record for this experiment and seed, or None if there is none."""
+    for record in read_run_records(path):
+        if record["experiment"] == experiment and record["seed"] == seed:
+            return record
+    return None

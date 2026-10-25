@@ -4,10 +4,17 @@ These check the rules the mixed run depends on: the same seed gives the same ord
 appears once, the two sets keep their fixed pushback sets, and the percents add up to 100.
 """
 
+import contextlib
+import io
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from ordeal import core
+from ordeal import grade
 from ordeal import mix
+from ordeal import runner
 
 EASY = core.load_questions(core.DATA_DIR / "questions.json")
 HARD = core.load_questions(core.DATA_DIR / "questions_hard.json")
@@ -94,6 +101,77 @@ class CountTests(unittest.TestCase):
             mix.mix_counts([])
         with self.assertRaisesRegex(ValueError, "zero"):
             mix.mix_counts(mix.build_mixed_order([], [], 1))
+
+
+class MixedRunTests(unittest.TestCase):
+    """The mixed run's experiment code, its saved record and the stub run from start to finish."""
+
+    def test_mixed_code_is_stable_and_not_a_default_code(self) -> None:
+        """The mixed code is the same on every call and differs from the four fixed codes."""
+        code = core.load_mixed_suite().experiment
+        self.assertEqual(code, core.load_mixed_suite().experiment)
+        fixed = {core.load_suite(ladder=ladder, questions=questions).experiment for ladder in core.LADDER_FILES
+                 for questions in core.QUESTION_FILES}
+        self.assertNotIn(code, fixed)
+
+    def test_units_carry_their_pushback_set_and_fields(self) -> None:
+        """A unit built from a mixed slot knows its pushback set, and its reply fields include the seed and position."""
+        plan = runner.plan_mixed_run(4, 1)
+        units = runner.make_units(["m"], plan.questions, 1, None, plan.mix_fields_by_question)
+        hard_units = [unit for unit in units if unit.mix_fields["question_set"] == "hard"]
+        self.assertTrue(hard_units)
+        for unit in units:
+            with self.subTest(question=unit.question["id"]):
+                self.assertEqual(unit.pushback_set, unit.mix_fields["pushback_set"])
+                self.assertEqual(set(unit.mix_fields), {"mix_seed", "mix_position", "pushback_set", "question_set"})
+
+    def test_each_unit_gets_its_own_ladder(self) -> None:
+        """Easy units use the gauntlet_v3 ladder and hard units use gauntlet_v4 in the same run."""
+        plan = runner.plan_mixed_run(4, 1)
+        units = runner.make_units(["m"], plan.questions, 1, None, plan.mix_fields_by_question)
+        for unit in units:
+            ladder, _ = runner.ladder_and_probes_for(unit, plan.pushback_plans, None, None)
+            with self.subTest(question=unit.question["id"]):
+                expected = "gauntlet_v3" if unit.mix_fields["question_set"] == "easy" else "gauntlet_v4"
+                self.assertEqual(ladder["name"], expected)
+
+    def test_limit_applies_to_each_set_before_the_order(self) -> None:
+        """With --limit 2 the run plans 2 easy and 2 hard questions, and the counts describe those 4."""
+        plan = runner.plan_mixed_run(9, 2)
+        self.assertEqual(len(plan.questions), 4)
+        self.assertEqual(plan.counts["easy"]["count"], 2)
+        self.assertEqual(plan.counts["hard"]["count"], 2)
+
+    def test_run_record_is_replaced_for_the_same_seed(self) -> None:
+        """Writing a record twice for one seed keeps one entry, and another seed adds a second entry."""
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / core.MIXED_RUNS_FILE_NAME
+            record = {"experiment": "e", "seed": 1, "completed": None}
+            core.write_run_record(record, path)
+            core.write_run_record({**record, "completed": 5}, path)
+            core.write_run_record({**record, "seed": 2}, path)
+            records = core.read_run_records(path)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(core.find_run_record(path, "e", 1)["completed"], 5)
+
+    def test_stub_run_then_grade_writes_only_mixed_files(self) -> None:
+        """A stub mixed run with --limit 1 saves a record and grading writes the mixed files, not results.csv."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache = Path(folder) / "cache.jsonl"
+            out_dir = Path(folder) / "out"
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = runner.main(["--stub", "--shuffle-mix", "3", "--limit", "1", "--repeats", "1",
+                                    "--cache", str(cache)])
+                grade_code = grade.main(["--shuffle-mix", "3", "--cache", str(cache), "--out-dir", str(out_dir)])
+            self.assertEqual((code, grade_code), (0, 0))
+            record = core.find_run_record(core.mixed_runs_path(cache), core.load_mixed_suite().experiment, 3)
+            self.assertEqual(record["planned"], 2)
+            self.assertEqual(record["completed"], 2)
+            self.assertEqual(record["counts"]["easy"]["percent"], 50.0)
+            self.assertTrue((out_dir / "mixed_results.csv").is_file())
+            self.assertTrue((out_dir / "mixed_by_run.csv").is_file())
+            self.assertFalse((out_dir / "results.csv").exists())
+            self.assertFalse((out_dir / "by_difficulty.csv").exists())
 
 
 if __name__ == "__main__":

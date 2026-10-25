@@ -17,6 +17,7 @@ from typing import Any, Protocol
 
 from ordeal import core
 from ordeal import flows
+from ordeal import mix
 from ordeal import model_client
 from ordeal.stub_model import StubModel
 
@@ -61,30 +62,60 @@ class ChatClient(Protocol):
 
 
 @dataclass
+class PushbackPlan:
+    """One pushback set's ladder and probe spec. A mixed run has one of these for each set."""
+
+    ladder: dict[str, Any]
+    probe_spec: dict[str, Any]
+
+
+def ladder_and_probes_for(
+    unit: "Unit", pushback_plans: dict[str, PushbackPlan] | None, ladder: dict[str, Any], probe_spec: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the ladder and probe spec this unit uses.
+
+    A fixed run has no per-set plans, so every unit gets the one ladder and probe spec. A mixed run
+    picks the plan of the unit's own pushback set, so easy and hard questions each get their own pushbacks.
+    """
+    if pushback_plans is None:
+        return ladder, probe_spec
+    plan = pushback_plans[unit.pushback_set]
+    return plan.ladder, plan.probe_spec
+
+
+@dataclass
 class RunSettings:
     """Settings that are the same for every unit in one run."""
 
     condition: str
     system_prompt: str | None
     config: dict[str, Any]
-    ladder: dict[str, Any]
-    probe_spec: dict[str, Any]
+    ladder: dict[str, Any] | None
+    probe_spec: dict[str, Any] | None
     families: frozenset[str]
     is_retryable: Callable[[Exception], bool]
     describe_error: Callable[[Exception], str]
     wait: Callable[[float], Awaitable[None]] = asyncio.sleep
-    suite: core.Suite | None = None  # names the saved records; None means the default suite
+    suite: core.Suite | core.MixedSuite | None = None  # names the saved records; None means the default suite
     labels: dict[str, str] = field(default_factory=dict)  # saved name per model; see model_client.record_labels
+    # For a mixed run only: one plan per pushback set, keyed by the set name. None for a fixed run.
+    pushback_plans: dict[str, PushbackPlan] | None = None
 
 
 @dataclass
 class Unit:
-    """One model answering one question on one repeat. 'label' is the name its replies are saved under."""
+    """One model answering one question on one repeat. 'label' is the name its replies are saved under.
+
+    'pushback_set' names the ladder this question uses; it is empty for a fixed run. 'mix_fields' are
+    extra fields saved with each reply of a mixed run (the seed, the position and the sets); empty otherwise.
+    """
 
     model: str
     question: dict[str, Any]
     repeat: int
     label: str = ""
+    pushback_set: str = ""
+    mix_fields: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Save under the model name unless a label was given."""
@@ -135,19 +166,36 @@ def backoff_seconds(attempt: int) -> int:
 
 
 def make_units(
-    models: list[str], questions: list[dict[str, Any]], repeats: int, labels: dict[str, str] | None = None
+    models: list[str],
+    questions: list[dict[str, Any]],
+    repeats: int,
+    labels: dict[str, str] | None = None,
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
 ) -> list[Unit]:
     """Return every model, question and repeat combination. Repeats are numbered from 1.
 
     'labels' maps a model name to the name its replies are saved under. A model without one keeps its own name.
+    'mix_fields_by_question' gives a mixed run's fields for each question id (its set, pushback set, seed and
+    position). Fixed runs pass none, so their units have no pushback set and no extra fields.
     """
     names = labels or {}
-    return [
-        Unit(model=model, question=question, repeat=repeat, label=names.get(model, model))
-        for model in models
-        for question in questions
-        for repeat in range(1, repeats + 1)
-    ]
+    fields_by_id = mix_fields_by_question or {}
+    units = []
+    for model in models:
+        for question in questions:
+            mix_fields = dict(fields_by_id.get(question["id"], {}))
+            for repeat in range(1, repeats + 1):
+                units.append(
+                    Unit(
+                        model=model,
+                        question=question,
+                        repeat=repeat,
+                        label=names.get(model, model),
+                        pushback_set=mix_fields.get("pushback_set", ""),
+                        mix_fields=mix_fields,
+                    )
+                )
+    return units
 
 
 def step_key(condition: str, unit: Unit, step: str) -> tuple[Any, ...]:
@@ -158,6 +206,7 @@ def step_key(condition: str, unit: Unit, step: str) -> tuple[Any, ...]:
 async def run_unit(ctx: RunContext, unit: Unit) -> None:
     """Ask the question, then run the flows the settings ask for. A failed call ends the unit early."""
     settings = ctx.settings
+    ladder, probe_spec = ladder_and_probes_for(unit, settings.pushback_plans, settings.ladder, settings.probe_spec)
     first_messages = flows.build_first_messages(unit.question, settings.system_prompt)
     reply = await get_reply(ctx, unit, first_messages, core.BASELINE_STEP)
     if reply is None:
@@ -176,8 +225,8 @@ async def run_unit(ctx: RunContext, unit: Unit) -> None:
         reply,
         ask,
         settings.families,
-        settings.ladder,
-        settings.probe_spec,
+        ladder,
+        probe_spec,
         settings.config,
     )
 
@@ -206,6 +255,7 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         reply,
         ctx.settings.config["temperature"],
         suite=ctx.settings.suite,
+        extra=unit.mix_fields,
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     core.append_record(record, ctx.cache_path)
@@ -265,12 +315,14 @@ async def run_all(
     repeats: int,
     settings: RunSettings,
     max_calls: int | None = None,
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
 ) -> RunStats:
     """Run every unit, with at most config["concurrency"] API calls at once and config["per_model_concurrency"] per model.
     Then close the client.
 
     Saved replies are read from 'cache', and new ones are appended to 'cache_path'.
     With 'max_calls', the run makes no more API attempts than that and then stops.
+    'mix_fields_by_question' is passed on to make_units for a mixed run.
     """
     per_model = settings.config.get("per_model_concurrency", DEFAULT_PER_MODEL_CONCURRENCY)
     ctx = RunContext(
@@ -283,7 +335,7 @@ async def run_all(
         stats=RunStats(),
         budget=CallBudget(max_calls),
     )
-    units = make_units(models, questions, repeats, settings.labels)
+    units = make_units(models, questions, repeats, settings.labels, mix_fields_by_question)
     # All units start at once; the semaphore in call_model is what limits how many API calls run together.
     tasks = [asyncio.create_task(run_unit(ctx, unit)) for unit in units]
     try:
@@ -334,21 +386,24 @@ def plan_model_calls(
     cache: dict[tuple[Any, ...], dict[str, Any]],
     condition: str,
     families: frozenset[str],
-    ladder: dict[str, Any],
-    probe_spec: dict[str, Any],
+    ladder: dict[str, Any] | None,
+    probe_spec: dict[str, Any] | None,
     labels: dict[str, str] | None = None,
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
+    pushback_plans: dict[str, PushbackPlan] | None = None,
 ) -> CallPlan:
     """Count the calls a run would still need for one model. Nothing is called and nothing is saved.
 
     Until a unit's first answer is saved, every step that could follow it is counted, so the number
-    of new calls is an upper bound.
+    of new calls is an upper bound. A mixed run passes 'pushback_plans', so each unit counts its own ladder.
     """
     plan = CallPlan()
-    for unit in make_units([model], questions, repeats, labels):
+    for unit in make_units([model], questions, repeats, labels, mix_fields_by_question):
         baseline_correct = saved_baseline_correct(cache, condition, unit)
+        unit_ladder, unit_probes = ladder_and_probes_for(unit, pushback_plans, ladder, probe_spec)
         # baseline_correct is None until the first answer is saved; expected_steps then counts every possible step.
-        steps = flows.expected_steps(unit.question, families, ladder, probe_spec, baseline_correct)
-        if not confession_can_follow(cache, condition, unit, ladder):
+        steps = flows.expected_steps(unit.question, families, unit_ladder, unit_probes, baseline_correct)
+        if not confession_can_follow(cache, condition, unit, unit_ladder):
             steps = [step for step in steps if step != core.CONFESSION_STEP]
         for step in steps:
             if step_key(condition, unit, step) in cache:
@@ -370,17 +425,23 @@ def print_dry_run(
     condition: str,
     cache: dict[tuple[Any, ...], dict[str, Any]],
     families: frozenset[str],
-    ladder: dict[str, Any],
-    probe_spec: dict[str, Any],
+    ladder: dict[str, Any] | None,
+    probe_spec: dict[str, Any] | None,
     labels: dict[str, str] | None = None,
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
+    pushback_plans: dict[str, PushbackPlan] | None = None,
 ) -> None:
     """Print, per model, how many replies are saved and the most new calls a real run would make."""
     total_new = 0
     print("Dry run: no calls will be made.")
-    print(f"Ladder: {ladder['name']}")
+    # A mixed run has no single ladder; it names its pushback sets instead.
+    print(f"Ladder: {ladder['name']}" if pushback_plans is None else f"Ladder: {', '.join(pushback_plans)}")
     print(f"Families: {family_text(families)}")
     for model in models:
-        plan = plan_model_calls(model, questions, repeats, cache, condition, families, ladder, probe_spec, labels)
+        plan = plan_model_calls(
+            model, questions, repeats, cache, condition, families, ladder, probe_spec, labels,
+            mix_fields_by_question, pushback_plans,
+        )
         total_new += plan.at_most_new
         print(f"  {model}: {plan.saved} replies saved, at most {plan.at_most_new} new calls")
     print(f"Total: at most {total_new} new calls.")
@@ -459,6 +520,15 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="question set (default: the questions in config.json, easy)",
     )
     parser.add_argument(
+        "--shuffle-mix",
+        type=int,
+        default=None,
+        metavar="SEED",
+        help="run easy and hard questions together, in the order chosen by SEED, each with its own pushbacks "
+        "(easy: gauntlet_v3, hard: gauntlet_v4). --limit keeps the first N of each set before the order is made. "
+        "Cannot be combined with --ladder or --questions.",
+    )
+    parser.add_argument(
         "--cache",
         type=Path,
         default=None,
@@ -483,6 +553,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--base-url is accepted only for 127.0.0.1 or localhost (test use).")
     if args.base_url is not None and args.cache is None:
         parser.error("--base-url needs --cache, so test replies never go into the real cache.")
+    if args.shuffle_mix is not None and (args.ladder is not None or args.questions is not None):
+        parser.error("--shuffle-mix cannot be combined with --ladder or --questions: a mixed run sets both itself.")
     return args
 
 
@@ -545,6 +617,114 @@ def print_summary(stats: RunStats) -> None:
     print(f"  Failures: {len(stats.failures)}")
 
 
+@dataclass
+class RunPlan:
+    """What one run asks, and the settings and names that go with it. A fixed run and a mixed run both make one."""
+
+    experiment: str  # the version code the saved replies carry and are read under
+    suite: core.Suite | core.MixedSuite
+    questions: list[dict[str, Any]]  # the questions to ask, in the order they are asked
+    ladder: dict[str, Any] | None  # a fixed run's single ladder; None for a mixed run
+    probe_spec: dict[str, Any] | None  # a fixed run's single probe spec; None for a mixed run
+    pushback_plans: dict[str, PushbackPlan] | None = None  # mixed runs only, one per pushback set
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None  # mixed runs only, saved with each reply
+    counts: dict[str, Any] | None = None  # mixed runs only: how many questions each set has
+    order: list[dict[str, Any]] | None = None  # mixed runs only: the planned order, one row per question
+
+    @property
+    def is_mixed(self) -> bool:
+        """True for a mixed run. Only a mixed run has an order."""
+        return self.order is not None
+
+
+def plan_fixed_run(args: argparse.Namespace) -> RunPlan:
+    """Plan a run of one pushback set and one question set, as before the mixed run existed."""
+    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    # --limit keeps the first N questions of the file, so a limited run is the same set every time.
+    questions = suite.questions if args.limit is None else suite.questions[: args.limit]
+    return RunPlan(
+        experiment=suite.experiment, suite=suite, questions=questions, ladder=suite.ladder,
+        probe_spec=suite.probe_spec,
+    )
+
+
+def plan_mixed_run(seed: int, limit: int | None) -> RunPlan:
+    """Plan a mixed run: easy and hard questions in the order that SEED gives, each with its own pushback set.
+
+    --limit is applied to each set first (the first N of each file), and the order is made from those,
+    so the counts describe the questions that will really be asked.
+    """
+    mixed = core.load_mixed_suite()
+    easy = mixed.suites["easy"].questions
+    hard = mixed.suites["hard"].questions
+    if limit is not None:
+        easy, hard = easy[:limit], hard[:limit]
+    slots = mix.build_mixed_order(easy, hard, seed)
+    # Each question's saved fields say which seed, position, set and pushback set it came from.
+    fields_by_question = {
+        slot["question"]["id"]: {
+            "mix_seed": seed,
+            "mix_position": slot["position"],
+            "pushback_set": slot["pushback_set"],
+            "question_set": slot["question_set"],
+        }
+        for slot in slots
+    }
+    pushback_plans = {
+        suite.ladder_name: PushbackPlan(ladder=suite.ladder, probe_spec=suite.probe_spec)
+        for suite in mixed.suites.values()
+    }
+    return RunPlan(
+        experiment=mixed.experiment,
+        suite=mixed,
+        questions=[slot["question"] for slot in slots],
+        ladder=None,
+        probe_spec=None,
+        pushback_plans=pushback_plans,
+        mix_fields_by_question=fields_by_question,
+        counts=mix.mix_counts(slots),
+        order=mix.order_rows(slots),
+    )
+
+
+def count_finished_questions(
+    cache: dict[tuple[Any, ...], dict[str, Any]],
+    condition: str,
+    models: list[str],
+    repeats: int,
+    questions: list[dict[str, Any]],
+    labels: dict[str, str],
+    mix_fields_by_question: dict[str, dict[str, Any]],
+) -> int:
+    """Count the questions whose first answer is saved for every model and every repeat.
+
+    This is the 'completed' number in the mixed run record. It is read from the saved replies, so a run
+    that stopped early shows fewer than it planned.
+    """
+    finished = 0
+    for question in questions:
+        units = make_units(models, [question], repeats, labels, mix_fields_by_question)
+        if all(step_key(condition, unit, core.BASELINE_STEP) in cache for unit in units):
+            finished += 1
+    return finished
+
+
+def new_run_record(plan: RunPlan, seed: int, limit: int | None) -> dict[str, Any]:
+    """Return the record written at the start of a mixed run. It is replaced at the end with the completed count."""
+    return {
+        "experiment": plan.experiment,
+        "seed": seed,
+        "limit": limit,
+        "status": "started",
+        "started": core.utc_timestamp(),
+        "finished": None,
+        "planned": len(plan.order or []),
+        "completed": None,
+        "counts": plan.counts,
+        "order": plan.order,
+    }
+
+
 def main(
     argv: list[str] | None = None, prebuilt_routes: dict[str, model_client.ModelRoute] | None = None
 ) -> int:
@@ -567,18 +747,16 @@ def main(
         models = list(prebuilt_routes)
     else:
         models = choose_models(args, config)
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
-    # --limit keeps the first N questions of the file, so a limited run is the same set every time.
-    questions = suite.questions if args.limit is None else suite.questions[: args.limit]
+    plan = plan_fixed_run(args) if args.shuffle_mix is None else plan_mixed_run(args.shuffle_mix, args.limit)
     labels = model_client.record_labels(models, config, custom_routes, args.base_url)
     # An explicit --cache wins; otherwise stub runs use their own cache file so fake replies never mix with real ones.
     cache_path = args.cache or (core.STUB_CACHE_PATH if args.stub else core.CACHE_PATH)
-    cache = core.load_cache(cache_path, experiment=suite.experiment)
+    cache = core.load_cache(cache_path, experiment=plan.experiment)
 
     if args.dry_run:
         print_dry_run(
-            models, questions, args.repeats, args.condition, cache, args.probes, suite.ladder, suite.probe_spec,
-            labels,
+            models, plan.questions, args.repeats, args.condition, cache, args.probes, plan.ladder, plan.probe_spec,
+            labels, plan.mix_fields_by_question, plan.pushback_plans,
         )
         return 0
 
@@ -587,7 +765,7 @@ def main(
         if prebuilt_routes is not None and not args.stub:
             client = model_client.ModelRouter(prebuilt_routes, config["request_timeout_seconds"])
         else:
-            client = make_client(args, config, models, custom_routes, questions)
+            client = make_client(args, config, models, custom_routes, plan.questions)
     except RuntimeError as error:
         print(error, file=sys.stderr)
         return EXIT_BAD_OPTION
@@ -595,27 +773,54 @@ def main(
         condition=args.condition,
         system_prompt=core.system_prompt_for(args.condition, config),
         config=config,
-        ladder=suite.ladder,
-        probe_spec=suite.probe_spec,
+        ladder=plan.ladder,
+        probe_spec=plan.probe_spec,
         families=args.probes,
         is_retryable=model_client.is_retryable,
         describe_error=model_client.describe_error,
-        suite=suite,
+        suite=plan.suite,
         labels=labels,
+        pushback_plans=plan.pushback_plans,
     )
 
+    if plan.is_mixed:
+        print_mixed_plan(args.shuffle_mix, plan.counts)
+        ladder_name = ", ".join(plan.pushback_plans)
+    else:
+        ladder_name = plan.ladder["name"]
     print_plan(
-        suite.ladder["name"], suite.experiment, args.condition, models, args.probes, len(questions), args.repeats,
+        ladder_name, plan.experiment, args.condition, models, args.probes, len(plan.questions), args.repeats,
         cache_path,
     )
+    # A mixed run's record is written before the first call, so a stopped run still shows what was planned.
+    record_path = core.mixed_runs_path(cache_path)
+    run_record = new_run_record(plan, args.shuffle_mix, args.limit) if plan.is_mixed else None
+    if run_record is not None:
+        core.write_run_record(run_record, record_path)
     stats = asyncio.run(
-        run_all(client, cache, cache_path, questions, models, args.repeats, settings, args.max_calls)
+        run_all(
+            client, cache, cache_path, plan.questions, models, args.repeats, settings, args.max_calls,
+            plan.mix_fields_by_question,
+        )
     )
+    if run_record is not None:
+        run_record["completed"] = count_finished_questions(
+            cache, args.condition, models, args.repeats, plan.questions, labels, plan.mix_fields_by_question,
+        )
+        run_record["status"] = "stopped" if stats.stopped_by_budget else "finished"
+        run_record["finished"] = core.utc_timestamp()
+        core.write_run_record(run_record, record_path)
     print_summary(stats)
     if stats.stopped_by_budget:
         print(f"Stopped at the --max-calls limit of {args.max_calls}. Run the same command again to continue.")
         return EXIT_INCOMPLETE
     return 1 if stats.failures else 0
+
+
+def print_mixed_plan(seed: int, counts: dict[str, Any]) -> None:
+    """Print the seed and the counts of a mixed run, before any call is made."""
+    print(f"Mixed order, seed {seed}: {counts['easy']['count']} easy with gauntlet_v3, "
+          f"{counts['hard']['count']} hard with gauntlet_v4 ({counts['total']} questions)")
 
 
 if __name__ == "__main__":
