@@ -1094,6 +1094,37 @@ p {
   color: var(--ink-soft);
 }
 
+/* Previous, the page line and Next sit on one row above the grid. The page line takes the free width. */
+.picker-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.picker-pager[hidden] {
+  display: none;
+}
+
+.picker-page-text {
+  flex: 1 1 14rem;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+/* A letter heading spans the whole grid, with a thin line above it. It is text only, so it is never clickable. */
+.picker-group {
+  grid-column: 1 / -1;
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  font-weight: 600;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule);
+}
+
 /* Only the grid scrolls, so the title, search row and footer stay in view */
 .picker-body {
   flex: 1 1 auto;

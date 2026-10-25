@@ -10,9 +10,14 @@ import { parseModelReference, findModel } from "./platforms.js";
 
 // Where the site copy of the saved model lists is requested from. It is optional: a missing file only hides the lists.
 export const MODELS_PATH = "/data/models.json";
-// The most rows the model popup draws at once. A list can hold more than 20,000 names, so the popup shows a slice
-// and says how many more match, instead of drawing every row.
+// The most ticked model lines the plan draws at once. A run can hold thousands of ticks, so the plan shows a slice and
+// counts the rest in one line.
 export const MAX_POPUP_ROWS = 300;
+// How many model names the picker shows on one page. A list can hold more than 20,000 names, so the picker shows one
+// page at a time, with Previous and Next, and never draws every card.
+export const PAGE_SIZE = 100;
+// The heading for names that do not start with a letter, such as digits ("0-hero/...") and symbols.
+export const NO_LETTER_HEADING = "#";
 // Above this many planned calls, the plan shows one warning line. The run is still allowed; it is only flagged.
 export const LARGE_RUN_CALLS = 5000;
 // The start of the storage name for the names a visitor added. The platform id is added after it.
@@ -61,21 +66,78 @@ export function hasSavedList(modelsFile, platformId) {
 }
 
 /**
- * Return the rows the popup shows for a search: up to `limit` ids that contain the query (ignoring case and outer
- * spaces), and how many more match. An empty query matches every id. Only the shown rows are returned, so the caller
- * never has to draw the rest.
+ * Return the letter heading for one name: its first character in capitals when that character is a letter, and
+ * NO_LETTER_HEADING ("#") otherwise. A name such as "0-hero/..." has no letter, so it gets "#".
  */
-export function visibleModelIds(ids, query, limit) {
-  const needle = String(query ?? "").trim().toLowerCase();
-  const shown = [];
-  let total = 0;
-  for (const id of ids) {
-    if (needle === "" || id.toLowerCase().includes(needle)) {
-      total += 1;
-      if (shown.length < limit) shown.push(id);
+export function letterOf(id) {
+  const first = id.charAt(0).toUpperCase();
+  return /\p{L}/u.test(first) ? first : NO_LETTER_HEADING;
+}
+
+/** Return the sort key for a letter heading: "" for the # heading, so it sorts before every letter. */
+function groupRank(letter) {
+  return letter === NO_LETTER_HEADING ? "" : letter;
+}
+
+/**
+ * Compare two names for the sorted list. The # names come first, then the letters A to Z, so each letter group is
+ * one block. Inside a group the full name decides, ignoring case, so "alpha/a" comes before "Alpha/y".
+ */
+function compareIds(a, b) {
+  // "" sorts before every letter, which puts the # names first. Two letters compare as plain text.
+  const groupA = groupRank(letterOf(a));
+  const groupB = groupRank(letterOf(b));
+  if (groupA !== groupB) return groupA < groupB ? -1 : 1;
+  const textA = a.toLowerCase();
+  const textB = b.toLowerCase();
+  if (textA === textB) return 0;
+  return textA < textB ? -1 : 1;
+}
+
+/**
+ * Sort the names and group them under their letter heading. Returns one group per letter, in order: {letter, ids}.
+ * The given list is copied first, so it is never changed. An empty list gives no groups.
+ */
+export function groupByLetter(ids) {
+  const sorted = [...ids].sort(compareIds);
+  const groups = [];
+  for (const id of sorted) {
+    const letter = letterOf(id);
+    const last = groups[groups.length - 1];
+    if (last && last.letter === letter) {
+      last.ids.push(id);
+    } else {
+      groups.push({ letter, ids: [id] });
     }
   }
-  return { shown, more: total - shown.length };
+  return groups;
+}
+
+/** Return the names in the order the picker shows them: letter groups in order, names inside each group by full id. */
+export function sortModelIds(ids) {
+  return groupByLetter(ids).flatMap((group) => group.ids);
+}
+
+/**
+ * Return the groups of a page of names in the shape the picker draws: {label, items}, one group per letter. The label
+ * is the heading text, and the items are the names under it.
+ */
+export function letterGroups(ids) {
+  return groupByLetter(ids).map((group) => ({ label: group.letter, items: group.ids }));
+}
+
+/**
+ * Return one page of a list: the names for page `page`, `size` names at a time, counted from 1. The page number is
+ * moved into range first: below 1 gives page 1, and past the last page gives the last page. An empty list has one
+ * empty page. Returns {items, page, pageCount, total}, where page is the page number actually used.
+ */
+export function pageOf(ids, page, size) {
+  const total = ids.length;
+  const pageCount = Math.max(1, Math.ceil(total / size));
+  const wanted = Number.isFinite(page) ? Math.floor(page) : 1;
+  const current = Math.min(Math.max(1, wanted), pageCount);
+  const start = (current - 1) * size;
+  return { items: ids.slice(start, start + size), page: current, pageCount, total };
 }
 
 /** Return the storage name for one platform's added names, such as "ordeal.added-models.openrouter". */

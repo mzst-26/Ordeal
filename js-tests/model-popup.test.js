@@ -1,13 +1,12 @@
-// Tests for site/js/model-list.js: the per-platform model lists, the bounded rows of the model popup, the names a
+// Tests for site/js/model-list.js: the per-platform model lists, the names a
 // visitor adds (kept per platform), the checks on a new name, and the large-run warning. Every test is pure: no
 // network, no DOM. The storage tests use fake storage objects, one that works and one whose every call throws.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   platformModelIds,
-  hasSavedList,
-  visibleModelIds,
   MAX_POPUP_ROWS,
+  hasSavedList,
   addedStorageName,
   readAddedModels,
   writeAddedModels,
@@ -24,7 +23,7 @@ import {
   keyFitsPlatform,
 } from '../site/js/model-list.js';
 import { setRunLocked, isRunLocked } from '../site/js/run-lock.js';
-import { allCards, boundedCards } from '../site/js/picker-dialog.js';
+import { allCards } from '../site/js/picker-dialog.js';
 import { platformList, findPlatform, platformIdFor, DEFAULT_PLATFORM_ID } from '../site/js/platforms.js';
 import { readJson } from './helpers.js';
 
@@ -117,41 +116,6 @@ test('the shipped models.json gives the featherless list with its many ids, and 
   assert.deepEqual(platformModelIds(shipped, 'groq'), []);
 });
 
-// visibleModelIds: the popup shows at most MAX_POPUP_ROWS matching rows and says how many more match.
-
-test('visibleModelIds with no query shows the first rows and counts the rest', () => {
-  const ids = Array.from({ length: 10 }, (_, i) => `org/model-${i}`);
-  const result = visibleModelIds(ids, '', 4);
-  assert.deepEqual(result.shown, ['org/model-0', 'org/model-1', 'org/model-2', 'org/model-3']);
-  assert.equal(result.more, 6);
-});
-
-test('visibleModelIds matches the query ignoring case, anywhere in the id', () => {
-  const ids = ['org/Llama-3', 'org/mistral', 'meta/LLAMA-2'];
-  assert.deepEqual(visibleModelIds(ids, 'llama', 10).shown, ['org/Llama-3', 'meta/LLAMA-2']);
-});
-
-test('visibleModelIds ignores spaces around the query', () => {
-  assert.deepEqual(visibleModelIds(['org/a', 'org/b'], '  b  ', 10).shown, ['org/b']);
-});
-
-test('visibleModelIds keeps the rendered rows bounded for a list of 22,000 names', () => {
-  const ids = Array.from({ length: 22000 }, (_, i) => `lab/model-${i}`);
-  const result = visibleModelIds(ids, '', MAX_POPUP_ROWS);
-  assert.equal(result.shown.length, MAX_POPUP_ROWS);
-  assert.equal(result.more, 22000 - MAX_POPUP_ROWS);
-  const narrow = visibleModelIds(ids, 'model-1', MAX_POPUP_ROWS);
-  assert.equal(narrow.shown.length, MAX_POPUP_ROWS);
-  assert.ok(narrow.more > 0);
-});
-
-test('visibleModelIds gives no rows and no extra count for an empty list', () => {
-  assert.deepEqual(visibleModelIds([], '', 300), { shown: [], more: 0 });
-});
-
-test('MAX_POPUP_ROWS is 300, the limit the brief sets for the popup', () => {
-  assert.equal(MAX_POPUP_ROWS, 300);
-});
 
 // The names a visitor adds: kept per platform, read and written inside try/catch.
 
@@ -365,7 +329,11 @@ test('the run lock is off by default and only true turns it on', () => {
   setRunLocked(false);
 });
 
-// allCards: the unbounded picker path (the question picker) gives a plain array of cards that the grid can draw.
+test('MAX_POPUP_ROWS is 300, the limit of ticked lines the plan draws', () => {
+  assert.equal(MAX_POPUP_ROWS, 300);
+});
+
+// allCards: the plain picker path (the question picker) gives a plain array of cards that the grid can draw.
 
 test('allCards gives one card per matching item, as a plain array', () => {
   const fakeCard = (item) => ({ textContent: item });
@@ -374,17 +342,3 @@ test('allCards gives one card per matching item, as a plain array', () => {
   assert.deepEqual(cards.map((card) => card.item), ['org/b']);
 });
 
-// boundedCards: the popup's picker builds cards for at most the limit, and counts the rest.
-
-test('boundedCards builds at most the limit of cards for a list of 22,000 names', () => {
-  const items = Array.from({ length: 22000 }, (_, i) => ({ id: `lab/model-${i}` }));
-  let built = 0;
-  const renderCard = () => {
-    built += 1;
-    return { textContent: '' };
-  };
-  const result = boundedCards(items, '', (item) => item.id, MAX_POPUP_ROWS, renderCard, () => false);
-  assert.equal(result.cards.length, MAX_POPUP_ROWS);
-  assert.equal(result.more, 22000 - MAX_POPUP_ROWS);
-  assert.equal(built, MAX_POPUP_ROWS, 'only the shown rows are built, never all 22,000');
-});

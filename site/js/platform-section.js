@@ -11,7 +11,7 @@ import { askForToken } from "./token-dialog.js";
 import { browserStorage, vault } from "./engine/token.js";
 import { fetchModelIds } from "./engine/api.js";
 import { openPicker } from "./picker-dialog.js";
-import { MODELS_PATH, platformModelIds } from "./model-list.js";
+import { MODELS_PATH, PAGE_SIZE, letterGroups, platformModelIds, sortModelIds } from "./model-list.js";
 import {
   currentPlatform,
   findModel,
@@ -41,6 +41,7 @@ const MODEL_LIST_FAILED_MESSAGE = "The model list could not be loaded. Type a mo
 const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform or model.";
 const NO_SUGGESTIONS_HINT = "No close names were found. Check the id on the platform's model page.";
 const MODEL_HINT = "Type a model id such as org/name, or paste its link.";
+const ADD_HEADING = "Add a model that is not in the list";
 const MODEL_PLACEHOLDER = "org/name, hf:org/name, or a link to the model page";
 
 // True while a platform popup is open. It stops a second popup from opening on top of the first, for either copy.
@@ -56,6 +57,8 @@ function idsFor(rootId) {
   return {
     heading: `${rootId}-heading`,
     label: `${rootId}-platform-label`,
+    pickHeading: `${rootId}-pick-heading`,
+    addHeading: `${rootId}-add-heading`,
     button: `${rootId}-button`,
     keyStatus: `${rootId}-key-status`,
     input: `${rootId}-model-input`,
@@ -108,9 +111,11 @@ function buildSection(root, list, saved) {
     spellcheck: "false",
     placeholder: MODEL_PLACEHOLDER,
     value: saved ? saved.model : "",
+    "aria-labelledby": ids.addHeading,
   });
-  view.browseButton = el("button", { type: "button", className: "btn", text: "Browse models" });
-  view.checkButton = el("button", { type: "button", className: "btn btn-primary", text: "Check model" });
+  // Both model buttons share one width (see .platform-action in page-batch.css), so neither one is squeezed.
+  view.browseButton = el("button", { type: "button", className: "btn platform-action", text: "Browse models" });
+  view.checkButton = el("button", { type: "button", className: "btn btn-primary platform-action", text: "Check model" });
   view.status = el("p", { className: "field-hint platform-status", id: ids.status, role: "status", "aria-live": "polite" });
   view.suggestions = el("ul", { className: "platform-suggestions", "aria-label": "Close model names", hidden: true });
   view.note = el("p", { className: "field-hint", id: ids.note });
@@ -124,10 +129,18 @@ function buildSection(root, list, saved) {
         el("span", { className: "field-label", text: "API key" }),
         el("div", { className: "inline-row" }, [view.keyStatus, view.keyButton]),
       ]),
+      // Right: the model, in two parts one above the other. Pick from the saved list, or add a name the list does not have.
       el("div", { className: "platform-column" }, [
-        el("label", { className: "field-label", for: ids.input, text: "Model" }),
-        el("div", { className: "inline-row" }, [view.input, view.browseButton, view.checkButton]),
-        el("p", { className: "field-hint", text: MODEL_HINT }),
+        el("div", { className: "platform-part" }, [
+          el("h3", { className: "field-label platform-part-title", id: ids.pickHeading, text: "Pick a model" }),
+          view.browseButton,
+        ]),
+        el("div", { className: "platform-part" }, [
+          el("h3", { className: "field-label platform-part-title", id: ids.addHeading, text: ADD_HEADING }),
+          view.input,
+          el("p", { className: "field-hint", text: MODEL_HINT }),
+          view.checkButton,
+        ]),
         view.status,
         view.suggestions,
       ]),
@@ -293,7 +306,9 @@ async function openModelBrowser(view) {
     }
     const dialog = openPicker({
       title: MODEL_BROWSER_TITLE,
-      items: ids,
+      items: sortModelIds(ids),
+      pageSize: PAGE_SIZE,
+      groupItems: letterGroups,
       isSelected: (id) => id === view.input.value.trim(),
       onToggle: (id) => {
         view.input.value = id;
