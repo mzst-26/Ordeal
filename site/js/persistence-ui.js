@@ -189,7 +189,7 @@ export function buildPresetPanel({ idPrefix, page, store, readSettings, applySet
     return `Deleted ${name}.`;
   }
 
-  const root = el("div", { className: "preset-panel" }, [
+  const panel = el("div", { className: "preset-panel" }, [
     el("div", { className: "field" }, [labelFor(ids.select, "Saved preset"), select]),
     el("div", { className: "field" }, [
       labelFor(ids.name, "Preset name, for save and rename"),
@@ -198,6 +198,11 @@ export function buildPresetPanel({ idPrefix, page, store, readSettings, applySet
     el("div", { className: "button-row" }, [loadButton, saveButton, renameButton, deleteButton]),
     el("p", { className: "field-hint", text: joinSentences(hint, PRESET_HINT_TEXT) }),
     status,
+  ]);
+  // The controls sit in a closed disclosure so the form keeps its height; the summary is the only part shown.
+  const root = el("details", { className: "preset-disclosure" }, [
+    el("summary", { className: "preset-disclosure-summary", text: "Presets" }),
+    panel,
   ]);
 
   refresh().catch(() => {
