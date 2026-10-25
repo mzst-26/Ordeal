@@ -4,7 +4,8 @@ import { el } from "./ui.js";
 import {
   isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH, browserStorage,
 } from "./engine/token.js";
-import { readChoice, DEFAULT_PLATFORM_ID } from "./platforms.js";
+import { readChoice, loadPlatforms, platformIdFor, DEFAULT_PLATFORM_ID } from "./platforms.js";
+import { loadJson } from "./data-cache.js";
 
 const TITLE_ID = "token-dialog-title";
 const FIELD_ID = "token-dialog-field";
@@ -43,8 +44,15 @@ function explainProblem(text) {
  * Open the key dialog. Resolves true when a plausible key was saved, and false when the user
  * cancels or forgets the key. Focus goes back to the element that was focused before.
  * The vault is the object from token.js and needs has(), set(text) and clear().
+ * The key is tagged with the platform the batch will really use, so the platform is read before the dialog opens.
  */
-export function askForToken({ vault, platformId = chosenPlatformId() }) {
+export async function askForToken({ vault, platformId = null }) {
+  const tagged = platformId ?? (await chosenPlatformId());
+  return openTokenDialog(vault, tagged);
+}
+
+/** Draw the dialog and resolve with the outcome. The platform id is already known here. */
+function openTokenDialog(vault, platformId) {
   return new Promise((resolve) => {
     const opener = document.activeElement;
     const parts = buildDialog(vault);
@@ -162,8 +170,16 @@ function toggleVisibility(parts) {
   parts.showButton.textContent = willShow ? "Hide key" : "Show key";
 }
 
-/** Return the id of the platform the visitor chose, or the default platform when none is saved. The key is entered for this one. */
-function chosenPlatformId() {
-  const choice = readChoice(browserStorage());
-  return choice === null ? DEFAULT_PLATFORM_ID : choice.platformId;
+/**
+ * Return the id of the platform the batch will use: the saved choice, or the default when that choice is no longer
+ * selectable. This is the same fallback the batch page uses (platformIdFor), so the key is tagged for the platform
+ * that receives it. If the list cannot be read, the default is used.
+ */
+async function chosenPlatformId() {
+  try {
+    const list = await loadPlatforms(loadJson);
+    return platformIdFor(list, readChoice(browserStorage()));
+  } catch {
+    return DEFAULT_PLATFORM_ID;
+  }
 }

@@ -76,6 +76,16 @@ export function currentPlatform(list, choice) {
   return saved ?? findPlatform(selectable, DEFAULT_PLATFORM_ID) ?? selectable[0] ?? null;
 }
 
+/**
+ * Return the id of the platform that the saved choice means, using the same fallback as currentPlatform. The key
+ * dialog tags the key with this id, and the batch page sends the key to the same platform, so the two must agree.
+ * If nothing is selectable at all, the default id is returned, so the caller always has an id to show.
+ */
+export function platformIdFor(list, choice) {
+  const platform = currentPlatform(list, choice);
+  return platform === null ? DEFAULT_PLATFORM_ID : platform.id;
+}
+
 // The words shown for each kind of platform on a card. A kind not listed here shows the fallback words.
 const TYPE_WORDS = {
   inference: "Hosts many labs' models",
