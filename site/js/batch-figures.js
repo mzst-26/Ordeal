@@ -233,11 +233,15 @@ function buildRadar(rows, measures, block) {
   const cells = heatmapMatrix(rows, keys).cells;
   const count = keys.length;
   const size = 560;
-  const centre = [size / 2, size / 2];
+  // Side allowance so the longest axis label (up to 20 characters, anchored at the rim) is not clipped.
+  const labelAllowance = 130;
+  const width = size + labelAllowance * 2;
+  const centre = [width / 2, size / 2];
   const radius = 170;
+  // The radar keeps its full width so its labels stay at the page's text size; the figure box scrolls sideways instead.
   const svg = svgEl("svg", {
-    class: "figure-svg",
-    viewBox: `0 0 ${size} ${size}`,
+    class: "figure-svg figure-svg-wide",
+    viewBox: `0 0 ${width} ${size}`,
     role: "img",
     "aria-label": "Radar of the ticked models over the batch measures",
   });
