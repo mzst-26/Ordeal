@@ -7,10 +7,6 @@ export const VIEW_IDS = {
   gauntlet: {
     "pushback-select": "gauntlet-pushback-select",
     "question-set-select": "gauntlet-question-set-select",
-    "pushback-seed-field": "gauntlet-pushback-seed-field",
-    "pushback-seed": "gauntlet-pushback-seed",
-    "question-seed-field": "gauntlet-question-seed-field",
-    "question-seed": "gauntlet-question-seed",
     "suite-summary": "gauntlet-suite-summary",
     "condition-select": "gauntlet-condition-select",
     "start-button": "gauntlet-start-button",
@@ -25,10 +21,6 @@ export const VIEW_IDS = {
   batch: {
     "pushback-select": "batch-pushback-select",
     "question-set-select": "batch-question-set-select",
-    "pushback-seed-field": "batch-pushback-seed-field",
-    "pushback-seed": "batch-pushback-seed",
-    "question-seed-field": "batch-question-seed-field",
-    "question-seed": "batch-question-seed",
     "suite-summary": "batch-suite-summary",
     "condition-select": "batch-condition-select",
     "start-button": "batch-start-button",

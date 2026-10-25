@@ -8,9 +8,6 @@ import { activePlatform } from "./platform-choice.js";
 import { showToast } from "./toast.js";
 import { vault } from "./engine/token.js";
 import { VIEW_IDS } from "./view-ids.js";
-import {
-  dropdownChoices, dropdownValueFor, isSeedOrFixed, readSuiteChoice, SHUFFLED_CHOICE,
-} from "./shuffle-choice.js";
 import { loadJson } from "./data-cache.js";
 import { createBudget, createChatClient, BudgetExhausted } from "./engine/api.js";
 import * as rules from "./engine/rules.js";
@@ -22,7 +19,7 @@ import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
-  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, choiceFromSettings, fixedChoice,
+  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, fixedChoice, setMenuChoices,
 } from "./suites.js";
 import {
   createSerialQueue, gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, KIND_GAUNTLET,
@@ -133,8 +130,6 @@ export function mountGauntlet(root) {
   page.dom.confession.addEventListener("click", askConfession);
   page.dom.pushback.addEventListener("change", onSuiteChanged);
   page.dom.questionSet.addEventListener("change", onSuiteChanged);
-  page.dom.pushbackSeed.addEventListener("input", onSuiteChanged);
-  page.dom.questionSeed.addEventListener("input", onSuiteChanged);
   page.dom.modelChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
   page.dom.questionChoose.addEventListener("click", () =>
@@ -161,10 +156,6 @@ function findElements(root) {
   return {
     pushback: byId(root, VIEW_IDS.gauntlet["pushback-select"]),
     questionSet: byId(root, VIEW_IDS.gauntlet["question-set-select"]),
-    pushbackSeedField: byId(root, VIEW_IDS.gauntlet["pushback-seed-field"]),
-    pushbackSeed: byId(root, VIEW_IDS.gauntlet["pushback-seed"]),
-    questionSeedField: byId(root, VIEW_IDS.gauntlet["question-seed-field"]),
-    questionSeed: byId(root, VIEW_IDS.gauntlet["question-seed"]),
     suiteSummary: byId(root, VIEW_IDS.gauntlet["suite-summary"]),
     model: byId(root, "model-select"),
     modelChoose: byId(root, "gauntlet-model-choose"),
@@ -207,7 +198,7 @@ async function loadPageJson(path) {
 
 /**
  * Load the config, the saved replies and the suites index, then the default suite. A failed file keeps Start off.
- * The index gives each suite its experiment code, so a shuffled suite is checked against its own entry.
+ * The index gives each suite its experiment code, and the loaded data is checked against that entry.
  */
 async function loadData() {
   try {
@@ -325,10 +316,10 @@ function modelChoices(config) {
   return config.models.map((id) => ({ id, kind: "" }));
 }
 
-/** Fill the pushback set and question set menus with the names this site has, then the Shuffled entry. */
+/** Fill the pushback set and question set menus with the names this site has. */
 function fillSuiteMenus() {
-  fillSelect(page.dom.pushback, dropdownChoices(pushbackSetNames()));
-  fillSelect(page.dom.questionSet, dropdownChoices(questionSetNames()));
+  fillSelect(page.dom.pushback, setMenuChoices(pushbackSetNames()));
+  fillSelect(page.dom.questionSet, setMenuChoices(questionSetNames()));
 }
 
 /**
@@ -411,15 +402,13 @@ function syncChoiceButtons() {
 /**
  * Put a suite on the desk: its menus, its level cards, its spine and its footer. A different suite ends the
  * conversation on screen, because its levels and questions are not the ones it was built with. The choice is
- * { pushbackSet, pushbackSeed, questionSet, questionSeed }, with a null seed for the fixed order.
- * Returns false when a newer choice was made while this one loaded, so this suite is not put on the desk.
+ * { pushbackSet, questionSet }. Returns false when a newer choice was made while this one loaded, so this suite
+ * is not put on the desk.
  */
 async function selectSuite(choice) {
   page.suiteRequest += 1;
   const request = page.suiteRequest;
-  const suite = await page.loader.load(choice.pushbackSet, choice.questionSet, {
-    pushbackSeed: choice.pushbackSeed, questionSeed: choice.questionSeed,
-  });
+  const suite = await page.loader.load(choice.pushbackSet, choice.questionSet);
   if (request !== page.suiteRequest) {
     return false;
   }
@@ -429,11 +418,8 @@ async function selectSuite(choice) {
     page.runFinished = false;
   }
   page.suite = suite;
-  page.dom.pushback.value = dropdownValueFor(choice.pushbackSet, choice.pushbackSeed);
-  page.dom.questionSet.value = dropdownValueFor(choice.questionSet, choice.questionSeed);
-  writeSeedBox(page.dom.pushbackSeed, choice.pushbackSeed);
-  writeSeedBox(page.dom.questionSeed, choice.questionSeed);
-  syncSeedFields();
+  page.dom.pushback.value = choice.pushbackSet;
+  page.dom.questionSet.value = choice.questionSet;
   page.dom.suiteSummary.textContent = suiteSummary(suite);
   fillQuestionMenu(suite);
   buildLevelCards();
@@ -442,43 +428,11 @@ async function selectSuite(choice) {
   return true;
 }
 
-/** Put a seed in its box, so a saved or preset seed shows in the box. A fixed choice (null) leaves the box as it is. */
-function writeSeedBox(input, seed) {
-  if (seed !== null) {
-    input.value = String(seed);
-  }
-}
-
-/** Show each seed box only when its dropdown is Shuffled. */
-function syncSeedFields() {
-  page.dom.pushbackSeedField.hidden = page.dom.pushback.value !== SHUFFLED_CHOICE;
-  page.dom.questionSeedField.hidden = page.dom.questionSet.value !== SHUFFLED_CHOICE;
-}
-
-/** Read both suite dropdowns and their seed boxes into one choice. A bad seed gives { ok: false, message }. */
-function readDeskChoice() {
-  const dom = page.dom;
-  return readSuiteChoice({
-    pushback: { value: dom.pushback.value, seedText: dom.pushbackSeed.value },
-    question: { value: dom.questionSet.value, seedText: dom.questionSeed.value },
-    loaded: choiceOfSuite(page.suite),
-  });
-}
-
 /**
- * Choose a new suite from the dropdowns or a seed box. A bad seed is shown in the status line and Start stays off,
- * and nothing is loaded. Not allowed while a step runs, because the menus are off then.
+ * Choose a new suite from the two menus, then load it. Not allowed while a step runs, because the menus are off then.
  */
 async function onSuiteChanged() {
-  syncSeedFields();
-  const choice = readDeskChoice();
-  if (!choice.ok) {
-    // This choice is newer than any load still running, so that load must not replace the message.
-    page.suiteRequest += 1;
-    showStatus(choice.message);
-    renderAll();
-    return;
-  }
+  const choice = fixedChoice(page.dom.pushback.value, page.dom.questionSet.value);
   try {
     if (await selectSuite(choice)) {
       showStatus(START_PROMPT);
@@ -670,16 +624,13 @@ function updateControls() {
   const dom = page.dom;
   const hasRun = page.run !== null;
   const done = hasRun ? page.run.letters.length : 0;
-  // A bad seed in either box turns Start off, so a run never starts on a seed the site does not have.
-  dom.start.disabled = page.busy || page.data === null || page.suite === null || !readDeskChoice().ok;
+  dom.start.disabled = page.busy || page.data === null || page.suite === null;
   dom.start.textContent = labelWhileWorking("start", START_LABEL);
   dom.stop.hidden = !page.busy;
   dom.confession.disabled = page.busy || !hasRun;
   dom.confession.textContent = labelWhileWorking("confession", CONFESSION_LABEL);
   dom.pushback.disabled = page.busy;
   dom.questionSet.disabled = page.busy;
-  dom.pushbackSeed.disabled = page.busy;
-  dom.questionSeed.disabled = page.busy;
   if (page.panels.presets) {
     page.panels.presets.setBusy(page.busy);
   }
@@ -1198,8 +1149,9 @@ function restorableProblem(config) {
   if (!isPushbackSet(config.pushbackSet) || !isQuestionSet(config.questionSet)) {
     return "This saved run uses a set that this site does not have, so it cannot be resumed.";
   }
-  if (!isSeedOrFixed(config.pushbackSeed) || !isSeedOrFixed(config.questionSeed)) {
-    return "This saved run uses a seed that this site does not have, so it cannot be resumed.";
+  // A run from the shuffled orders kept a seed. Its ladder or question order is not on this site any more.
+  if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
+    return "This saved run used a shuffled order that this site no longer has, so it cannot be resumed.";
   }
   if (!modelChoices(page.data.config).some((entry) => entry.id === config.model)) {
     return `The model ${config.model} is not in the list, so this run cannot be resumed.`;
@@ -1213,7 +1165,7 @@ async function restoreDesk(config) {
   if (problem !== "") {
     return problem;
   }
-  await selectSuite(choiceFromSettings(config));
+  await selectSuite(fixedChoice(config.pushbackSet, config.questionSet));
   if (!page.suite.questions.some((question) => question.id === config.questionId)) {
     return `The question ${config.questionId} is not in ${page.suite.name}, so this run cannot be resumed.`;
   }
@@ -1284,7 +1236,6 @@ async function readyForLiveResume() {
 function readPresetSettings() {
   const { config } = page.data;
   return {
-    // The suite on the desk, so a Shuffled choice is saved with its seed and not as its dropdown value.
     ...choiceOfSuite(page.suite),
     model: page.dom.model.value,
     condition: page.dom.condition.value,
@@ -1296,12 +1247,10 @@ function readPresetSettings() {
 /** Set the desk from a preset. Returns the sentences to add to the status: what was not applied, and why. */
 async function applyPresetSettings(settings) {
   const current = choiceOfSuite(page.suite);
-  await selectSuite(choiceFromSettings({
-    pushbackSet: settings.pushbackSet ?? current.pushbackSet,
-    pushbackSeed: settings.pushbackSeed,
-    questionSet: settings.questionSet ?? current.questionSet,
-    questionSeed: settings.questionSeed,
-  }));
+  await selectSuite(fixedChoice(
+    settings.pushbackSet ?? current.pushbackSet,
+    settings.questionSet ?? current.questionSet,
+  ));
   const notes = [];
   if (settings.model !== undefined) {
     if (modelChoices(page.data.config).some((entry) => entry.id === settings.model)) {

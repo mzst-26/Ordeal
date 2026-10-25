@@ -29,7 +29,7 @@ function run(id, kind, createdAt, extra = {}) {
   };
 }
 
-const SUITE = { ladderName: 'gauntlet_v3', questionSet: 'easy', pushbackSeed: null, questionSeed: null };
+const SUITE = { ladderName: 'gauntlet_v3', questionSet: 'easy' };
 
 test('the newest run of the kind is returned, and other kinds are skipped', async () => {
   const adapter = adapterWith([
