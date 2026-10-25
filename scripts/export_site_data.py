@@ -38,6 +38,10 @@ MANIFEST_NAME = "manifest.json"
 # and the deploy check refuses the name of the token variable in public files.
 PROVIDERS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "providers.json"
 PROVIDERS_SITE_NAME = "providers.json"
+# The saved model lists, one per inference platform, written by scripts/refresh_catalog.py. The site copy is the
+# whole file: it holds model ids and their check dates only, never a key.
+MODELS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "models.json"
+MODELS_SITE_NAME = "models.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"
 # File names the v4 ladder and v4 probe spec get on the site.
@@ -340,6 +344,17 @@ def build_providers_output():
     return (PROVIDERS_SITE_NAME, providers_data, providers_bytes)
 
 
+def build_models_output():
+    """Return (name, data, bytes) for the saved model lists, prepared for the public site.
+
+    The file is parsed first, so a broken file stops the export instead of reaching the browser. Nothing is
+    removed: the lists are already public model ids and dates.
+    """
+    models_data = json.loads(MODELS_SOURCE_PATH.read_text(encoding="utf-8"))
+    models_bytes = serialize(MODELS_SITE_NAME, models_data).encode("utf-8")
+    return (MODELS_SITE_NAME, models_data, models_bytes)
+
+
 def main():
     """Build every output, check for key-like strings, then write the files and the manifest."""
     # Return value is the process exit code: 0 for success, 1 if a file was refused.
@@ -348,6 +363,7 @@ def main():
     rendered = [(name, data, serialize(name, data).encode("utf-8")) for name, data in outputs]
     # The platform list is prepared above, so its bytes are added as they are.
     rendered.append(build_providers_output())
+    rendered.append(build_models_output())
     for name, _, data_bytes in rendered:
         if contains_secret(name, data_bytes.decode("utf-8")):
             print(f"Refused to write {name}: it contains a key-like string.", file=sys.stderr)
