@@ -27,7 +27,12 @@ from ordeal.model_client import (
 REGISTRY_PATH = Path(__file__).resolve().parent / "providers.json"
 # The fields every registry entry must have, and no others. An unknown field is refused,
 # so a typo such as "base_ur1" cannot be silently ignored.
-PLATFORM_FIELDS = ("id", "name", "base_url", "key_env", "signup", "web_host", "browser", "local")
+# kind says what the service is: "inference" for a host of models from many labs, "single-vendor" for one lab's
+# own API, "local" for a server on this computer, and "custom" for an address the user gives.
+PLATFORM_KINDS = ("inference", "single-vendor", "local", "custom")
+PLATFORM_FIELDS = (
+    "id", "name", "kind", "summary", "base_url", "key_env", "signup", "web_host", "browser", "local",
+)
 # A platform id is used inside route names such as "groq/model", so it is kept to simple lowercase text.
 PLATFORM_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")
 # Only the custom platform may leave its base URL empty, because the user gives that address.
@@ -51,6 +56,8 @@ class Platform:
 
     id: str  # short name used in route names, such as "groq"
     name: str  # the name shown to people
+    kind: str  # one of PLATFORM_KINDS; the browser dropdown shows only "inference" platforms
+    summary: str  # one plain sentence about the service, shown in the picker
     base_url: str | None  # the API address; None only for the custom platform
     key_env: str | None  # the environment variable that holds the key; None when no key is needed
     signup: str | None  # where to make a key
@@ -98,6 +105,10 @@ def check_entry_values(entry: dict, prefix: str) -> None:
         raise ValueError(f"{prefix}: id must be lowercase letters, digits and dashes.")
     if not isinstance(entry["name"], str) or not entry["name"].strip():
         raise ValueError(f"{prefix}: name must be non-empty text.")
+    if entry["kind"] not in PLATFORM_KINDS:
+        raise ValueError(f"{prefix}: kind must be one of {', '.join(PLATFORM_KINDS)}.")
+    if not isinstance(entry["summary"], str) or not entry["summary"].strip():
+        raise ValueError(f"{prefix}: summary must be non-empty text.")
     for flag in ("browser", "local"):
         if not isinstance(entry[flag], bool):
             raise ValueError(f"{prefix}: {flag} must be true or false.")
@@ -134,6 +145,8 @@ def platform_from_entry(entry: object, prefix: str) -> Platform:
     return Platform(
         id=entry["id"],
         name=entry["name"],
+        kind=entry["kind"],
+        summary=entry["summary"],
         base_url=entry["base_url"],
         key_env=entry["key_env"],
         signup=entry["signup"],

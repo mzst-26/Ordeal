@@ -17,6 +17,8 @@ from ordeal import providers
 GOOD_ENTRY = {
     "id": "example",
     "name": "Example",
+    "kind": "inference",
+    "summary": "An example host for the tests.",
     "base_url": "https://api.example.com/v1",
     "key_env": "EXAMPLE_KEY",
     "signup": None,
@@ -359,3 +361,31 @@ class FetchModelIdsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KindAndSummaryTests(unittest.TestCase):
+    """Every platform says what it is in one of the known kinds, and has a plain summary for the picker."""
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+
+    def write_registry(self, entries: list) -> Path:
+        path = Path(self.directory.name) / "providers.json"
+        path.write_text(json.dumps({"version": 1, "platforms": entries}), encoding="utf-8")
+        return path
+
+    def test_unknown_kind_is_refused(self) -> None:
+        entry = dict(GOOD_ENTRY, kind="model")
+        with self.assertRaisesRegex(ValueError, "kind must be one of"):
+            providers.load_platforms(self.write_registry([entry]))
+
+    def test_empty_summary_is_refused(self) -> None:
+        entry = dict(GOOD_ENTRY, summary="   ")
+        with self.assertRaisesRegex(ValueError, "summary must be non-empty"):
+            providers.load_platforms(self.write_registry([entry]))
+
+    def test_registry_kinds_are_known(self) -> None:
+        for platform in providers.load_platforms():
+            self.assertIn(platform.kind, providers.PLATFORM_KINDS, platform.id)
+            self.assertTrue(platform.summary.strip(), platform.id)
