@@ -25,6 +25,8 @@ from playwright.sync_api import expect, sync_playwright
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SITE_DIR = PROJECT_DIR / "site"
+# The browser tests serve the Vite build, which setUpModule writes here, because site/ holds JSX that a plain server cannot run.
+DIST_DIR = PROJECT_DIR / "dist"
 RESULTS_PATH = SITE_DIR / "data" / "compare" / "results.json"
 # The screenshots are the only files these tests write, and the folder is outside the project.
 SCREENSHOT_DIR = Path(
@@ -78,14 +80,20 @@ def wait_for_server(url, timeout_s=15.0):
     raise RuntimeError(f"The local server did not answer at {url}: {last_error}")
 
 
+def build_site():
+    """Builds the static site into dist/ with npm run build. Raises CalledProcessError if the build fails."""
+    subprocess.run(["npm", "run", "build"], cwd=PROJECT_DIR, check=True, capture_output=True, text=True)
+
+
 def setUpModule():
     """Starts the static server on 127.0.0.1 and launches Chromium once for the whole module."""
+    build_site()
     global _SERVER, _PLAYWRIGHT, _BROWSER, _BASE_URL, _DATA
     port = pick_port()
     _BASE_URL = f"http://{LOCAL_HOST}:{port}"
     _DATA = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
     _SERVER = subprocess.Popen(
-        [sys.executable, "-m", "http.server", str(port), "--bind", LOCAL_HOST, "--directory", str(SITE_DIR)],
+        [sys.executable, "-m", "http.server", str(port), "--bind", LOCAL_HOST, "--directory", str(DIST_DIR)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

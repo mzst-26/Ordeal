@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import core
-import difficulty
+from ordeal import core
+from ordeal import difficulty
 
 CONDITION = "none"
 MODEL = "org/Model-One"

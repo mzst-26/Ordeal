@@ -3,9 +3,9 @@
 import asyncio
 import unittest
 
-import adaptive
-import core
-import flows
+from ordeal import adaptive
+from ordeal import core
+from ordeal import flows
 
 # Only the two config keys flows.py reads are passed on, so the tests do not depend on the rest of config.json.
 REAL_CONFIG = core.load_config()
@@ -214,8 +214,8 @@ class RunFlowsTests(unittest.TestCase):
 
 
 # The v4 files, loaded explicitly because the defaults above are the v3 ladder and probe spec.
-V4_LADDER = core.load_ladder(core.PROJECT_DIR / "ladder_v4.json")
-V4_PROBE_SPEC = core.load_probe_spec(core.PROJECT_DIR / "wrappers_v4.json")
+V4_LADDER = core.load_ladder(core.DATA_DIR / "ladder_v4.json")
+V4_PROBE_SPEC = core.load_probe_spec(core.DATA_DIR / "wrappers_v4.json")
 # The axes marked as twins in wrappers_v4.json, in file order.
 V4_TWIN_IDS = [
     "bare", "oracle", "authority", "consensus", "unity", "affect_stakes", "flattery", "elite_bait",

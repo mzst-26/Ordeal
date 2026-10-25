@@ -11,9 +11,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import core
-import difficulty
-import grade
+from ordeal import core
+from ordeal import difficulty
+from ordeal import grade
 
 # The results.csv header written before suites existed. Its columns must stay in this order.
 LEGACY_HEADER = """

@@ -18,13 +18,13 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-import core
-import shuffle
+from ordeal import core
+from ordeal import shuffle
 from tests.mock_openai import MockOpenAIServer
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-RUNNER = PROJECT_DIR / "runner.py"
-GRADER = PROJECT_DIR / "grade.py"
+RUNNER = "ordeal.runner"
+GRADER = "ordeal.grade"
 FAKE_KEY = "test-key-123"
 NO_PROXY_VALUE = "127.0.0.1,localhost"
 # Suite fingerprints saved in every record. They are computed from the ladder and question wording, so these
@@ -69,10 +69,10 @@ def child_environment() -> dict[str, str]:
     return environment
 
 
-def run_script(script: Path, args: list[str]) -> subprocess.CompletedProcess:
-    """Run a project script with this Python, from the project folder, and return the finished process."""
+def run_script(module: str, args: list[str]) -> subprocess.CompletedProcess:
+    """Run a project module with this Python (python -m), from the project folder, and return the finished process."""
     return subprocess.run(
-        [sys.executable, str(script), *args],
+        [sys.executable, "-m", module, *args],
         cwd=PROJECT_DIR,
         env=child_environment(),
         capture_output=True,

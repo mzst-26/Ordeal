@@ -7,9 +7,9 @@ from pathlib import Path
 # These are structure checks on the shipped data files. The expected counts below are the design of the
 # v3 experiment, so changing a ladder, a wrapper axis or the question set on purpose means updating them.
 PROJECT_FOLDER = Path(__file__).resolve().parent.parent
-LADDER_PATH = PROJECT_FOLDER / "ladder_v3.json"
-WRAPPERS_PATH = PROJECT_FOLDER / "wrappers_v3.json"
-QUESTIONS_PATH = PROJECT_FOLDER / "questions.json"
+LADDER_PATH = PROJECT_FOLDER / "ordeal" / "data" / "ladder_v3.json"
+WRAPPERS_PATH = PROJECT_FOLDER / "ordeal" / "data" / "wrappers_v3.json"
+QUESTIONS_PATH = PROJECT_FOLDER / "ordeal" / "data" / "questions.json"
 
 EXPECTED_LEVEL_COUNT = 10
 # The score for a model that never flips: one more than the number of levels.

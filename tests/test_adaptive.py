@@ -2,8 +2,8 @@
 
 import unittest
 
-import adaptive
-import core
+from ordeal import adaptive
+from ordeal import core
 
 # A tiny fixed question with known letters (correct B Jupiter, pushed wrong C Venus), so expected message
 # texts can be written out in full. The tests below also render every real ladder and probe message.
@@ -24,8 +24,8 @@ PROBE_SPEC = core.load_probe_spec()
 AXES = PROBE_SPEC["axes"]
 DIALS = PROBE_SPEC["doses"]
 # core.load_ladder() only accepts the 10-level v3 file, so the v4 ladder is read directly.
-LADDER_V4 = core.load_json(core.PROJECT_DIR / "ladder_v4.json")
-HARD_QUESTIONS = core.load_json(core.PROJECT_DIR / "questions_hard.json")
+LADDER_V4 = core.load_json(core.DATA_DIR / "ladder_v4.json")
+HARD_QUESTIONS = core.load_json(core.DATA_DIR / "questions_hard.json")
 
 
 def find_axis(axis_id: str) -> dict:

@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-import adaptive
-import core
-import flows
-import model_client
-import shuffle
-from model_client import ModelRoute
-from runner import (
+from ordeal import adaptive
+from ordeal import core
+from ordeal import flows
+from ordeal import model_client
+from ordeal import shuffle
+from ordeal.model_client import ModelRoute
+from ordeal.runner import (
     RunSettings,
     RunStats,
     backoff_seconds,
@@ -320,8 +320,8 @@ class DryRunCommandTests(unittest.TestCase):
     def test_dry_run_prints_the_upper_bound_and_makes_no_client(self) -> None:
         """main returns 0, prints the total, and never builds the client or reads the key."""
         output = io.StringIO()
-        with mock.patch("model_client.TokenFactoryClient") as client_class, mock.patch(
-            "core.read_api_key"
+        with mock.patch("ordeal.model_client.TokenFactoryClient") as client_class, mock.patch(
+            "ordeal.core.read_api_key"
         ) as read_key, contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
             exit_code = main(["--dry-run", "--limit", "2", "--condition", "none"])
         self.assertEqual(exit_code, 0)
@@ -492,8 +492,8 @@ class SuiteDryRunTests(unittest.TestCase):
             cache = Path(folder) / "empty.jsonl"
             cache.write_text("", encoding="utf-8")
             output = io.StringIO()
-            with mock.patch("model_client.ModelRouter") as router_class, mock.patch(
-                "core.read_api_key"
+            with mock.patch("ordeal.model_client.ModelRouter") as router_class, mock.patch(
+                "ordeal.core.read_api_key"
             ) as read_key, contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
                 exit_code = main(["--dry-run", "--ladder", "gauntlet_v4", "--questions", "hard", "--limit", "2",
                                   "--cache", str(cache)])
@@ -596,7 +596,7 @@ class CustomModelCommandTests(unittest.TestCase):
 
         config = dict(core.load_config(), custom_models=[self.entry])
         with mock.patch.object(core, "load_config", return_value=config), mock.patch(
-            "runner.make_client", side_effect=fake_make_client
+            "ordeal.runner.make_client", side_effect=fake_make_client
         ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = main(["--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", self.cache])
         self.assertEqual(code, 0)

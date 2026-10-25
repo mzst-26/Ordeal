@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import openai
 
-from model_client import TokenFactoryClient
+from ordeal.model_client import TokenFactoryClient
 from tests.mock_openai import MockOpenAIServer
 
 # Key the mock accepts by default, and the model name used in the requests below.
