@@ -66,6 +66,10 @@
   --dash-section-gap: var(--space-8);
   --dash-chart-height: 240px;
 
+  /* Heights of the Batch page's scroll boxes. Each is a maximum: a short list keeps its natural height, and a long
+     one scrolls inside the box at this height. Change the number here and both pages follow. */
+  --models-body-max-height: 16rem;
+
   /* Colour plate: Paper (light) */
   --paper: #F5EFE3;
   --paper-raised: #FBF7EF;

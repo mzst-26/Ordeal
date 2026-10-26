@@ -154,6 +154,13 @@ fieldset.panel > .add-model {
   display: none;
 }
 
+/* The ticked models are a scroll box of their own. The cap comes from tokens.css, so a short list keeps its natural
+   height. The Questions list is not given this class, so it keeps the 16rem cap above. */
+.selected-list.models-body {
+  max-height: var(--models-body-max-height);
+  scrollbar-color: var(--edge) transparent;
+}
+
 .selected-item {
   display: flex;
   align-items: baseline;
