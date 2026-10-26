@@ -12,6 +12,8 @@ const REVOKE_DELAY_MS = 1000;
 const NO_STORAGE_TEXT = "Runs are not saved in this window. Presets last only until this page is closed.";
 const STORAGE_TEXT = "Runs and presets are kept in this browser, so they survive a reload. The key is never saved.";
 const NO_PRESETS_TEXT = "No presets yet";
+// The line the Saved runs list shows when it has no runs. A page can pass null to show its own line instead.
+const NO_SAVED_TEXT = "No saved runs yet.";
 const UNKNOWN_ERROR_TEXT = "Something went wrong. Try again.";
 const PRESET_HINT_TEXT = "To rename, select a preset, type the new name in the box, then press Rename.";
 const STORE_READ_TEXT = "The presets could not be read. The page still works.";
@@ -227,10 +229,11 @@ function countText(row, unitWord) {
 /**
  * Build the Saved runs list for one kind of run ("batch" or "gauntlet"), newest first. Each row has Resume (when it
  * can be resumed), Export (a JSON download) and Delete (after a confirmation). The options are adapter, kind, queue
- * (the page's serial queue for run writes), unitWord ("units" or "steps"), onResume(run) and onChanged().
- * Returns { root, refresh }.
+ * (the page's serial queue for run writes), unitWord ("units" or "steps"), onResume(run), onChanged() and emptyText
+ * (the line shown when there are no runs; null shows nothing, for a page whose count line already says so).
+ * Returns { root, refresh }. refresh() resolves to the number of runs it drew.
  */
-export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChanged }) {
+export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChanged, emptyText = NO_SAVED_TEXT }) {
   const host = el("div", { className: "run-list-host" });
 
   /** Build one row of the list. */
@@ -273,13 +276,19 @@ export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChan
     await refresh();
   }
 
-  /** Draw the list again from storage. */
+  /** Draw the list again from storage, and return how many runs it drew. */
   async function refresh() {
     const rows = await savedRunRows(adapter, kind);
-    const items = rows.length === 0
-      ? [el("p", { className: "field-hint", text: "No saved runs yet." })]
-      : [el("ol", { className: "run-list" }, rows.map(rowItem))];
-    host.replaceChildren(...items);
+    host.replaceChildren(...listItems(rows));
+    return rows.length;
+  }
+
+  /** Return what the list shows: its rows, or the empty line when there are none and the caller wants one. */
+  function listItems(rows) {
+    if (rows.length > 0) {
+      return [el("ol", { className: "run-list" }, rows.map(rowItem))];
+    }
+    return emptyText === null ? [] : [el("p", { className: "field-hint", text: emptyText })];
   }
 
   return { root: host, refresh };
@@ -336,10 +345,14 @@ export function buildResumeNotices({ adapter, kind, queue, unitWord, activeRunId
     await refresh();
   }
 
-  /** Draw the notices for the runs that are still marked running and are not the one open on this page. */
+  /**
+   * Draw the notices for the runs that are still marked running and are not the one open on this page. Returns how
+   * many notices it drew, so the page can show the count.
+   */
   async function refresh() {
     const runs = await interruptedRunsOfKind(adapter, kind, activeRunId());
     host.replaceChildren(...runs.map(noticeItem));
+    return runs.length;
   }
 
   return { root: host, refresh };

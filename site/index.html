@@ -209,12 +209,14 @@
         <h2 class="dialog-title" id="batch-runs-title">Runs</h2>
         <section class="runs-section" aria-labelledby="batch-runs-unfinished-heading">
           <h3 class="runs-section-title" id="batch-runs-unfinished-heading">Unfinished</h3>
-          <!-- The unfinished runs, filled by the script. Each one has Resume and Discard. -->
+          <!-- The count line and the unfinished runs, filled by the script. Each run has Resume and Discard. -->
+          <p class="field-hint" id="batch-unfinished-count"></p>
           <div class="notice-region" id="batch-resume-notices"></div>
         </section>
         <section class="runs-section" aria-labelledby="batch-runs-saved-heading">
           <h3 class="runs-section-title" id="batch-runs-saved-heading">Saved</h3>
-          <!-- Where the saved runs are kept, then the saved runs themselves. Both are filled by the script. -->
+          <!-- The count line, where the saved runs are kept, then the saved runs themselves. All are filled by the script. -->
+          <p class="field-hint" id="batch-saved-count"></p>
           <p class="field-hint" id="batch-storage-note" role="status"></p>
           <div id="batch-runs-list"></div>
         </section>
