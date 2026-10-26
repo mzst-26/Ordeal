@@ -29,12 +29,9 @@ import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
-import { barErrorChart } from "./charts/index.js";
 import { MEASURES, heatmapMatrix, normalise, rankModels } from "./analytics.js";
 import { renderResultsFigures } from "./batch-figures.js";
-import {
-  barTable, clearPanel, destroyChart, drawPanel, makeChartPanel, seriesStyle, watchThemeChanges,
-} from "./chart-panel.js";
+import { mountFingerprintFigure } from "./fingerprint-figure.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
@@ -198,9 +195,7 @@ const IDS = {
   resultsMessage: "results-message",
   gauntletTables: "gauntlet-tables",
   chartMessage: "chart-message",
-  chartHost: "fingerprint-chart",
-  chartTable: "fingerprint-table",
-  probeBody: "probe-table-body",
+  figure: "fingerprint-figure",
   exportGauntlet: "export-gauntlet",
   exportProbes: "export-probes",
   exportReplies: "export-replies",
@@ -239,9 +234,7 @@ const page = {
   capTouched: false,          // true once the user types a cap, so the plan stops changing it
   confirming: false,          // true while the key dialog or the confirmation line is open
   exportRows: { gauntlet: [], probes: [] },
-  chartPanel: null,           // the fingerprint chart with its table view, made at start-up
-  chartKey: "",               // the models and probes the chart was drawn for
-  shown: null,                // the models and probe rows of the last grading, redrawn on a theme change
+  fingerprint: null,          // the fingerprint figure (its views and drawing), made at start-up
   resultsTimer: null,         // the pending results redraw, or null
   lastResultsAt: 0,           // when the results were last drawn, in milliseconds
   storage: null,              // { adapter, fallback } from the run storage
@@ -267,15 +260,9 @@ export function mountBatch(root) {
     keyReady: keyForChosenPlatform,
     checkingText: checkingTextFor,
   });
-  page.chartPanel = makeChartPanel(
-    page.dom.chartHost,
-    page.dom.chartTable,
-    barErrorChart,
-    (options) => barTable("Fingerprint flip rates by probe and model", options),
-  );
+  page.fingerprint = mountFingerprintFigure(page.dom.figure);
   wireControls();
   initTooltips();
-  watchThemeChanges(redrawShownChart);
   loadData();
 }
 
@@ -2157,21 +2144,12 @@ function drawResults() {
   const gauntletRows = gauntletRowsFor(choices, records);
   const probeRows = probeRowsFor(choices, records);
   page.exportRows = { gauntlet: gauntletRows, probes: probeRows };
-  page.shown = { models: choices.models, probeRows };
   renderGauntletTables(choices.models, gauntletRows);
   const figureMeasures = resultMeasures(page.suite.levelCount);
   renderResultsFigures(document.getElementById("results-figures"), analyticsRows(choices.models, gauntletRows, figureMeasures), figureMeasures);
-  drawProbeChart(choices.models, probeRows);
-  renderProbeTable(choices.models, probeRows);
+  drawFingerprint(choices.models, probeRows);
   setResultsMessage(choices, records);
   updateExportButtons();
-}
-
-/** Redraw the chart from the last grading when the theme changes, so the colours update without a regrade. */
-function redrawShownChart() {
-  if (page.shown !== null) {
-    drawProbeChart(page.shown.models, page.shown.probeRows);
-  }
 }
 
 /** Say why there are no results yet, or clear the message when there are some. */
@@ -2375,87 +2353,21 @@ function fingerprintRows(probeRows) {
   return probeRows.filter((row) => row.family === FINGERPRINT_FAMILY && row.measure === FLIP_MEASURE);
 }
 
-/** Return the probe name written with spaces, for labels. */
-function probeLabel(probe) {
-  return String(probe).replace(/_/g, " ");
-}
-
-/** Return the chart style for a model, by its place in the full model list (colour, dashed, faded). */
-function styleFor(model) {
-  return seriesStyle(page.allModels.indexOf(model));
-}
-
-/** Return the number for one field of a probe row, or NaN when the row or the number is missing (no data). */
-function numberOrNaN(row, field) {
-  if (row === undefined || !Number.isFinite(row[field])) {
-    return Number.NaN;
-  }
-  return row[field];
-}
-
-/** Find the probe row for one model and one probe, or undefined. */
-function findProbeRow(rows, model, probe) {
-  return rows.find((row) => row.model === model && row.probe === probe);
-}
-
-/** Build the chart options: one group per probe, one series per model, each with its interval. */
-function buildChartOptions(rows, probes, models) {
-  const series = models.map((model) => {
-    const rowFor = (probe) => findProbeRow(rows, model, probe);
-    return {
-      name: shortName(model),
-      ...styleFor(model),
-      valuesByGroup: probes.map((probe) => numberOrNaN(rowFor(probe), "estimate")),
-      lowsByGroup: probes.map((probe) => numberOrNaN(rowFor(probe), "low")),
-      highsByGroup: probes.map((probe) => numberOrNaN(rowFor(probe), "high")),
-    };
-  });
-  return {
-    ariaLabel: "Fingerprint flip rate by probe, one bar per model",
-    yAxisTitle: "Flip rate",
-    yMax: 1,
-    groups: probes.map(probeLabel),
-    series,
-  };
-}
-
-/** Draw the fingerprint flip-rate chart and its table. A new set of models or probes starts a new chart. */
-function drawProbeChart(models, probeRows) {
-  const dom = page.dom;
-  const rows = fingerprintRows(probeRows);
+/** Draw the fingerprint figure for the ticked models. A set with no fingerprint replies shows a message instead. */
+function drawFingerprint(models, probeRows) {
+  const rows = fingerprintRows(probeRows).filter((row) => models.includes(row.model));
   if (rows.length === 0 || models.length === 0) {
-    clearPanel(page.chartPanel);
-    dom.chartMessage.textContent = NO_CHART_TEXT;
+    page.fingerprint.clear();
+    page.dom.chartMessage.textContent = NO_CHART_TEXT;
     return;
   }
-  dom.chartMessage.textContent = "";
-  const probes = [...new Set(rows.map((row) => row.probe))];
-  const options = buildChartOptions(rows, probes, models);
-  // The key identifies the chart's shape; a changed key means the old chart cannot be updated in place.
-  const key = `${models.join("|")}#${probes.join("|")}`;
-  if (page.chartKey !== key) {
-    destroyChart(page.chartPanel);
-    page.chartKey = key;
-  }
-  drawPanel(page.chartPanel, options);
+  page.dom.chartMessage.textContent = "";
+  page.fingerprint.render(models.map(figureModel), rows);
 }
 
-/** Fill the probe table under the chart with the fingerprint rows of the ticked models. */
-function renderProbeTable(models, probeRows) {
-  const shown = fingerprintRows(probeRows).filter((row) => models.includes(row.model));
-  page.dom.probeBody.replaceChildren(...shown.map(probeTableRow));
-}
-
-/** Build one row of the probe table. Each number is aligned to the right. */
-function probeTableRow(row) {
-  return el("tr", {}, [
-    el("td", { text: probeLabel(row.probe) }),
-    el("td", { text: shortName(row.model) }),
-    numberCell(formatNumber(row.units, 0)),
-    numberCell(formatNumber(row.estimate)),
-    numberCell(formatNumber(row.low)),
-    numberCell(formatNumber(row.high)),
-  ]);
+/** Describe one ticked model for the figure: its id, its short name, and its place in the full list (which sets its colour). */
+function figureModel(model) {
+  return { id: model, name: shortName(model), index: page.allModels.indexOf(model) };
 }
 
 /** Enable each export only when it has something to save. */

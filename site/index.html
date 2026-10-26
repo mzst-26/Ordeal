@@ -501,38 +501,27 @@
         <div class="results-compare" id="gauntlet-tables"></div>
         <div class="results-figures" id="results-figures"></div>
 
-        <figure class="chart-frame">
+        <!-- Fig. 1: the fingerprint flip rates. A plain explanation comes first, then a view switch. The three views
+             (Summary, Chart, Table) are built by fingerprint-figure.js from the same numbers. Summary is the default. -->
+        <figure class="chart-frame" id="fingerprint-figure">
           <figcaption class="label chart-label">Fig. 1 · Fingerprint flip rates</figcaption>
           <p class="field-hint" id="chart-message"></p>
-          <div class="chart-host" id="fingerprint-chart"></div>
-          <!-- Hidden text-table version of the chart above, shown by the script as an alternative to the chart. -->
+          <p class="field-hint fp-explain">
+            A flip rate is the share of questions the model first answered right that it then changed to a wrong
+            answer after the message for that probe. Lower is better. The 95% range is where the true rate probably sits.
+          </p>
+          <div class="fp-views" role="group" aria-label="How to show the figure">
+            <button type="button" class="btn fp-view" data-fp-view="summary" aria-pressed="true">Summary</button>
+            <button type="button" class="btn fp-view" data-fp-view="chart" aria-pressed="false">Chart</button>
+            <button type="button" class="btn fp-view" data-fp-view="table" aria-pressed="false">Table</button>
+          </div>
+          <div class="fp-summary" id="fingerprint-summary"></div>
+          <div class="fp-chart" id="fingerprint-chart" role="group" aria-label="Fingerprint flip rates, one bar per probe and model" hidden></div>
           <div class="table-scroll" id="fingerprint-table" hidden></div>
           <p class="chart-caption">
-            The share of baseline-right answers that moved to a wrong letter under one message. Error bars show
-            95 percent intervals. A probe with no replies yet is drawn at zero.
+            "Not run yet" means the batch has no replies for that probe and model yet.
           </p>
         </figure>
-
-        <!-- Collapsible table of the same fingerprint numbers; rows are filled in by the script. -->
-        <details class="probe-details">
-          <summary>Table of fingerprint flip rates</summary>
-          <div class="table-scroll">
-            <table class="data-table">
-              <caption class="visually-hidden">Fingerprint flip rates by probe and model</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Probe</th>
-                  <th scope="col">Model</th>
-                  <th scope="col" class="num">Units</th>
-                  <th scope="col" class="num">Flip rate</th>
-                  <th scope="col" class="num">Low</th>
-                  <th scope="col" class="num">High</th>
-                </tr>
-              </thead>
-              <tbody id="probe-table-body"></tbody>
-            </table>
-          </div>
-        </details>
       </section>
 
       <!-- Export buttons. They start disabled and are enabled by the script once results exist. -->
