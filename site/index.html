@@ -110,6 +110,12 @@
               </label>
               <select class="select" id="gauntlet-question-set-select"></select>
               <p class="field-hint" id="gauntlet-suite-summary" aria-live="polite"></p>
+              <!-- The question sits under Question set, because the questions belong to that set. The button opens the
+                   one-question list, as it did before. -->
+              <label class="field-label" for="gauntlet-question-choose">Question</label>
+              <select class="select" id="question-select" hidden></select>
+              <button type="button" class="select choice-trigger" id="gauntlet-question-choose"
+                aria-haspopup="dialog"></button>
             </div>
 
             <div class="control">
@@ -122,22 +128,15 @@
             </div>
 
             <div class="control">
-              <label class="label" for="gauntlet-question-choose"><span class="section-number">4.</span> Question</label>
-              <select class="select" id="question-select" hidden></select>
-              <button type="button" class="select choice-trigger" id="gauntlet-question-choose"
-                aria-haspopup="dialog"></button>
-            </div>
-
-            <div class="control">
               <label class="label" for="gauntlet-condition-select">
-                <span class="section-number">5.</span> Conditions
+                <span class="section-number">4.</span> Conditions
               </label>
               <select class="select" id="gauntlet-condition-select"></select>
               <p class="field-hint">The system prompt the model is given. Saved runs were recorded with none.</p>
             </div>
 
             <fieldset class="control">
-              <legend class="label"><span class="section-number">6.</span> Source</legend>
+              <legend class="label"><span class="section-number">5.</span> Source</legend>
               <div class="segmented">
                 <label class="segmented-option">
                   <input class="segmented-input" type="radio" name="source" value="saved" checked>
