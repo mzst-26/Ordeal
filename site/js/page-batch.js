@@ -130,6 +130,9 @@ const IDS = {
   resumeNotices: VIEW_IDS.batch["resume-notices"],
   runsList: VIEW_IDS.batch["runs-list"],
   storageNote: VIEW_IDS.batch["storage-note"],
+  runsButton: "batch-runs-button",
+  runsDialog: "batch-runs-dialog",
+  runsDone: "batch-runs-done",
   fixedSettings: "fixed-settings",
   modelCount: VIEW_IDS.batch["model-count"],
   modelChoose: "model-choose",
@@ -285,6 +288,9 @@ function wireControls() {
   dom.stop.addEventListener("click", stopRun);
   dom.confirmContinue.addEventListener("click", confirmStart);
   dom.confirmCancel.addEventListener("click", cancelConfirmation);
+  // The Runs popup is a native dialog. showModal() traps focus inside it and close() hands focus back.
+  dom.runsButton.addEventListener("click", () => dom.runsDialog.showModal());
+  dom.runsDone.addEventListener("click", () => dom.runsDialog.close());
   dom.exportGauntlet.addEventListener("click", exportGauntletCsv);
   dom.exportProbes.addEventListener("click", exportProbesCsv);
   dom.exportReplies.addEventListener("click", exportRepliesJson);
