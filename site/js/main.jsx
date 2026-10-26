@@ -6,6 +6,7 @@ import { startApp } from "./app.js";
 import { vault } from "./engine/token.js";
 import { SiteHeader } from "./react/SiteHeader.jsx";
 import { mountPlatformSection } from "./platform-section.js";
+import { mountModelCheck } from "./model-check.js";
 
 startApp({
   renderHeader(navigate) {
@@ -13,7 +14,9 @@ startApp({
   },
 });
 
-// The platform and model section sits in the batch view and in the gauntlet view. It loads the shared platform list
+// The platform and key panel sits in the batch view and in the gauntlet view. It loads the shared platform list
 // itself. Each copy is drawn into its own root, and the two copies share one saved choice (see platform-section.js).
 mountPlatformSection(document.getElementById("platform-section"));
 mountPlatformSection(document.getElementById("platform-section-gauntlet"));
+// The "not in the list" check sits in section 4 of the batch page only (see model-check.js).
+mountModelCheck(document.getElementById("model-check"));

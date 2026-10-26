@@ -230,7 +230,7 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models ticked</p>
           <p class="kpi-value" id="batch-kpi-models">No data loaded</p>
-          <p class="kpi-note">Source: section 4, Models. Counts the ticked models.</p>
+          <p class="kpi-note">Source: section 4, Pick models. Counts the ticked models.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
@@ -249,7 +249,7 @@
         </div>
       </div>
 
-      <!-- Platform and model: filled by platform-section.js. The choice applies to the batch and live pages. -->
+      <!-- Platform and key: filled by platform-section.js. The platform applies to the batch and live pages. Models are picked in section 4. -->
       <div id="platform-section"></div>
 
       <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
@@ -317,9 +317,9 @@
 
           <div class="setup-main span-8">
           <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">4.</span> Models</legend>
+            <legend class="panel-title"><span class="section-number">4.</span> Pick models</legend>
             <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
-            <p class="field-hint" id="model-rank-note">Rank: highest public score first. Hover a card for its source.</p>
+            <p class="field-hint" id="model-rank-note">Each model keeps its number, so it stays the same when the list is filtered or sorted. Hover a card for its source.</p>
             <div class="button-row">
               <button type="button" class="btn btn-primary" id="model-choose" aria-haspopup="dialog">Choose models</button>
               <button type="button" class="btn" id="model-select-all">Select all</button>
@@ -336,6 +336,8 @@
               </div>
               <p class="field-hint" id="custom-model-message"></p>
             </div>
+            <!-- The "not in the list" check, drawn by model-check.js. It sits here, beside Add another model name. -->
+            <div class="add-model" id="model-check"></div>
             <!-- The ticked models, one thin line each. The page fills it on every change. -->
             <ul class="selected-list" id="batch-model-selected" aria-label="Selected models"></ul>
           </fieldset>
