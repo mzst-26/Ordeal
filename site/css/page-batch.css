@@ -1200,7 +1200,7 @@ fieldset:disabled .check-box {
   grid-column: 1 / -1;
 }
 
-/* The model check button in section 4 has one width, up to a limit, so it is not squeezed. */
+/* The model check button in section 5 has one width, up to a limit, so it is not squeezed. */
 .platform-action {
   width: 100%;
   max-width: 16rem;
