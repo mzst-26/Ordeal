@@ -1,5 +1,5 @@
 // The model list for the batch page, per platform. Each platform has its own saved list of model ids (from
-// ordeal/models.json, copied to site/data/models.json), and the names a visitor adds are kept per platform in this
+// ordeal/data/models.json, copied to site/data/models.json), and the names a visitor adds are kept per platform in this
 // browser. The functions here are pure, or take the storage as a parameter, so they can be tested in node without a
 // page. The page itself (page-batch.js) draws the rows and keeps the ticks.
 //

@@ -204,5 +204,13 @@ class ShouldWriteTests(unittest.TestCase):
         self.assertTrue(refresh_catalog.should_write(results))
 
 
+class SavedListLocationTests(unittest.TestCase):
+    """The saved model list is written into ordeal/data, beside the platform list it goes with."""
+
+    def test_the_refresh_script_writes_into_the_data_folder(self):
+        data_folder = Path(catalog.__file__).resolve().parent / "data"
+        self.assertEqual(refresh_catalog.OUTPUT_PATH, data_folder / "models.json")
+
+
 if __name__ == "__main__":
     unittest.main()

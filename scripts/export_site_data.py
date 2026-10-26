@@ -36,11 +36,11 @@ MANIFEST_NAME = "manifest.json"
 # The shared platform list. The Python package and the browser site read the same platforms, so a platform
 # added once is seen by both. The site copy leaves out key_env: the browser never reads environment variables,
 # and the deploy check refuses the name of the token variable in public files.
-PROVIDERS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "providers.json"
+PROVIDERS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "data" / "providers.json"
 PROVIDERS_SITE_NAME = "providers.json"
 # The saved model lists, one per inference platform, written by scripts/refresh_catalog.py. The site copy is the
 # whole file: it holds model ids and their check dates only, never a key.
-MODELS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "models.json"
+MODELS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "data" / "models.json"
 MODELS_SITE_NAME = "models.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"

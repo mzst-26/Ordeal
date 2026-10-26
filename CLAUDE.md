@@ -19,5 +19,5 @@ These rules apply to every change in this repository, including the work of suba
 ## Project notes
 
 - Python package: `ordeal/`. Entry point for the command line: `ordeal` (see `pyproject.toml`).
-- Shared platform list: `ordeal/providers.json`. The Python code and the browser site both read it.
+- Shared platform list: `ordeal/data/providers.json`. The Python code and the browser site both read it.
 - API keys are never printed, never written to the repository, and only sent to the base URL of their own platform.

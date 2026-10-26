@@ -3,7 +3,7 @@
 A platform lists every model it serves, including image, speech and embedding models. Ordeal only
 tests text, so this module keeps the text models and drops the rest. It never touches the network.
 The scripts/refresh_catalog.py script fetches the listings and calls these functions to save the result
-in ordeal/models.json.
+in ordeal/data/models.json.
 
 Two rules decide what is text. If the listing says which outputs a model makes, that list is trusted.
 If it does not (DeepInfra, Nebius and others), the model id is checked for words that name a non-text

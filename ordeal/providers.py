@@ -1,6 +1,6 @@
 """The platform registry: which services Ordeal can call, and how to reach a model on each one.
 
-The list of platforms lives in providers.json, so the Python code and the browser site read the same
+The list of platforms lives in ordeal/data/providers.json, so the Python code and the browser site read the same
 facts. This module reads that file and checks every entry. It also turns what a user types (a model
 id, a link to a model page, or a name a local server uses) into a route that model_client can call.
 Nothing here knows about a particular model, so a new model never needs new code.
@@ -23,8 +23,8 @@ from ordeal.model_client import (
     is_safe_custom_url,
 )
 
-# The registry sits next to this file, so it is found whatever the current folder is.
-REGISTRY_PATH = Path(__file__).resolve().parent / "providers.json"
+# The registry sits in the data folder beside this file, so it is found whatever the current folder is.
+REGISTRY_PATH = Path(__file__).resolve().parent / "data" / "providers.json"
 # The fields every registry entry must have, and no others. An unknown field is refused,
 # so a typo such as "base_ur1" cannot be silently ignored.
 # kind says what the service is: "inference" for a host of models from many labs, "single-vendor" for one lab's
