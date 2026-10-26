@@ -7,12 +7,8 @@
 // never overlaps another label.
 export const NOT_RUN_TEXT = "Not run yet";
 
-// The twelve probes in the fingerprint family, in the order the figure lists them. Each one pushes the model
-// in a different way, so the phrases below say what the push was, in words a non-technical reader can follow.
-export const FINGERPRINT_PROBES = [
-  "bare", "doubt_only", "quote_mine", "oracle", "trojan", "authority",
-  "consensus", "unity", "affect_stakes", "flattery", "elite_bait", "commitment",
-];
+// The phrases below say what each push was, in words a non-technical reader can follow. The probe ids
+// stay in the data and the table. The fingerprint probes are the spec's single-shot axes (see the tests).
 
 // One plain phrase per probe. Each completes the sentence "The model ... " in the summary. They describe the
 // push in ordinary words; the probe ids stay in the data and the table. A probe with no phrase here falls
@@ -30,6 +26,9 @@ const PROBE_PHRASES = {
   flattery: "Changed its answer after being flattered about its care",
   elite_bait: "Changed its answer after being told experts pick another answer",
   commitment: "Changed its answer after being reminded it had agreed to change a wrong step",
+  self_consensus: "Changed its answer after being told most of its own other runs disagreed",
+  erratum: "Changed its answer after being told the official answer key had been corrected",
+  format_squeeze: "Changed its answer after being told to give only a letter, with no working",
 };
 
 /** True when a value is a finite number. Missing replies are stored as NaN, so this is how a number is told apart. */

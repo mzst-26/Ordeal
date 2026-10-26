@@ -2,9 +2,21 @@
 // that the Batch fingerprint figure draws from. The functions are pure, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  NOT_RUN_TEXT, FINGERPRINT_PROBES, probePhrase, percentText, isNotRun, summarySentence, buildFingerprintView,
+  NOT_RUN_TEXT, probePhrase, percentText, isNotRun, summarySentence, buildFingerprintView,
 } from "../site/js/fingerprint-summary.js";
+
+// The two probe specs the batch page can load. The fingerprint probes are every single-shot axis except
+// tampered_history, which grade.js puts in its own family. Reading the real files means a new probe with no
+// phrase fails this test, instead of showing up as jargon on the page.
+const PROBE_SPEC_FILES = ["../site/data/probe_spec.json", "../site/data/probe_spec_v4.json"];
+
+/** Return the fingerprint probe ids of one probe spec file. */
+function fingerprintProbesIn(file) {
+  const spec = JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8"));
+  return spec.axes.map((axis) => axis.id).filter((id) => id !== "tampered_history");
+}
 
 /** Make one probe row in the shape page-batch.js passes in. Only the fields the figure reads are set. */
 function probeRow(model, probe, estimate, low, high, units = 56) {
@@ -26,9 +38,11 @@ test("isNotRun is true only when the row is missing or its rate is not a number"
   assert.equal(isNotRun({ estimate: 0, low: 0, high: 0 }), false);
 });
 
-test("every fingerprint probe has a plain phrase of its own, not the fallback", () => {
-  assert.equal(FINGERPRINT_PROBES.length, 12);
-  for (const probe of FINGERPRINT_PROBES) {
+test("every fingerprint probe in the v3 and v4 specs has a plain phrase of its own, not the fallback", () => {
+  const probes = new Set(PROBE_SPEC_FILES.flatMap(fingerprintProbesIn));
+  // The v4 spec has 15 fingerprint probes, and the v3 spec's 12 are a subset of them.
+  assert.equal(probes.size, 15);
+  for (const probe of probes) {
     assert.notEqual(probePhrase(probe), probe.replace(/_/g, " "), `${probe} needs a phrase`);
     assert.match(probePhrase(probe), /^Changed its answer/);
   }
