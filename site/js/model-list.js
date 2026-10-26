@@ -113,6 +113,59 @@ export function groupByLetter(ids) {
   return groups;
 }
 
+/**
+ * Give each catalogue model its number: the first entry is 1, the next is 2, and so on, in the order given. The page
+ * passes only the catalogue here. A number that is already set on an entry is kept as it is, so a stored number
+ * passes through unchanged. Numbering from the sorted list would move a model every time the sort changed.
+ * Returns new objects; the given entries are not changed.
+ */
+export function withCatalogueNumbers(entries) {
+  return entries.map((entry, index) => ({ ...entry, number: isNumber(entry.number) ? entry.number : index + 1 }));
+}
+
+/** Return true for a whole number above zero. A number stored as text, or a missing one, is not a number here. */
+function isNumber(value) {
+  return Number.isInteger(value) && value > 0;
+}
+
+/**
+ * Return the highest number in use for added names on a platform: the counter (the last number ever handed out, so a
+ * removed name's number is still counted), and every number on a name in the list. Added names count on their own
+ * sequence, +1, +2 and so on, so the catalogue size plays no part here.
+ */
+function highestNumber(added, lastUsed) {
+  let highest = lastUsed;
+  for (const entry of added) {
+    if (isNumber(entry.number) && entry.number > highest) highest = entry.number;
+  }
+  return highest;
+}
+
+/**
+ * Return the number for the next name the visitor adds: one more than the highest added number in use, so a number is
+ * never given out twice. The counter is passed in because removing a name would otherwise let its number come back.
+ */
+export function nextAddedNumber(added, lastUsed) {
+  return highestNumber(added, lastUsed) + 1;
+}
+
+/**
+ * Give a number to every saved name that has none. Names saved before numbers existed are numbered in their saved
+ * order. Returns {added, lastUsed, changed}: the names, the highest number in use now, and whether any number was
+ * given (so the page only writes back when it must).
+ */
+export function numberAddedModels(added, lastUsed) {
+  let highest = highestNumber(added, lastUsed);
+  let changed = false;
+  const numbered = added.map((entry) => {
+    if (isNumber(entry.number)) return entry;
+    changed = true;
+    highest += 1;
+    return { ...entry, number: highest };
+  });
+  return { added: numbered, lastUsed: highest, changed };
+}
+
 /** Return the names in the order the picker shows them: letter groups in order, names inside each group by full id. */
 export function sortModelIds(ids) {
   return groupByLetter(ids).flatMap((group) => group.ids);
@@ -147,8 +200,8 @@ export function addedStorageName(platformId) {
 
 /**
  * Read the names a visitor added for one platform. Each one is {id, checked}: the id, and whether the platform's own
- * list confirmed it when it was added. Anything that is not a valid entry is skipped. A storage error, or saved text
- * that is not a list, gives an empty list, so the page still works with nothing saved.
+ * list confirmed it when it was added. It also carries its number when one was saved. Anything that is not a valid
+ * entry is skipped. A storage error, or saved text that is not a list, gives an empty list, so the page still works.
  */
 export function readAddedModels(storage, platformId) {
   try {
@@ -156,9 +209,51 @@ export function readAddedModels(storage, platformId) {
     if (raw === null) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isAddedEntry).map((entry) => ({ id: entry.id, checked: entry.checked }));
+    return parsed.filter(isAddedEntry).map(readEntry);
   } catch {
     return [];
+  }
+}
+
+/** Return one saved entry as the page uses it: the id and checked flag, plus the number when one was saved. */
+function readEntry(entry) {
+  const kept = { id: entry.id, checked: entry.checked };
+  return isNumber(entry.number) ? { ...kept, number: entry.number } : kept;
+}
+
+/** The start of the storage name for a platform's counter: the last number handed out there. */
+const COUNTER_PREFIX = "ordeal.added-counter.";
+
+/** Return the storage name for one platform's counter, such as "ordeal.added-counter.openrouter". */
+export function addedCounterName(platformId) {
+  return COUNTER_PREFIX + platformId;
+}
+
+/**
+ * Read the counter for one platform: the highest number ever handed out to an added name there. A missing or broken
+ * value, or a storage error, gives 0, which is safe because the list numbers still count in.
+ */
+export function readAddedCounter(storage, platformId) {
+  try {
+    const raw = storage ? storage.getItem(addedCounterName(platformId)) : null;
+    const value = raw === null ? 0 : Number(raw);
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Save the counter for one platform. Returns true when the write worked. A storage error returns false, and the
+ * counter then lasts only for this page visit.
+ */
+export function writeAddedCounter(storage, platformId, lastUsed) {
+  try {
+    if (!storage) return false;
+    storage.setItem(addedCounterName(platformId), String(lastUsed));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -183,14 +278,15 @@ export function writeAddedModels(storage, platformId, added) {
 }
 
 /**
- * Return the added list with one more name. A name that is already there is not added twice: the result says so
- * with duplicate: true, and the list comes back unchanged. The given list is never changed.
+ * Return the added list with one more name, given its number. A name that is already there is not added twice: the
+ * result says so with duplicate: true, and the list comes back unchanged. The given list is never changed.
  */
-export function withAddedModel(added, id, checked) {
+export function withAddedModel(added, id, checked, number) {
   if (added.some((entry) => entry.id === id)) {
     return { added, duplicate: true };
   }
-  return { added: [...added, { id, checked }], duplicate: false };
+  const entry = isNumber(number) ? { id, checked, number } : { id, checked };
+  return { added: [...added, entry], duplicate: false };
 }
 
 /**
@@ -237,7 +333,9 @@ export function addedRows(baseIds, addedModels) {
   const base = new Set(baseIds);
   return addedModels
     .filter((entry) => !base.has(entry.id))
-    .map((entry) => ({ id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked }));
+    .map((entry) => (isNumber(entry.number)
+      ? { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked, added: true, number: entry.number }
+      : { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked, added: true }));
 }
 
 /**

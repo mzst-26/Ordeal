@@ -12,15 +12,17 @@ import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
 import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
-import { DEFAULT_PLATFORM_ID } from "./platforms.js";
+import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
 import { setRunLocked } from "./run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
   withAddedModel, withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform,
-  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups,
+  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups, withCatalogueNumbers,
+  nextAddedNumber, numberAddedModels, readAddedCounter, writeAddedCounter,
 } from "./model-list.js";
 import { buildModelAddArea } from "./model-popup.js";
+import { mountModelCheck } from "./model-check.js";
 import { csvCell } from "./engine/csv.js";
 import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
@@ -34,7 +36,7 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
-import { hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
+import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
@@ -242,6 +244,13 @@ const page = {
  */
 export function mountBatch(root) {
   page.dom = findElements(root);
+  // The "not in the list" field uses the same add path as "Add another model name" (addTypedModel), and the same key
+  // prompt for the chosen platform as a run (keyReadyFor).
+  mountModelCheck(root.querySelector("#model-check"), {
+    onCheck: addTypedModel,
+    keyReady: keyForChosenPlatform,
+    checkingText: checkingTextFor,
+  });
   page.chartPanel = makeChartPanel(
     page.dom.chartHost,
     page.dom.chartTable,
@@ -521,6 +530,7 @@ async function refreshModelChoices() {
   page.platform = platform;
   page.ticked = ticksAfterPlatformChange(previousId, nextId, page.ticked);
   page.addedModels = platform === null ? [] : readAddedModels(browserStorage(), platform.id);
+  if (platform !== null) numberSavedNames(platform);
   page.hasList = platform !== null && (platform.id === DEFAULT_PLATFORM_ID || hasSavedList(page.modelsFile, platform.id));
   rebuildEntries();
   if (platform !== null && previousId !== nextId && platform.id === DEFAULT_PLATFORM_ID) {
@@ -551,12 +561,29 @@ function setModelEntries(entries) {
   }
 }
 
-/** Return the rows for a platform: the config models for Nebius only, otherwise its saved list, then the added names. */
+/**
+ * Return the rows for a platform: the config models for Nebius only, otherwise its saved list, then the added names.
+ * The catalogue models are numbered here by position. A name the visitor added already has its number, from when it
+ * was added, so it is kept as it is. The card, the selected line and the plan line all read the number from the row.
+ */
 function buildEntries(platform) {
-  const base = platform.id === DEFAULT_PLATFORM_ID ? configEntries() : listEntries(platform.id);
+  const base = withCatalogueNumbers(platform.id === DEFAULT_PLATFORM_ID ? configEntries() : listEntries(platform.id));
   const added = addedRows(base.map((entry) => entry.id), page.addedModels)
     .map((entry) => ({ ...entry, row: modelRowText({ id: entry.id }) }));
   return [...base, ...added];
+}
+
+/**
+ * Give a number to any saved name that has none, which happens to names saved before numbers existed. The list and the
+ * counter are written back only when a number was given, so an ordinary page load writes nothing.
+ */
+function numberSavedNames(platform) {
+  const storage = browserStorage();
+  const filled = numberAddedModels(page.addedModels, readAddedCounter(storage, platform.id));
+  if (!filled.changed) return;
+  page.addedModels = filled.added;
+  writeAddedModels(storage, platform.id, filled.added);
+  writeAddedCounter(storage, platform.id, filled.lastUsed);
 }
 
 /**
@@ -606,7 +633,7 @@ function selectedModelIds() {
 function selectedModelItems(models) {
   const shown = models.slice(0, MAX_POPUP_ROWS).map((entry) => {
     const row = rowOf(entry);
-    const item = selectedItem(row.rank, shortName(row.name));
+    const item = selectedItem(modelNumberText(entry), shortName(row.name));
     // The id is kept on the line, so the page (and its tests) can read which models are ticked.
     item.dataset.model = entry.id;
     return item;
@@ -760,17 +787,20 @@ function buildCheckbox(value, {
   return el("label", { className, title }, children);
 }
 
-/** Build the text of one picker card: the rank, the short name with its note, and the facts under the name. */
+/**
+ * Build the text of one picker card: the catalogue number, the short name with its note, and the facts under the name.
+ * The number is always shown, so a plain name from a saved list has it too; such a card has no facts, only the name.
+ */
 function buildModelCard(entry) {
   const row = rowOf(entry);
   const note = entryNote(entry);
   const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
-  // A plain name from a saved list has no rank or facts, so the card shows the name alone.
+  const number = el("span", { className: "model-rank", text: modelNumberText(entry) });
   if (hasNoDetails(row)) {
-    return el("span", { className: "pick-model" }, [el("span", { className: "pick-model-name", text: name })]);
+    return el("span", { className: "pick-model" }, [number, el("span", { className: "pick-model-name", text: name })]);
   }
   return el("span", { className: "pick-model", title: row.basis }, [
-    el("span", { className: "model-rank", text: row.rank }),
+    number,
     el("span", { className: "pick-model-name", text: name }),
     buildModelFacts(row),
   ]);
@@ -853,6 +883,21 @@ async function keyReadyFor(platform) {
   return askForToken({ vault, platformId: platform.id });
 }
 
+/** Ask for the key of the chosen platform, the same prompt a run uses. False when no platform can be chosen. */
+async function keyForChosenPlatform() {
+  if (page.platform === null) return false;
+  return keyReadyFor(page.platform);
+}
+
+/** Return the line shown while a typed name is checked, such as "Checking org/name on Nebius...". */
+function checkingTextFor(text) {
+  const platform = page.platform;
+  if (platform === null) return "Checking the name on the platform...";
+  const parsed = parseModelReference(platform, text);
+  const model = parsed.ok ? parsed.model : String(text).trim();
+  return `Checking ${model} on ${platform.name}...`;
+}
+
 /**
  * Check a typed name for the chosen platform, then add it. Returns {message, added, addedModels} for the add area.
  * A name is refused before any request when it is unsafe or empty. Otherwise the platform list is checked when a key
@@ -905,8 +950,11 @@ function saveNewModel(platform, model, checked) {
     afterListChange();
     return { message: `${model} is already in the list, so it is ticked.`, added: true, addedModels: page.addedModels };
   }
-  const next = withAddedModel(page.addedModels, model, checked);
-  const saved = writeAddedModels(browserStorage(), platform.id, next.added);
+  // The new name takes the next number, and the counter remembers it, so removing the name later never frees it.
+  const storage = browserStorage();
+  const number = nextAddedNumber(page.addedModels, readAddedCounter(storage, platform.id));
+  const next = withAddedModel(page.addedModels, model, checked, number);
+  const saved = writeAddedModels(storage, platform.id, next.added) && writeAddedCounter(storage, platform.id, number);
   page.addedModels = next.added;
   rebuildEntries();
   page.ticked.add(model);
@@ -1235,7 +1283,8 @@ function renderPlan(choices, plan) {
   if (plan === null) {
     dom.planTotals.textContent = PLAN_EMPTY_TEXT;
   } else {
-    dom.planModels.append(...plan.models.map(planItem));
+    const entryById = new Map(page.modelEntries.map((entry) => [entry.id, entry]));
+    dom.planModels.append(...plan.models.map((row) => planItem(row, entryById.get(row.model))));
     dom.planTotals.textContent = totalsSentence(plan.totals, choices);
   }
   dom.planCost.textContent = plan === null ? "" : costSentence(plan.totals.atMostNew, choices);
@@ -1260,11 +1309,14 @@ function setKpi(valueElement, text) {
   valueElement.closest(".kpi-card").classList.toggle("is-empty", empty);
 }
 
-/** Return one plan line for a model: its saved replies and the most new calls it can need. */
-function planItem(row) {
+/**
+ * Return one plan line for a model: its catalogue number, its saved replies and the most new calls it can need.
+ * The entry is the model's row, which carries the number; a model with no row shows "unknown" for its number.
+ */
+function planItem(row, entry) {
   const saved = formatCount(row.saved);
   const newSteps = formatCount(row.atMostNew);
-  const text = `${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
+  const text = `${modelNumberText(entry)} ${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
   return el("li", { text });
 }
 

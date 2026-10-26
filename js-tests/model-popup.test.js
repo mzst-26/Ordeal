@@ -229,6 +229,14 @@ test('ticksAfterPlatformChange keeps the ticks when the platform is the same', (
   assert.equal(ticksAfterPlatformChange('nebius', 'nebius', ticked), ticked);
 });
 
+test('a tick from one platform does not come back when the visitor switches away and back', () => {
+  // The first switch clears the ticks. The second switch starts from the empty set, so nothing returns.
+  const ticked = new Set(['org/a']);
+  const onGroq = ticksAfterPlatformChange('nebius', 'groq', ticked);
+  const backOnNebius = ticksAfterPlatformChange('groq', 'nebius', onGroq);
+  assert.equal(backOnNebius.size, 0);
+});
+
 // largeRunWarning: one plain line when the planned calls are more than 5,000. It never blocks the run.
 
 test('largeRunWarning is empty at and below 5,000 calls', () => {
@@ -277,11 +285,11 @@ test('withoutAddedModel gives the same list back when the id is not there', () =
 
 test('addedRows gives a row for each added name that the platform list does not have', () => {
   const rows = addedRows(['org/a'], [{ id: 'org/a', checked: true }, { id: 'org/new', checked: false }]);
-  assert.deepEqual(rows, [{ id: 'org/new', note: 'added', unchecked: true }]);
+  assert.deepEqual(rows, [{ id: 'org/new', note: 'added', unchecked: true, added: true }]);
 });
 
 test('addedRows marks a confirmed name as checked, not unchecked', () => {
-  assert.deepEqual(addedRows([], [{ id: 'org/ok', checked: true }]), [{ id: 'org/ok', note: 'added', unchecked: false }]);
+  assert.deepEqual(addedRows([], [{ id: 'org/ok', checked: true }]), [{ id: 'org/ok', note: 'added', unchecked: false, added: true }]);
 });
 
 // addOutcomeText and refusalText: the plain lines the popup shows.

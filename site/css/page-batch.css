@@ -1087,7 +1087,7 @@ fieldset:disabled .check-box {
   }
 }
 
-/* The "Platform and model" section sits above the batch setup. Each setting is one row: its label on the left and
+/* The "Platform and key" panel sits above the batch setup. Each setting is one row: its label on the left and
    its controls on the right. The rows sit close together, so the section is much shorter than a stack of fields. */
 .platform-section {
   gap: var(--space-3);
@@ -1099,7 +1099,7 @@ fieldset:disabled .check-box {
   margin-top: var(--space-6);
 }
 
-/* The platform panel is two columns of the same width: the platform and key on the left, the model on the right.
+/* The platform panel is two columns of the same width: the platform on the left, the API key on the right.
    Both columns use the same class, so they also get the same padding. The note runs under both. Each column has
    min-width 0, so a long name cannot push the other column off screen or make it wider than the other one. */
 .platform-grid {
@@ -1121,20 +1121,7 @@ fieldset:disabled .check-box {
   grid-column: 1 / -1;
 }
 
-/* The model column has two parts, one above the other: pick from the saved list, then add a name the list does not
-   have. Each part has its own heading, so the two jobs are easy to tell apart. */
-.platform-part {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.platform-part-title {
-  margin: 0;
-  font-weight: 600;
-}
-
-/* The two model buttons share one width. They take the column's width up to a limit, so neither is squeezed. */
+/* The model check button in section 4 has one width, up to a limit, so it is not squeezed. */
 .platform-action {
   width: 100%;
   max-width: 16rem;
