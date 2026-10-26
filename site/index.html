@@ -235,12 +235,12 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
           <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
-          <p class="kpi-note">Source: section 5, Questions. Counts the ticked questions.</p>
+          <p class="kpi-note">Source: section 2, Suites, under Question set. Counts the ticked questions.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Probe families</p>
           <p class="kpi-value" id="batch-kpi-families">No data loaded</p>
-          <p class="kpi-note">Source: section 6, Probe families. Counts the ticked families.</p>
+          <p class="kpi-note">Source: section 5, Probe families. Counts the ticked families.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Planned new steps</p>
@@ -271,6 +271,26 @@
               <label class="field-label" for="batch-question-set-select">Question set</label>
               <select class="select" id="batch-question-set-select"></select>
             </div>
+            <!-- The question choice sits under Question set, because the questions belong to that set. -->
+            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
+            <div class="button-row">
+              <button type="button" class="btn btn-primary" id="question-choose" aria-haspopup="dialog">Choose questions</button>
+              <button type="button" class="btn" id="question-all">All</button>
+              <button type="button" class="btn" id="question-none">None</button>
+              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
+              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
+            </div>
+            <div class="field">
+              <label class="field-label" for="tier-filter">Show tier</label>
+              <select class="select" id="tier-filter">
+                <option value="all">All tiers</option>
+              </select>
+            </div>
+            <!-- The ticked questions, one thin line each. The page fills it on every change. -->
+            <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
+            <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
+            <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
+              hidden></div>
             <p class="field-hint" id="batch-suite-summary" aria-live="polite"></p>
           </fieldset>
 
@@ -342,29 +362,6 @@
             <ul class="selected-list models-body" id="batch-model-selected" aria-label="Selected models"></ul>
           </fieldset>
 
-          <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">5.</span> Questions</legend>
-            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="question-choose" aria-haspopup="dialog">Choose questions</button>
-              <button type="button" class="btn" id="question-all">All</button>
-              <button type="button" class="btn" id="question-none">None</button>
-              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
-              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
-            </div>
-            <div class="field">
-              <label class="field-label" for="tier-filter">Show tier</label>
-              <select class="select" id="tier-filter">
-                <option value="all">All tiers</option>
-              </select>
-            </div>
-            <!-- The ticked questions, one thin line each. The page fills it on every change. -->
-            <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
-            <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
-            <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
-              hidden></div>
-          </fieldset>
-
           </div>
 
           <div class="setup-side span-4">
@@ -414,7 +411,7 @@
           </section>
 
           <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">6.</span> Probe families</legend>
+            <legend class="panel-title"><span class="section-number">5.</span> Probe families</legend>
             <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
             <div class="check-list" id="family-list" role="group" aria-label="Probe families">
               <div class="family">
