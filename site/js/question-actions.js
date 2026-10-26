@@ -45,11 +45,14 @@ export function numberedQuestionLines(selectedQuestions) {
   return selectedQuestions.map((question, index) => ({
     number: index + 1,
     id: question.id,
-    text: shortText(question.question),
+    text: shortQuestionText(question.question),
   }));
 }
 
-/** Return the text cut to LIST_TEXT_LENGTH characters with an ellipsis, or the text itself when it is short enough. */
-function shortText(text) {
+/**
+ * Return a question's text cut to LIST_TEXT_LENGTH characters with an ellipsis, or the text itself when it is short
+ * enough. The numbered list and the question tick-box labels both use this one rule, so they always cut the same way.
+ */
+export function shortQuestionText(text) {
   return text.length > LIST_TEXT_LENGTH ? `${text.slice(0, LIST_TEXT_LENGTH)}…` : text;
 }

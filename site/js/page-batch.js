@@ -38,7 +38,7 @@ import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
-import { idsForAction, numberedQuestionLines } from "./question-actions.js";
+import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
@@ -78,7 +78,6 @@ const MAX_BATCH_CALLS = 400;
 const CAP_STEP = 10;
 const MAX_LOG_ENTRIES = 200;
 const RESULTS_INTERVAL_MS = 500;
-const QUESTION_TEXT_LENGTH = 60;
 const LABEL_LIMIT = 80;
 // Quick grading for redraws while a run is going, so each redraw stays fast. The config value is used after.
 const FAST_RESAMPLES = 200;
@@ -1068,9 +1067,7 @@ function buildQuestionCard({ question }) {
 
 /** Return the question's label: "m01 · tier · first 60 characters of the question". */
 function questionLabel(question) {
-  const text = question.question;
-  const short = text.length > QUESTION_TEXT_LENGTH ? `${text.slice(0, QUESTION_TEXT_LENGTH)}…` : text;
-  return `${question.id} · ${question.tier} · ${short}`;
+  return `${question.id} · ${question.tier} · ${shortQuestionText(question.question)}`;
 }
 
 /** Fill the tier menu with each tier in the order the questions list them. The tier is reset to all tiers. */
