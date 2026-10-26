@@ -209,6 +209,8 @@
         <h2 class="dialog-title" id="batch-runs-title">Runs</h2>
         <section class="runs-section" aria-labelledby="batch-runs-unfinished-heading">
           <h3 class="runs-section-title" id="batch-runs-unfinished-heading">Unfinished</h3>
+          <!-- The unfinished runs, filled by the script. Each one has Resume and Discard. -->
+          <div class="notice-region" id="batch-resume-notices"></div>
         </section>
         <section class="runs-section" aria-labelledby="batch-runs-saved-heading">
           <h3 class="runs-section-title" id="batch-runs-saved-heading">Saved</h3>
@@ -241,8 +243,6 @@
           <p class="kpi-note">Source: The plan. At most this many new steps; saved replies are reused.</p>
         </div>
       </div>
-
-      <div class="notice-region" id="batch-resume-notices"></div>
 
       <!-- Platform and model: filled by platform-section.js. The choice applies to the batch and live pages. -->
       <div id="platform-section"></div>

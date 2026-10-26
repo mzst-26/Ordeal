@@ -376,7 +376,7 @@ async function startStorage() {
     kind: KIND_BATCH,
     queue: page.queue,
     unitWord: "units",
-    onResume: resumeBatchRun,
+    onResume: resumeFromPopup,
     onChanged: onRunDeleted,
   };
   page.panels.notices = buildResumeNotices({ ...shared, activeRunId: () => page.runId });
@@ -1471,6 +1471,15 @@ async function beginRun(confirmedId) {
   });
   updateControls();
   page.runner.start().catch(handleRunError);
+}
+
+/**
+ * Resume from the Runs popup, whether the run is in the Unfinished or the Saved section. The popup closes first, so
+ * the visitor sees the form that the run was loaded into rather than a dialog that hides it.
+ */
+function resumeFromPopup(run) {
+  page.dom.runsDialog.close();
+  return resumeBatchRun(run);
 }
 
 /** Resume a saved batch from the notices or the list. The form is set back from the run, its saved units are reused. */
