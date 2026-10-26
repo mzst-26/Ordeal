@@ -14,7 +14,7 @@ import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } 
 import { activePlatform } from "./platform-choice.js";
 import { DEFAULT_PLATFORM_ID } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
-import { setRunLocked } from "./run-lock.js";
+import { setRunLocked, shuffleControlsState } from "./run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
   withAddedModel, withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform,
@@ -42,6 +42,10 @@ import {
   createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
   isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, fixedChoice, setMenuChoices,
 } from "./suites.js";
+import {
+  applyMixedOrder, buildMixedSuite, countsSentence, mixCounts, mixedOrderPath, MIXED_NAME, orderRows,
+  pickMixedSeed, PUSHBACK_FOR_SET, selectSlots,
+} from "./mixed-order.js";
 import {
   createSerialQueue, KIND_BATCH, plannedBatchUnits, unitKeyFor, unitPayload, resumeState, addRecordsToCache,
 } from "./saved-runs.js";
@@ -84,6 +88,10 @@ const PRICE_SCALE = 1000000;
 const PROGRESS_STEP = 5;
 const PROGRESS_BASE_CLASS = "progress-fill";
 
+// The Shuffle wording: the summary under the sets, the note on a busy page, and why the batch page shows no results.
+const MIXED_SUMMARY = "Both sets in one order: easy with gauntlet_v3, hard with gauntlet_v4. The seed is picked when the run starts.";
+const MIXED_BUSY_TEXT = "A run is in progress, so Shuffle cannot change until it ends. Wait for it to finish or stop it.";
+const MIXED_RESULTS_TEXT = "A mixed run is graded per set by the Python tool (ordeal.grade --shuffle-mix). This page shows no grades for it.";
 const PLAN_EMPTY_TEXT = "Tick at least one model, one question and one probe family to see the plan.";
 const LOADING_TEXT = "The data files are still loading, so the batch cannot start yet.";
 const NO_DATA_TEXT = "No data loaded";
@@ -123,6 +131,8 @@ const IDS = {
   kpiQuestions: "batch-kpi-questions",
   kpiFamilies: "batch-kpi-families",
   kpiSteps: "batch-kpi-steps",
+  shuffleToggle: "batch-shuffle-toggle",
+  shuffleNote: "batch-shuffle-note",
   pushbackSelect: VIEW_IDS.batch["pushback-select"],
   questionSetSelect: VIEW_IDS.batch["question-set-select"],
   suiteSummary: VIEW_IDS.batch["suite-summary"],
@@ -228,6 +238,7 @@ const page = {
   runId: null,                // the saved run of the batch on screen, or null
   resumeRunId: null,          // the saved run the next Start continues, or null
   unitSteps: new Map(),       // the step records of each unit still running, by unit key
+  mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
 
 /**
@@ -264,6 +275,7 @@ function wireControls() {
   dom.setupForm.addEventListener("input", onFormEdited);
   dom.pushbackSelect.addEventListener("change", onSuiteChanged);
   dom.questionSetSelect.addEventListener("change", onSuiteChanged);
+  dom.shuffleToggle.addEventListener("change", onShuffleToggled);
   dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
@@ -459,6 +471,8 @@ function setupControls(config) {
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
+  // A reload can keep a checked box from the last visit. Shuffle always starts off, so a page never opens mixed by accident.
+  page.dom.shuffleToggle.checked = false;
 }
 
 /** Load the saved model lists, then draw the model rows for the platform the visitor chose. Never throws. */
@@ -687,20 +701,111 @@ async function selectSuite(choice) {
   if (request !== page.suiteRequest) {
     return false;
   }
-  page.suite = suite;
   page.dom.pushbackSelect.value = choice.pushbackSet;
   page.dom.questionSetSelect.value = choice.questionSet;
-  page.dom.suiteSummary.textContent = suiteSummary(suite);
+  putOnForm(suite);
+  return true;
+}
+
+/**
+ * Put the mixed suite on the form: the questions of both sets, each with its own pushback set. It is built from the
+ * two fixed suites, so their data is read through the same loader and checked the same way. Returns false when a
+ * newer choice was made while it loaded.
+ */
+async function selectMixedSuite() {
+  page.suiteRequest += 1;
+  const request = page.suiteRequest;
+  const [easy, hard] = await Promise.all([
+    page.loader.load(PUSHBACK_FOR_SET.easy, "easy"),
+    page.loader.load(PUSHBACK_FOR_SET.hard, "hard"),
+  ]);
+  if (request !== page.suiteRequest) {
+    return false;
+  }
+  putOnForm(buildMixedSuite(easy, hard));
+  return true;
+}
+
+/** Make a suite the one on the form: its summary, its reply cache, its questions and its tiers. */
+function putOnForm(suite) {
+  page.suite = suite;
+  page.dom.suiteSummary.textContent = suite.mixed ? MIXED_SUMMARY : suiteSummary(suite);
   page.cache = cacheFor(suite);
   page.questionsById = new Map(suite.questions.map((question) => [question.id, question]));
   rebuildQuestionList(suite);
   fillTierFilter(suite.questions);
-  return true;
+}
+
+/** Return true while the Shuffle tick box is on. */
+function shuffleOn() {
+  return page.dom.shuffleToggle.checked;
+}
+
+/** Return the two set names the dropdowns show. With Shuffle on they still say the last fixed choice. */
+function formChoice() {
+  return fixedChoice(page.dom.pushbackSelect.value, page.dom.questionSetSelect.value);
+}
+
+/**
+ * The tick box was changed. Turning it on puts the mixed suite on the form. Turning it off goes back to the fixed
+ * choice shown in the dropdowns. A change while a run is busy is refused, and the box goes back to its old state.
+ */
+async function onShuffleToggled() {
+  const box = page.dom.shuffleToggle;
+  if (isRunning() || page.confirming) {
+    box.checked = !box.checked;
+    setStatus(MIXED_BUSY_TEXT);
+    return;
+  }
+  page.resumeRunId = null;
+  page.mixed = null;
+  page.dom.shuffleNote.textContent = "";
+  try {
+    if (shuffleOn()) {
+      await selectMixedSuite();
+    } else {
+      await selectSuite(formChoice());
+    }
+    showPageStatus("Tick what to run. Nothing runs until you press Start.");
+  } catch (error) {
+    showPageStatus(errorText(error));
+  }
+  onSelectionChanged();
+}
+
+/**
+ * Pick a seed from 1 to 10 for a new run, load its order file and check it against the two question lists.
+ * Throws with a plain message when the file cannot be read or does not match the questions.
+ */
+async function pickMixedRun() {
+  const seed = pickMixedSeed();
+  const file = await loadDataFile(mixedOrderPath(seed));
+  const slots = applyMixedOrder(file.order, page.suite.easyQuestions, page.suite.hardQuestions);
+  page.mixed = { seed, slots };
+  page.dom.shuffleNote.textContent = `Seed ${seed} for this run. It is saved with the run.`;
+}
+
+/** Return the ticked question ids in the mixed order when a run has one. Otherwise they keep the list order. */
+function orderedQuestionIds(ids) {
+  if (page.mixed === null) {
+    return ids;
+  }
+  const position = new Map(page.mixed.slots.map((slot, index) => [slot.question.id, index]));
+  return [...ids].sort((first, second) => position.get(first) - position.get(second));
+}
+
+/** Return the mixed counts sentence for the ticked questions, ending with a full stop and a space. "" otherwise. */
+function mixedCountsLine(choices) {
+  if (page.suite === null || !page.suite.mixed || choices.questions.length === 0) {
+    return "";
+  }
+  const ticked = choices.questions.map((id) => ({ questionSet: page.suite.questionSetOf(id) }));
+  return `${countsSentence(mixCounts(ticked))}. `;
 }
 
 /** Choose a new suite from the two menus, then refresh the plan. */
 async function onSuiteChanged() {
-  const choice = fixedChoice(page.dom.pushbackSelect.value, page.dom.questionSetSelect.value);
+  const choice = formChoice();
   try {
     if (await selectSuite(choice)) {
       showPageStatus("Tick what to run. Nothing runs until you press Start.");
@@ -1056,7 +1161,7 @@ function readChoices() {
   const dom = page.dom;
   return {
     models: selectedModelIds(),
-    questions: checkedValues(dom.questionList),
+    questions: orderedQuestionIds(checkedValues(dom.questionList)),
     families: new Set(checkedValues(dom.familyList)),
     condition: dom.condition.value,
     repeats: readWholeNumber(dom.repeats, 1, MAX_REPEATS),
@@ -1096,6 +1201,9 @@ function findProblem(choices) {
 /** Return the questions whose ids are in the list, in data order. */
 function selectedQuestions(ids) {
   const wanted = new Set(ids);
+  if (page.mixed !== null) {
+    return selectSlots(page.mixed.slots, wanted).map((slot) => slot.question);
+  }
   return page.suite.questions.filter((question) => wanted.has(question.id));
 }
 
@@ -1107,10 +1215,11 @@ function planFor(choices) {
   if (choices.models.length === 0 || choices.questions.length === 0 || choices.families.size === 0) {
     return null;
   }
+  // A mixed suite has no single ladder, so its pairFor gives each question its own. Fixed suites pass null.
   const { ladder, probeSpec } = page.suite;
   return planAllModels(
     choices.models, selectedQuestions(choices.questions), choices.repeats, page.cache,
-    choices.condition, choices.families, ladder, probeSpec, page.data.config,
+    choices.condition, choices.families, ladder, probeSpec, page.data.config, page.suite.pairFor ?? null,
   );
 }
 
@@ -1128,7 +1237,7 @@ function unitCount(choices) {
 
 /** Return true for a suite menu. Those have their own handlers, so the form handler leaves them alone. */
 function isSuiteControl(target) {
-  const controls = [page.dom.pushbackSelect, page.dom.questionSetSelect];
+  const controls = [page.dom.pushbackSelect, page.dom.questionSetSelect, page.dom.shuffleToggle];
   return controls.includes(target);
 }
 
@@ -1208,11 +1317,13 @@ function selectedItem(lead, text) {
 function renderPlan(choices, plan) {
   const dom = page.dom;
   clear(dom.planModels);
+  // With Shuffle on, the plan starts with the counts of the ticked questions, so the two sets are visible before Start.
+  const countsLine = mixedCountsLine(choices);
   if (plan === null) {
-    dom.planTotals.textContent = PLAN_EMPTY_TEXT;
+    dom.planTotals.textContent = countsLine + PLAN_EMPTY_TEXT;
   } else {
     dom.planModels.append(...plan.models.map(planItem));
-    dom.planTotals.textContent = totalsSentence(plan.totals, choices);
+    dom.planTotals.textContent = countsLine + totalsSentence(plan.totals, choices);
   }
   dom.planCost.textContent = plan === null ? "" : costSentence(plan.totals.atMostNew, choices);
   dom.planProblem.textContent = findProblem(choices) ?? largeRunWarning(plan === null ? 0 : plan.totals.atMostNew);
@@ -1273,6 +1384,11 @@ function updateControls() {
   dom.stop.disabled = page.phase !== "running";
   dom.pause.textContent = page.runner !== null && page.runner.isPaused() ? "Resume" : "Pause";
   setSelectionLocked(running || page.confirming);
+  // The Shuffle tick box and its two dropdowns follow the run lock too (see run-lock.js).
+  const shuffle = shuffleControlsState({ busy: running || page.confirming, shuffleOn: shuffleOn() });
+  dom.shuffleToggle.disabled = shuffle.toggleDisabled;
+  dom.pushbackSelect.disabled = shuffle.setsDisabled;
+  dom.questionSetSelect.disabled = shuffle.setsDisabled;
   // The platform section reads this flag and refuses a platform change while it is on.
   setRunLocked(running || page.confirming);
 }
@@ -1350,6 +1466,8 @@ function batchConfig(choices) {
   return {
     kind: KIND_BATCH,
     ...choiceOfSuite(page.suite),
+    experiment: page.suite.mixed ? MIXED_NAME : null,
+    ...mixedConfigFields(choices),
     models: choices.models,
     questions: choices.questions,
     families: [...choices.families],
@@ -1359,6 +1477,22 @@ function batchConfig(choices) {
     callCap: choices.cap,
     temperature: config.temperature,
     maxTokens: config.max_tokens,
+  };
+}
+
+/**
+ * Return the fields that a mixed run keeps: its seed, the full order as plain rows, and the counts of the ticked
+ * questions. A resume reads these, so it never picks a new seed. A fixed run adds nothing here.
+ */
+function mixedConfigFields(choices) {
+  if (page.mixed === null) {
+    return {};
+  }
+  const ticked = new Set(choices.questions);
+  return {
+    seed: page.mixed.seed,
+    order: orderRows(page.mixed.slots),
+    counts: mixCounts(selectSlots(page.mixed.slots, ticked)),
   };
 }
 
@@ -1408,6 +1542,16 @@ async function beginRun(confirmedId) {
     onSelectionChanged();
     return;
   }
+  // A new run with Shuffle on picks its own seed. A resumed run keeps the order it saved, so nothing is picked.
+  if (page.resumeRunId === null && shuffleOn()) {
+    try {
+      await pickMixedRun();
+    } catch (error) {
+      setStatus(errorText(error));
+      updateControls();
+      return;
+    }
+  }
   const choices = readChoices();
   const { config } = page.data;
   page.phase = "running";
@@ -1431,6 +1575,7 @@ async function beginRun(confirmedId) {
     run_id: page.runId,
     models: choices.models.length,
     questions: selectedQuestions(choices.questions).length,
+    shuffle_seed: page.mixed === null ? null : page.mixed.seed,
     repeats: choices.repeats,
     condition: choices.condition,
     cap: choices.cap,
@@ -1477,7 +1622,8 @@ async function resumeBatchRun(run) {
     return;
   }
   const config = run.config;
-  if (!isPushbackSet(config.pushbackSet) || !isQuestionSet(config.questionSet)) {
+  const mixed = config.experiment === MIXED_NAME;
+  if (!mixed && (!isPushbackSet(config.pushbackSet) || !isQuestionSet(config.questionSet))) {
     setStatus("This saved batch uses a set that this site does not have, so it cannot be resumed.");
     return;
   }
@@ -1486,7 +1632,13 @@ async function resumeBatchRun(run) {
     setStatus("This saved batch used a shuffled order that this site no longer has, so it cannot be resumed.");
     return;
   }
-  await selectSuite(fixedChoice(config.pushbackSet, config.questionSet));
+  if (mixed) {
+    if (!(await enterMixedFromRun(config))) {
+      return;
+    }
+  } else {
+    await selectSuite(fixedChoice(config.pushbackSet, config.questionSet));
+  }
   const problem = restorePlanProblem(config);
   if (problem !== "") {
     setStatus(problem);
@@ -1506,6 +1658,24 @@ async function resumeBatchRun(run) {
   onSelectionChanged();
   setStatus(`Resuming. ${formatCount(remaining)} units are left, and the saved ones are reused, not sent again.`);
   await handleStart();
+}
+
+/**
+ * Put a saved mixed run back on the form: the box on, the mixed suite, and the order the run saved. The saved order
+ * is checked against the question lists, so a run whose order does not match is refused. Returns false when refused.
+ */
+async function enterMixedFromRun(config) {
+  try {
+    await selectMixedSuite();
+    const slots = applyMixedOrder(config.order ?? [], page.suite.easyQuestions, page.suite.hardQuestions);
+    page.mixed = { seed: config.seed, slots };
+    page.dom.shuffleToggle.checked = true;
+    page.dom.shuffleNote.textContent = `Seed ${config.seed} for this run, from its saved order.`;
+    return true;
+  } catch (error) {
+    setStatus(errorText(error));
+    return false;
+  }
 }
 
 /** Return why a saved batch's models or questions are not on this site, or "" when all of them are. */
@@ -1858,6 +2028,11 @@ function drawResults() {
   if (page.data === null || page.suite === null) {
     return;
   }
+  // A mixed run is graded per set by the Python tool, so this page draws no grades for it.
+  if (page.suite.mixed) {
+    showPageStatus(MIXED_RESULTS_TEXT);
+    return;
+  }
   const choices = readChoices();
   const records = recordsFor(choices);
   const gauntletRows = gauntletRowsFor(choices, records);
@@ -2196,6 +2371,10 @@ function exportBatchLog() {
 
 /** Download the gauntlet rows for the ticked models as CSV, with full intervals. */
 function exportGauntletCsv() {
+  if (page.suite.mixed) {
+    showPageStatus(MIXED_RESULTS_TEXT);
+    return;
+  }
   const choices = readChoices();
   const records = recordsFor(choices);
   // Exports grade with the full configured resamples, not the fast on-screen setting from gradeNow.
@@ -2205,6 +2384,10 @@ function exportGauntletCsv() {
 
 /** Download the probe rows for the ticked models as CSV, with full intervals. */
 function exportProbesCsv() {
+  if (page.suite.mixed) {
+    showPageStatus(MIXED_RESULTS_TEXT);
+    return;
+  }
   const choices = readChoices();
   const rows = gradeProbes(
     recordsFor(choices), page.suite.questions, page.data.config, choices.condition, page.suite.probeSpec,
@@ -2222,7 +2405,7 @@ function readPresetSettings() {
   const choices = readChoices();
   const { config } = page.data;
   return {
-    ...choiceOfSuite(page.suite),
+    ...formChoice(),
     models: choices.models,
     families: [...choices.families],
     repeats: choices.repeats,
@@ -2237,11 +2420,14 @@ function readPresetSettings() {
 /** Set the form from a preset. Returns the sentences to add to the status: what was skipped, and why. */
 async function applyPresetSettings(settings) {
   const dom = page.dom;
-  const current = choiceOfSuite(page.suite);
-  await selectSuite(fixedChoice(
-    settings.pushbackSet ?? current.pushbackSet,
-    settings.questionSet ?? current.questionSet,
-  ));
+  const current = formChoice();
+  // With Shuffle on, a preset does not change the sets: a mixed run always uses both sets.
+  if (!shuffleOn()) {
+    await selectSuite(fixedChoice(
+      settings.pushbackSet ?? current.pushbackSet,
+      settings.questionSet ?? current.questionSet,
+    ));
+  }
   const notes = [];
   if (settings.models !== undefined) {
     const known = settings.models.filter((model) => page.allModels.includes(model));

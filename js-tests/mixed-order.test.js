@@ -162,4 +162,6 @@ test("buildMixedSuite lists both sets' questions and names no single ladder", ()
   assert.equal(suite.questions.length, 91);
   assert.equal(suite.ladder, null);
   assert.equal(suite.pairFor(hardQuestions[0]).ladder.name, "v4");
+  assert.equal(suite.questionSetOf(easyQuestions[0].id), "easy");
+  assert.equal(suite.questionSetOf(hardQuestions[0].id), "hard");
 });

@@ -133,13 +133,23 @@ export function buildMixedSuite(easySuite, hardSuite) {
     ladderName: MIXED_NAME,
     questionSet: MIXED_NAME,
     mixed: true,
+    // The two lists are kept apart, because applyMixedOrder checks the order against each list on its own.
+    easyQuestions: easySuite.questions,
+    hardQuestions: hardSuite.questions,
     questions: [...easySuite.questions, ...hardSuite.questions],
     // Only the mixed suite has no single ladder, so the page must ask pairFor for each question's ladder.
     ladder: null,
     probeSpec: null,
     levelCount: null,
     pairFor: pairLookup(easySuite, hardSuite),
+    questionSetOf: setLookup(easySuite, hardSuite),
   };
+}
+
+/** Return a function that gives a question id its set name, "easy" or "hard". Ids are unique across both sets. */
+export function setLookup(easySuite, hardSuite) {
+  const easyIds = new Set(easySuite.questions.map((question) => question.id));
+  return (questionId) => (easyIds.has(questionId) ? "easy" : "hard");
 }
 
 /**
