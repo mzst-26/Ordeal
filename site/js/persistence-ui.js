@@ -6,6 +6,7 @@ import { createMemoryAdapter } from "./store/memory-adapter.js";
 import { openRunStorage, deleteRun, exportRun, getRun } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import { savedRunRows, interruptedRunsOfKind } from "./saved-runs.js";
+import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 
 // How long to wait before freeing a download URL, so the browser has started the download first.
 const REVOKE_DELAY_MS = 1000;
@@ -356,4 +357,37 @@ export function buildResumeNotices({ adapter, kind, queue, unitWord, activeRunId
   }
 
   return { root: host, refresh };
+}
+
+/**
+ * Connect the Runs popup on a page. The Runs button opens the dialog, and the Done button closes it. The dialog is a
+ * native <dialog>: showModal() keeps focus inside it, and close() hands focus back to the page. Both pages use this,
+ * so the popup behaves the same on each.
+ */
+export function wireRunsPopup({ button, dialog, done }) {
+  button.addEventListener("click", () => dialog.showModal());
+  done.addEventListener("click", () => dialog.close());
+}
+
+/**
+ * Write the counts for the Runs popup: the label on the Runs button and the count line of each section. The wording
+ * comes from runs-popup-text.js, so the button and the popup always agree. lines is { button, unfinishedLine,
+ * savedLine }, the three elements the counts are written to.
+ */
+export function showRunCounts({ button, unfinishedLine, savedLine }, unfinished, saved) {
+  button.textContent = runsButtonText(unfinished, saved);
+  unfinishedLine.textContent = unfinishedCountText(unfinished);
+  savedLine.textContent = savedCountText(saved);
+}
+
+/**
+ * Wrap a resume handler so the popup closes first. Resume is pressed from inside the popup; closing it first means the
+ * visitor sees the form the run was loaded into, not a dialog that hides it. The wrapped handler returns what the
+ * resume returns.
+ */
+export function closePopupBeforeResume(dialog, resume) {
+  return (run) => {
+    dialog.close();
+    return resume(run);
+  };
 }
