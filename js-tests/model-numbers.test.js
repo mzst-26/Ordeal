@@ -4,7 +4,18 @@
 // in catalogue order, and never from the position in a sorted list. Every test is pure: no DOM, no network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { withCatalogueNumbers, sortModelIds } from "../site/js/model-list.js";
+import {
+  withCatalogueNumbers,
+  sortModelIds,
+  withAddedModel,
+  withoutAddedModel,
+  nextAddedNumber,
+  numberAddedModels,
+  readAddedModels,
+  writeAddedModels,
+  readAddedCounter,
+  writeAddedCounter,
+} from "../site/js/model-list.js";
 import { catalogueNumberText } from "../site/js/model-details.js";
 
 /** Three small catalogue entries, out of name order on purpose, so sorting would move them. */
@@ -41,12 +52,72 @@ test("a model keeps its number when the picker filters the names", () => {
   assert.deepEqual(shown.map((entry) => [entry.id, entry.number]), [["mid/model-m", 3]]);
 });
 
-test("names the visitor added get the numbers after the catalogue", () => {
-  const catalogue = withCatalogueNumbers(CATALOGUE);
-  const numbered = withCatalogueNumbers([...catalogue, { id: "added/one" }, { id: "added/two" }]);
-  assert.deepEqual(numbered.slice(3).map((entry) => [entry.id, entry.number]), [["added/one", 4], ["added/two", 5]]);
-  // The catalogue numbers are the same as before the names were added.
-  assert.deepEqual(numbered.slice(0, 3).map((entry) => entry.number), [1, 2, 3]);
+test("withCatalogueNumbers keeps a number that is already stored, and numbers the rest by position", () => {
+  const numbered = withCatalogueNumbers([{ id: "org/a", number: 40 }, { id: "org/b" }]);
+  assert.deepEqual(numbered.map((entry) => entry.number), [40, 2]);
+});
+
+// Names the visitor adds get a number when they are added, and keep it. They are not renumbered by position.
+
+/** A fake storage that really keeps what is written, so a write can be read back in a test. */
+function memoryStorage() {
+  const store = new Map();
+  return {
+    getItem: (name) => (store.has(name) ? store.get(name) : null),
+    setItem: (name, value) => { store.set(name, String(value)); },
+  };
+}
+
+test("removing an added name keeps the numbers of the names that stay", () => {
+  // The catalogue has 3 models, so the first added name is 4 and the second is 5.
+  const first = withAddedModel([], "org/a", true, nextAddedNumber(3, [], 0));
+  const second = withAddedModel(first.added, "org/b", true, nextAddedNumber(3, first.added, 0));
+  const kept = withoutAddedModel(second.added, "org/a");
+  assert.deepEqual(kept.map((entry) => [entry.id, entry.number]), [["org/b", 5]]);
+});
+
+test("a number used by a removed name is never handed out again", () => {
+  // Name 5 was removed, but the counter still remembers 5, so the next name is 6, not 5.
+  const left = [{ id: "org/a", checked: true, number: 4 }];
+  assert.equal(nextAddedNumber(3, left, 5), 6);
+});
+
+test("the first added name comes after the catalogue", () => {
+  assert.equal(nextAddedNumber(29, [], 0), 30);
+});
+
+test("numberAddedModels gives numbers to names saved before numbers existed, in order", () => {
+  const filled = numberAddedModels([{ id: "org/a", checked: true }, { id: "org/b", checked: false }], 3, 0);
+  assert.deepEqual(filled.added.map((entry) => [entry.id, entry.number]), [["org/a", 4], ["org/b", 5]]);
+  assert.equal(filled.lastUsed, 5);
+  assert.equal(filled.changed, true);
+});
+
+test("numberAddedModels changes nothing when every name already has a number", () => {
+  const numbered = [{ id: "org/a", checked: true, number: 4 }];
+  const filled = numberAddedModels(numbered, 3, 4);
+  assert.equal(filled.changed, false);
+  assert.deepEqual(filled.added, numbered);
+});
+
+test("a stored number survives a write and a read", () => {
+  const storage = memoryStorage();
+  writeAddedModels(storage, "openrouter", [{ id: "org/b", checked: true, number: 5 }]);
+  assert.deepEqual(readAddedModels(storage, "openrouter"), [{ id: "org/b", checked: true, number: 5 }]);
+});
+
+test("the counter starts at 0 and keeps the last number written", () => {
+  const storage = memoryStorage();
+  assert.equal(readAddedCounter(storage, "openrouter"), 0);
+  assert.equal(writeAddedCounter(storage, "openrouter", 7), true);
+  assert.equal(readAddedCounter(storage, "openrouter"), 7);
+  assert.equal(readAddedCounter(storage, "groq"), 0);
+});
+
+test("the counter reads 0 and does not throw when storage is blocked", () => {
+  const blocked = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  assert.equal(readAddedCounter(blocked, "openrouter"), 0);
+  assert.equal(writeAddedCounter(blocked, "openrouter", 7), false);
 });
 
 test("catalogueNumberText shows a whole number as #N, the same style as the rank", () => {
