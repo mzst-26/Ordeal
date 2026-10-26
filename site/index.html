@@ -230,17 +230,17 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models ticked</p>
           <p class="kpi-value" id="batch-kpi-models">No data loaded</p>
-          <p class="kpi-note">Source: section 4, Pick models. Counts the ticked models.</p>
+          <p class="kpi-note">Source: section 5, Pick models. Counts the ticked models.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
           <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
-          <p class="kpi-note">Source: section 2, Suites, under Question set. Counts the ticked questions.</p>
+          <p class="kpi-note">Source: section 3, Suites, under Question set. Counts the ticked questions.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Probe families</p>
           <p class="kpi-value" id="batch-kpi-families">No data loaded</p>
-          <p class="kpi-note">Source: section 5, Probe families. Counts the ticked families.</p>
+          <p class="kpi-note">Source: section 2, Probe families. Counts the ticked families.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Planned new steps</p>
@@ -249,20 +249,76 @@
         </div>
       </div>
 
-      <!-- Platform and key: filled by platform-section.js. The platform applies to the batch and live pages. Models are picked in section 4. -->
+      <!-- Platform and key: filled by platform-section.js. The platform applies to the batch and live pages. Models are picked in section 5. -->
       <div id="platform-section"></div>
 
       <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
       <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
           <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
 
-          <fieldset class="panel span-4">
+          <div class="setup-left span-4">
+          <fieldset class="panel">
             <legend class="panel-title"><span class="section-number">1.</span> Presets</legend>
             <div id="batch-preset-panel"></div>
           </fieldset>
+          <fieldset class="panel">
+            <legend class="panel-title"><span class="section-number">2.</span> Probe families</legend>
+            <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
+            <div class="check-list" id="family-list" role="group" aria-label="Probe families">
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="gauntlet" checked aria-describedby="hint-gauntlet">
+                  <span class="check-box"></span><span class="check-text">gauntlet</span>
+                </label>
+                <p class="field-hint" id="hint-gauntlet">
+                  Ten levels of pressure in one conversation, then a check on whether the model changed its answer.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="corrections" checked
+                    aria-describedby="hint-corrections">
+                  <span class="check-box"></span><span class="check-text">corrections</span>
+                </label>
+                <p class="field-hint" id="hint-corrections">
+                  The correction tests: a planted wrong answer, then a polite or a confident correction from the user.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="fingerprint" checked
+                    aria-describedby="hint-fingerprint">
+                  <span class="check-box"></span><span class="check-text">fingerprint</span>
+                </label>
+                <p class="field-hint" id="hint-fingerprint">
+                  One-message probes, one for each kind of pressure, to see which kinds move the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="twins" checked aria-describedby="hint-twins">
+                  <span class="check-box"></span><span class="check-text">twins</span>
+                </label>
+                <p class="field-hint" id="hint-twins">
+                  The same message sent with a wrong claim and with a right claim, to see whether the claim
+                  moves the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="dose" checked aria-describedby="hint-dose">
+                  <span class="check-box"></span><span class="check-text">dose</span>
+                </label>
+                <p class="field-hint" id="hint-dose">
+                  The same push at rising strengths, to find how much pressure it takes before the model moves.
+                </p>
+              </div>
+            </div>
+          </fieldset>
+          </div>
 
           <fieldset class="panel span-4">
-            <legend class="panel-title"><span class="section-number">2.</span> Suites</legend>
+            <legend class="panel-title"><span class="section-number">3.</span> Suites</legend>
             <div class="field">
               <label class="check">
                 <input class="check-input" type="checkbox" id="batch-shuffle-toggle">
@@ -295,7 +351,7 @@
           </fieldset>
 
           <fieldset class="panel span-4">
-            <legend class="panel-title"><span class="section-number">3.</span> Conditions and limits</legend>
+            <legend class="panel-title"><span class="section-number">4.</span> Conditions and limits</legend>
             <div class="field">
               <label class="field-label" for="batch-condition-select">System prompt condition</label>
               <select class="select" id="batch-condition-select"></select>
@@ -337,7 +393,7 @@
 
           <div class="setup-main span-8">
           <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">4.</span> Pick models</legend>
+            <legend class="panel-title"><span class="section-number">5.</span> Pick models</legend>
             <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
             <p class="field-hint" id="model-rank-note">Each card shows the model's number. The number stays the same when the list is filtered or sorted. A name you add is marked +1, +2 and so on, so it never clashes with a catalogue number. The Nebius list is also in score order, highest first. Hover a card for its source.</p>
             <div class="button-row">
@@ -410,60 +466,6 @@
             </div>
           </section>
 
-          <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">5.</span> Probe families</legend>
-            <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
-            <div class="check-list" id="family-list" role="group" aria-label="Probe families">
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="gauntlet" checked aria-describedby="hint-gauntlet">
-                  <span class="check-box"></span><span class="check-text">gauntlet</span>
-                </label>
-                <p class="field-hint" id="hint-gauntlet">
-                  Ten levels of pressure in one conversation, then a check on whether the model changed its answer.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="corrections" checked
-                    aria-describedby="hint-corrections">
-                  <span class="check-box"></span><span class="check-text">corrections</span>
-                </label>
-                <p class="field-hint" id="hint-corrections">
-                  The correction tests: a planted wrong answer, then a polite or a confident correction from the user.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="fingerprint" checked
-                    aria-describedby="hint-fingerprint">
-                  <span class="check-box"></span><span class="check-text">fingerprint</span>
-                </label>
-                <p class="field-hint" id="hint-fingerprint">
-                  One-message probes, one for each kind of pressure, to see which kinds move the model.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="twins" checked aria-describedby="hint-twins">
-                  <span class="check-box"></span><span class="check-text">twins</span>
-                </label>
-                <p class="field-hint" id="hint-twins">
-                  The same message sent with a wrong claim and with a right claim, to see whether the claim
-                  moves the model.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="dose" checked aria-describedby="hint-dose">
-                  <span class="check-box"></span><span class="check-text">dose</span>
-                </label>
-                <p class="field-hint" id="hint-dose">
-                  The same push at rising strengths, to find how much pressure it takes before the model moves.
-                </p>
-              </div>
-            </div>
-          </fieldset>
           </div>
 
       </form>

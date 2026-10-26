@@ -123,8 +123,10 @@ fieldset.panel > .add-model {
   display: none;
 }
 
-/* Two columns of cards: the left holds Models and Questions, the right holds the plan and the probe families.
-   Each column stacks on its own, so a tall plan never moves the cards on the left */
+/* Three stacks hold the setup cards: setup-left (Presets, with Probe families filling the space under it),
+   setup-main (Models) and setup-side (the plan). Each stack is a flex column of its own, so a tall plan
+   never moves the cards on the left */
+.setup-left,
 .setup-main,
 .setup-side {
   display: flex;
@@ -1200,7 +1202,7 @@ fieldset:disabled .check-box {
   grid-column: 1 / -1;
 }
 
-/* The model check button in section 4 has one width, up to a limit, so it is not squeezed. */
+/* The model check button in section 5 has one width, up to a limit, so it is not squeezed. */
 .platform-action {
   width: 100%;
   max-width: 16rem;
