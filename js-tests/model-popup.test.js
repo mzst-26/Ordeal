@@ -229,6 +229,14 @@ test('ticksAfterPlatformChange keeps the ticks when the platform is the same', (
   assert.equal(ticksAfterPlatformChange('nebius', 'nebius', ticked), ticked);
 });
 
+test('a tick from one platform does not come back when the visitor switches away and back', () => {
+  // The first switch clears the ticks. The second switch starts from the empty set, so nothing returns.
+  const ticked = new Set(['org/a']);
+  const onGroq = ticksAfterPlatformChange('nebius', 'groq', ticked);
+  const backOnNebius = ticksAfterPlatformChange('groq', 'nebius', onGroq);
+  assert.equal(backOnNebius.size, 0);
+});
+
 // largeRunWarning: one plain line when the planned calls are more than 5,000. It never blocks the run.
 
 test('largeRunWarning is empty at and below 5,000 calls', () => {
