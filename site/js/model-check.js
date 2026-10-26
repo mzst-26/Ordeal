@@ -1,5 +1,6 @@
-// The "not in the list" field in section 5 (Pick models) of the batch page. The visitor types a model name that the
-// picker does not have and presses Check model. This module only draws the field and asks the page to add the name.
+// The "not in the list" field in section 5 (Pick models) of the batch page, and under 3. Model on the Gauntlet page.
+// The visitor types a model name that the picker does not have and presses Check model. This module only draws the
+// field and asks the page to add the name.
 //
 // Why there is one add path: the page's own "Add another model name" field and this one must do the same thing. A name
 // is checked against the chosen platform's list, then ticked and added to the picker (page-batch.js, addTypedModel).
