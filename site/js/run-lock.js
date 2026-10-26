@@ -14,3 +14,12 @@ export function setRunLocked(value) {
 export function isRunLocked() {
   return locked;
 }
+
+/**
+ * Say which Shuffle controls are locked. The tick box is locked while a batch is busy, so it cannot change mid-run.
+ * The two set dropdowns are locked while busy too, and also while the tick box is on, because a mixed run always
+ * uses both sets. Its inputs are the busy flag and the box state, and it returns two plain flags.
+ */
+export function shuffleControlsState({ busy, shuffleOn }) {
+  return { toggleDisabled: busy === true, setsDisabled: busy === true || shuffleOn === true };
+}
