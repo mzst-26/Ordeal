@@ -1,5 +1,5 @@
 // Tests for the catalogue numbers shown on the batch page: withCatalogueNumbers in site/js/model-list.js gives each
-// model its number, and catalogueNumberText in site/js/model-details.js turns it into the text every place shows
+// model its number, and modelNumberText in site/js/model-details.js turns it into the label every place shows
 // ("#19"). A model keeps its number when the picker filters or sorts its names, because the number is set once,
 // in catalogue order, and never from the position in a sorted list. Every test is pure: no DOM, no network.
 import { test } from "node:test";
@@ -16,7 +16,7 @@ import {
   readAddedCounter,
   writeAddedCounter,
 } from "../site/js/model-list.js";
-import { catalogueNumberText } from "../site/js/model-details.js";
+import { modelNumberText } from "../site/js/model-details.js";
 
 /** Three small catalogue entries, out of name order on purpose, so sorting would move them. */
 const CATALOGUE = [{ id: "zeta/model-z" }, { id: "alpha/model-a" }, { id: "mid/model-m" }];
@@ -68,34 +68,34 @@ function memoryStorage() {
   };
 }
 
-test("removing an added name keeps the numbers of the names that stay", () => {
-  // The catalogue has 3 models, so the first added name is 4 and the second is 5.
-  const first = withAddedModel([], "org/a", true, nextAddedNumber(3, [], 0));
-  const second = withAddedModel(first.added, "org/b", true, nextAddedNumber(3, first.added, 0));
+test("removing an added name keeps the labels of the names that stay", () => {
+  // The first added name is +1 and the second is +2. Removing +1 must leave +2 as it was.
+  const first = withAddedModel([], "org/a", true, nextAddedNumber([], 0));
+  const second = withAddedModel(first.added, "org/b", true, nextAddedNumber(first.added, 0));
   const kept = withoutAddedModel(second.added, "org/a");
-  assert.deepEqual(kept.map((entry) => [entry.id, entry.number]), [["org/b", 5]]);
+  assert.deepEqual(kept.map((entry) => [entry.id, entry.number]), [["org/b", 2]]);
 });
 
 test("a number used by a removed name is never handed out again", () => {
   // Name 5 was removed, but the counter still remembers 5, so the next name is 6, not 5.
   const left = [{ id: "org/a", checked: true, number: 4 }];
-  assert.equal(nextAddedNumber(3, left, 5), 6);
+  assert.equal(nextAddedNumber(left, 5), 6);
 });
 
-test("the first added name comes after the catalogue", () => {
-  assert.equal(nextAddedNumber(29, [], 0), 30);
+test("the first added name is +1, whatever the catalogue size", () => {
+  assert.equal(nextAddedNumber([], 0), 1);
 });
 
 test("numberAddedModels gives numbers to names saved before numbers existed, in order", () => {
-  const filled = numberAddedModels([{ id: "org/a", checked: true }, { id: "org/b", checked: false }], 3, 0);
-  assert.deepEqual(filled.added.map((entry) => [entry.id, entry.number]), [["org/a", 4], ["org/b", 5]]);
-  assert.equal(filled.lastUsed, 5);
+  const filled = numberAddedModels([{ id: "org/a", checked: true }, { id: "org/b", checked: false }], 0);
+  assert.deepEqual(filled.added.map((entry) => [entry.id, entry.number]), [["org/a", 1], ["org/b", 2]]);
+  assert.equal(filled.lastUsed, 2);
   assert.equal(filled.changed, true);
 });
 
 test("numberAddedModels changes nothing when every name already has a number", () => {
   const numbered = [{ id: "org/a", checked: true, number: 4 }];
-  const filled = numberAddedModels(numbered, 3, 4);
+  const filled = numberAddedModels(numbered, 4);
   assert.equal(filled.changed, false);
   assert.deepEqual(filled.added, numbered);
 });
@@ -120,13 +120,28 @@ test("the counter reads 0 and does not throw when storage is blocked", () => {
   assert.equal(writeAddedCounter(blocked, "openrouter", 7), false);
 });
 
-test("catalogueNumberText shows a whole number as #N, the same style as the rank", () => {
-  assert.equal(catalogueNumberText({ number: 19 }), "#19");
-  assert.equal(catalogueNumberText({ number: 1 }), "#1");
+test("modelNumberText shows a catalogue model as #N, the same style as the rank", () => {
+  assert.equal(modelNumberText({ number: 19 }), "#19");
+  assert.equal(modelNumberText({ number: 1 }), "#1");
 });
 
-test("catalogueNumberText shows unknown, never a made-up number, when the number is missing or not usable", () => {
+test("modelNumberText shows an added name as +N, counted on its own", () => {
+  assert.equal(modelNumberText({ number: 1, added: true }), "+1");
+  assert.equal(modelNumberText({ number: 2, added: true }), "+2");
+});
+
+test("modelNumberText shows unknown, never a made-up number, when the number is missing or not usable", () => {
   for (const entry of [{}, { number: 0 }, { number: -2 }, { number: 2.5 }, { number: "19" }, { number: null }, null]) {
-    assert.equal(catalogueNumberText(entry), "unknown", JSON.stringify(entry));
+    assert.equal(modelNumberText(entry), "unknown", JSON.stringify(entry));
+    assert.equal(modelNumberText({ ...entry, added: true }), "unknown", JSON.stringify(entry));
   }
+});
+
+test("a catalogue model #1 and an added name +1 can both exist without a clash", () => {
+  // The catalogue here has one model, so its number is 1. The first added name is also 1, but its label is +1.
+  const catalogue = withCatalogueNumbers([{ id: "org/catalogue" }]);
+  const added = withAddedModel([], "org/added", true, nextAddedNumber([], 0)).added;
+  const labels = [modelNumberText(catalogue[0]), modelNumberText({ ...added[0], added: true })];
+  assert.deepEqual(labels, ["#1", "+1"]);
+  assert.equal(new Set(labels).size, 2);
 });

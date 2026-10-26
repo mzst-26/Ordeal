@@ -81,13 +81,15 @@ export function modelOptionLabel(entry) {
 }
 
 /**
- * Return the catalogue number of a model as text, "#19", for every place that shows it: the picker card, the selected
- * line and the plan line. The number is set once per list (see withCatalogueNumbers in model-list.js), so it reads
- * the same whatever the picker is filtered or sorted by. A missing or non-whole number gives "unknown", never a guess.
+ * Return the number label of a model, for every place that shows it: the picker card, the selected line and the plan
+ * line. A catalogue model reads "#19", its position in the catalogue. A name the visitor added reads "+1", "+2" and so
+ * on, counted on its own, so the two kinds never clash whatever the catalogue size. Both are fixed: a label does not
+ * change when the picker is filtered or sorted. A missing or non-whole number gives "unknown", never a guess.
  */
-export function catalogueNumberText(entry) {
+export function modelNumberText(entry) {
   const number = entry?.number;
-  return Number.isInteger(number) && number > 0 ? `#${number}` : UNKNOWN;
+  if (!Number.isInteger(number) || number < 1) return UNKNOWN;
+  return entry?.added === true ? `+${number}` : `#${number}`;
 }
 
 /** Return the part of a model id after the last slash, such as "GLM-5.3" from "zai-org/GLM-5.3". */

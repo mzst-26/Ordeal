@@ -285,11 +285,11 @@ test('withoutAddedModel gives the same list back when the id is not there', () =
 
 test('addedRows gives a row for each added name that the platform list does not have', () => {
   const rows = addedRows(['org/a'], [{ id: 'org/a', checked: true }, { id: 'org/new', checked: false }]);
-  assert.deepEqual(rows, [{ id: 'org/new', note: 'added', unchecked: true }]);
+  assert.deepEqual(rows, [{ id: 'org/new', note: 'added', unchecked: true, added: true }]);
 });
 
 test('addedRows marks a confirmed name as checked, not unchecked', () => {
-  assert.deepEqual(addedRows([], [{ id: 'org/ok', checked: true }]), [{ id: 'org/ok', note: 'added', unchecked: false }]);
+  assert.deepEqual(addedRows([], [{ id: 'org/ok', checked: true }]), [{ id: 'org/ok', note: 'added', unchecked: false, added: true }]);
 });
 
 // addOutcomeText and refusalText: the plain lines the popup shows.

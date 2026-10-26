@@ -36,7 +36,7 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
-import { catalogueNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
+import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
@@ -568,18 +568,13 @@ function buildEntries(platform) {
   return [...base, ...added];
 }
 
-/** Return how many catalogue models a platform has, which is where the numbers of added names start after. */
-function catalogueSizeOf(platform) {
-  return platform.id === DEFAULT_PLATFORM_ID ? configEntries().length : platformModelIds(page.modelsFile, platform.id).length;
-}
-
 /**
  * Give a number to any saved name that has none, which happens to names saved before numbers existed. The list and the
  * counter are written back only when a number was given, so an ordinary page load writes nothing.
  */
 function numberSavedNames(platform) {
   const storage = browserStorage();
-  const filled = numberAddedModels(page.addedModels, catalogueSizeOf(platform), readAddedCounter(storage, platform.id));
+  const filled = numberAddedModels(page.addedModels, readAddedCounter(storage, platform.id));
   if (!filled.changed) return;
   page.addedModels = filled.added;
   writeAddedModels(storage, platform.id, filled.added);
@@ -633,7 +628,7 @@ function selectedModelIds() {
 function selectedModelItems(models) {
   const shown = models.slice(0, MAX_POPUP_ROWS).map((entry) => {
     const row = rowOf(entry);
-    const item = selectedItem(catalogueNumberText(entry), shortName(row.name));
+    const item = selectedItem(modelNumberText(entry), shortName(row.name));
     // The id is kept on the line, so the page (and its tests) can read which models are ticked.
     item.dataset.model = entry.id;
     return item;
@@ -795,7 +790,7 @@ function buildModelCard(entry) {
   const row = rowOf(entry);
   const note = entryNote(entry);
   const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
-  const number = el("span", { className: "model-rank", text: catalogueNumberText(entry) });
+  const number = el("span", { className: "model-rank", text: modelNumberText(entry) });
   if (hasNoDetails(row)) {
     return el("span", { className: "pick-model" }, [number, el("span", { className: "pick-model-name", text: name })]);
   }
@@ -937,7 +932,7 @@ function saveNewModel(platform, model, checked) {
   }
   // The new name takes the next number, and the counter remembers it, so removing the name later never frees it.
   const storage = browserStorage();
-  const number = nextAddedNumber(catalogueSizeOf(platform), page.addedModels, readAddedCounter(storage, platform.id));
+  const number = nextAddedNumber(page.addedModels, readAddedCounter(storage, platform.id));
   const next = withAddedModel(page.addedModels, model, checked, number);
   const saved = writeAddedModels(storage, platform.id, next.added) && writeAddedCounter(storage, platform.id, number);
   page.addedModels = next.added;
@@ -1301,7 +1296,7 @@ function setKpi(valueElement, text) {
 function planItem(row, entry) {
   const saved = formatCount(row.saved);
   const newSteps = formatCount(row.atMostNew);
-  const text = `${catalogueNumberText(entry)} ${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
+  const text = `${modelNumberText(entry)} ${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
   return el("li", { text });
 }
 

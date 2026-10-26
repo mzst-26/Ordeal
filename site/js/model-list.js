@@ -129,11 +129,12 @@ function isNumber(value) {
 }
 
 /**
- * Return the highest number in use on a platform: the catalogue size, the counter (the last number ever handed out,
- * so a removed name's number is still counted), and every number on a name in the list.
+ * Return the highest number in use for added names on a platform: the counter (the last number ever handed out, so a
+ * removed name's number is still counted), and every number on a name in the list. Added names count on their own
+ * sequence, +1, +2 and so on, so the catalogue size plays no part here.
  */
-function highestNumber(catalogueSize, added, lastUsed) {
-  let highest = Math.max(catalogueSize, lastUsed);
+function highestNumber(added, lastUsed) {
+  let highest = lastUsed;
   for (const entry of added) {
     if (isNumber(entry.number) && entry.number > highest) highest = entry.number;
   }
@@ -141,21 +142,20 @@ function highestNumber(catalogueSize, added, lastUsed) {
 }
 
 /**
- * Return the number for the next name the visitor adds. It is one more than the highest number already in use, so the
- * catalogue numbers never change and a number is never given out twice. The counter is passed in because removing a
- * name would otherwise let its number come back.
+ * Return the number for the next name the visitor adds: one more than the highest added number in use, so a number is
+ * never given out twice. The counter is passed in because removing a name would otherwise let its number come back.
  */
-export function nextAddedNumber(catalogueSize, added, lastUsed) {
-  return highestNumber(catalogueSize, added, lastUsed) + 1;
+export function nextAddedNumber(added, lastUsed) {
+  return highestNumber(added, lastUsed) + 1;
 }
 
 /**
  * Give a number to every saved name that has none. Names saved before numbers existed are numbered in their saved
- * order, after the catalogue. Returns {added, lastUsed, changed}: the names, the highest number in use now, and
- * whether any number was given (so the page only writes back when it must).
+ * order. Returns {added, lastUsed, changed}: the names, the highest number in use now, and whether any number was
+ * given (so the page only writes back when it must).
  */
-export function numberAddedModels(added, catalogueSize, lastUsed) {
-  let highest = highestNumber(catalogueSize, added, lastUsed);
+export function numberAddedModels(added, lastUsed) {
+  let highest = highestNumber(added, lastUsed);
   let changed = false;
   const numbered = added.map((entry) => {
     if (isNumber(entry.number)) return entry;
@@ -334,8 +334,8 @@ export function addedRows(baseIds, addedModels) {
   return addedModels
     .filter((entry) => !base.has(entry.id))
     .map((entry) => (isNumber(entry.number)
-      ? { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked, number: entry.number }
-      : { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked }));
+      ? { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked, added: true, number: entry.number }
+      : { id: entry.id, note: ADDED_NOTE, unchecked: !entry.checked, added: true }));
 }
 
 /**
