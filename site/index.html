@@ -256,10 +256,66 @@
       <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
           <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
 
-          <fieldset class="panel span-4">
+          <div class="setup-left span-4">
+          <fieldset class="panel">
             <legend class="panel-title"><span class="section-number">1.</span> Presets</legend>
             <div id="batch-preset-panel"></div>
           </fieldset>
+          <fieldset class="panel">
+            <legend class="panel-title"><span class="section-number">2.</span> Probe families</legend>
+            <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
+            <div class="check-list" id="family-list" role="group" aria-label="Probe families">
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="gauntlet" checked aria-describedby="hint-gauntlet">
+                  <span class="check-box"></span><span class="check-text">gauntlet</span>
+                </label>
+                <p class="field-hint" id="hint-gauntlet">
+                  Ten levels of pressure in one conversation, then a check on whether the model changed its answer.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="corrections" checked
+                    aria-describedby="hint-corrections">
+                  <span class="check-box"></span><span class="check-text">corrections</span>
+                </label>
+                <p class="field-hint" id="hint-corrections">
+                  The correction tests: a planted wrong answer, then a polite or a confident correction from the user.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="fingerprint" checked
+                    aria-describedby="hint-fingerprint">
+                  <span class="check-box"></span><span class="check-text">fingerprint</span>
+                </label>
+                <p class="field-hint" id="hint-fingerprint">
+                  One-message probes, one for each kind of pressure, to see which kinds move the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="twins" checked aria-describedby="hint-twins">
+                  <span class="check-box"></span><span class="check-text">twins</span>
+                </label>
+                <p class="field-hint" id="hint-twins">
+                  The same message sent with a wrong claim and with a right claim, to see whether the claim
+                  moves the model.
+                </p>
+              </div>
+              <div class="family">
+                <label class="check">
+                  <input class="check-input" type="checkbox" value="dose" checked aria-describedby="hint-dose">
+                  <span class="check-box"></span><span class="check-text">dose</span>
+                </label>
+                <p class="field-hint" id="hint-dose">
+                  The same push at rising strengths, to find how much pressure it takes before the model moves.
+                </p>
+              </div>
+            </div>
+          </fieldset>
+          </div>
 
           <fieldset class="panel span-4">
             <legend class="panel-title"><span class="section-number">3.</span> Suites</legend>
@@ -410,60 +466,6 @@
             </div>
           </section>
 
-          <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">2.</span> Probe families</legend>
-            <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
-            <div class="check-list" id="family-list" role="group" aria-label="Probe families">
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="gauntlet" checked aria-describedby="hint-gauntlet">
-                  <span class="check-box"></span><span class="check-text">gauntlet</span>
-                </label>
-                <p class="field-hint" id="hint-gauntlet">
-                  Ten levels of pressure in one conversation, then a check on whether the model changed its answer.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="corrections" checked
-                    aria-describedby="hint-corrections">
-                  <span class="check-box"></span><span class="check-text">corrections</span>
-                </label>
-                <p class="field-hint" id="hint-corrections">
-                  The correction tests: a planted wrong answer, then a polite or a confident correction from the user.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="fingerprint" checked
-                    aria-describedby="hint-fingerprint">
-                  <span class="check-box"></span><span class="check-text">fingerprint</span>
-                </label>
-                <p class="field-hint" id="hint-fingerprint">
-                  One-message probes, one for each kind of pressure, to see which kinds move the model.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="twins" checked aria-describedby="hint-twins">
-                  <span class="check-box"></span><span class="check-text">twins</span>
-                </label>
-                <p class="field-hint" id="hint-twins">
-                  The same message sent with a wrong claim and with a right claim, to see whether the claim
-                  moves the model.
-                </p>
-              </div>
-              <div class="family">
-                <label class="check">
-                  <input class="check-input" type="checkbox" value="dose" checked aria-describedby="hint-dose">
-                  <span class="check-box"></span><span class="check-text">dose</span>
-                </label>
-                <p class="field-hint" id="hint-dose">
-                  The same push at rising strengths, to find how much pressure it takes before the model moves.
-                </p>
-              </div>
-            </div>
-          </fieldset>
           </div>
 
       </form>
