@@ -6,19 +6,6 @@
   margin-bottom: var(--space-8);
 }
 
-/* The title on the left and the Runs button on the right. On a phone the button wraps under the title. */
-.batch-masthead-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.runs-button {
-  white-space: nowrap;
-}
-
 [data-view="batch"] .standfirst {
   font-family: var(--font-serif);
   font-size: var(--size-md);

@@ -1028,16 +1028,6 @@ p {
   box-shadow: var(--shadow-soft);
 }
 
-.saved-runs {
-  display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-12);
-}
-
-.saved-runs h2 {
-  margin: 0;
-}
-
 .run-list {
   margin: 0;
   padding: 0;
@@ -1072,6 +1062,21 @@ p {
   font-family: var(--font-sans);
   font-size: var(--size-sm);
   color: var(--ink-soft);
+}
+
+/* The title on the left and the Runs button on the right, in the header of any page that has a Runs popup. On a
+   phone the button wraps under the title. The rules are shared (base.css loads on every page), so the Batch and
+   Gauntlet headers look the same without either page loading the other's stylesheet. */
+.masthead-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.runs-button {
+  white-space: nowrap;
 }
 
 /* The Runs popup: a native dialog holding the unfinished and saved runs. It is styled only while open, because a
