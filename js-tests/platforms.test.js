@@ -1,5 +1,5 @@
 // Tests for site/js/platforms.js. The platform list is the shared file site/data/providers.json, which the
-// export script copies from ordeal/providers.json. Every test is pure: no network and no browser storage,
+// export script copies from ordeal/data/providers.json. Every test is pure: no network and no browser storage,
 // except the storage tests, which use a small fake storage object.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

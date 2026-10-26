@@ -159,6 +159,21 @@ class BuildCatalogueTests(unittest.TestCase):
         self.assertRegex(built["checked"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class KeepDetailsTests(unittest.TestCase):
+    """keep_details carries the hand-written details block over a refresh, so a refresh never drops it."""
+
+    def test_copies_the_details_block_from_the_previous_file(self):
+        catalogue = {"checked": "2026-10-26", "platforms": {}}
+        previous = {"checked": "2026-10-25", "details": {"a/b": {"family": "A"}}, "platforms": {}}
+        result = catalog.keep_details(catalogue, previous)
+        self.assertEqual(result["details"], {"a/b": {"family": "A"}})
+        self.assertEqual(result["platforms"], {})
+
+    def test_gives_an_empty_block_when_the_previous_file_has_none(self):
+        result = catalog.keep_details({"checked": "2026-10-26", "platforms": {}}, {})
+        self.assertEqual(result["details"], {})
+
+
 class KeepPreviousTests(unittest.TestCase):
     """A platform that was not refreshed keeps its last list, and its status says so."""
 
@@ -202,6 +217,14 @@ class ShouldWriteTests(unittest.TestCase):
             "huggingface": {"status": "refreshed", "ids": ["a/b"]},
         }
         self.assertTrue(refresh_catalog.should_write(results))
+
+
+class SavedListLocationTests(unittest.TestCase):
+    """The saved model list is written into ordeal/data, beside the platform list it goes with."""
+
+    def test_the_refresh_script_writes_into_the_data_folder(self):
+        data_folder = Path(catalog.__file__).resolve().parent / "data"
+        self.assertEqual(refresh_catalog.OUTPUT_PATH, data_folder / "models.json")
 
 
 if __name__ == "__main__":

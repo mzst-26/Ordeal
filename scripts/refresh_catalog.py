@@ -1,4 +1,4 @@
-"""Refresh ordeal/models.json: the text-writing models each hosted inference platform serves.
+"""Refresh ordeal/data/models.json: the text-writing models each hosted inference platform serves.
 
 A maintainer runs this script by hand. For every platform whose kind is "inference", it reads the key
 (through keys.get_key, which never prints it), asks the platform for its model list, and keeps only the
@@ -27,8 +27,8 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 from ordeal import catalog, keys, providers  # noqa: E402  (needs the project folder on sys.path first)
 
-# The file the site and the Python code read. It sits next to providers.json.
-OUTPUT_PATH = PROJECT_DIR / "ordeal" / "models.json"
+# The file the site and the Python code read. It sits in the data folder, next to providers.json.
+OUTPUT_PATH = PROJECT_DIR / "ordeal" / "data" / "models.json"
 # HTTP answers that mean "you did not send a valid key". Without a key these mean the platform needs one.
 AUTH_REFUSED_CODES = (401, 403)
 
@@ -136,7 +136,8 @@ def main() -> int:
         platform_results[platform.id] = result
         print_line(platform.id, result)
     if should_write(platform_results):
-        write_atomically(catalog.build_catalogue(platform_results), OUTPUT_PATH)
+        catalogue = catalog.build_catalogue(platform_results)
+        write_atomically(catalog.keep_details(catalogue, previous), OUTPUT_PATH)
         print(f"Wrote {OUTPUT_PATH}")
     else:
         print("No platform was refreshed, so models.json was not changed.")

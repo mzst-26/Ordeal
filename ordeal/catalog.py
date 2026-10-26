@@ -3,7 +3,7 @@
 A platform lists every model it serves, including image, speech and embedding models. Ordeal only
 tests text, so this module keeps the text models and drops the rest. It never touches the network.
 The scripts/refresh_catalog.py script fetches the listings and calls these functions to save the result
-in ordeal/models.json.
+in ordeal/data/models.json.
 
 Two rules decide what is text. If the listing says which outputs a model makes, that list is trusted.
 If it does not (DeepInfra, Nebius and others), the model id is checked for words that name a non-text
@@ -142,3 +142,13 @@ def build_catalogue(platform_results: dict, today: str | None = None) -> dict:
         models = list(result["ids"])
         platforms[platform_id] = {"status": result["status"], "count": len(models), "models": models}
     return {"checked": checked, "platforms": platforms}
+
+
+def keep_details(catalogue: dict, previous: dict) -> dict:
+    """Return the catalogue with the details block copied from the previous file, or an empty block if there is none.
+
+    The details (family, size and so on for each model) are typed in by hand, not fetched. A refresh rewrites
+    the whole file, so this copies the block across. Without it, the next refresh would delete the details.
+    """
+    catalogue["details"] = previous.get("details", {}) if isinstance(previous, dict) else {}
+    return catalogue

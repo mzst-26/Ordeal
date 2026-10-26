@@ -24,6 +24,6 @@ ordeal = "ordeal.cli:main"
 packages = ["ordeal"]
 
 [tool.setuptools.package-data]
-# providers.json is the platform list, so it must ship inside the installed package.
-# data/ holds the questions, pushback ladders and config that the test runs read.
-ordeal = ["providers.json", "data/*.json"]
+# data/ holds the platform list, the saved model list, the questions, pushback ladders and config.
+# They must ship inside the installed package, so one glob covers every shared JSON file.
+ordeal = ["data/*.json"]

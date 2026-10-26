@@ -13,6 +13,9 @@ from unittest import mock
 
 from ordeal import providers
 
+# The data folder holds the shared JSON files, so the platform list is kept with the questions and the model list.
+DATA_FOLDER = Path(providers.__file__).resolve().parent / "data"
+
 # A registry entry that is valid on its own. Each bad-entry test changes one field of a copy.
 GOOD_ENTRY = {
     "id": "example",
@@ -42,6 +45,11 @@ class RegistryTests(unittest.TestCase):
         path = self.folder / "providers.json"
         path.write_text(json.dumps({"version": 1, "platforms": entries}), encoding="utf-8")
         return path
+
+    def test_the_registry_file_lives_in_the_data_folder(self) -> None:
+        """The platform list sits in ordeal/data, so every shared data file is found in one place."""
+        self.assertEqual(providers.REGISTRY_PATH, DATA_FOLDER / "providers.json")
+        self.assertTrue(providers.REGISTRY_PATH.is_file())
 
     def test_every_registry_entry_validates(self) -> None:
         """The real providers.json loads, with unique ids and the platforms the rest of the code relies on."""
