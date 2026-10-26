@@ -500,6 +500,31 @@ p {
   border-color: var(--rule);
 }
 
+/* A dropdown-shaped button: it looks like a select, with a chevron, but a click opens a popup picker instead.
+   It lives here, beside .select, so any page can use it without loading the gauntlet stylesheet. */
+.choice-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice-trigger::after {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-0.2em);
+}
+
+.choice-trigger:disabled {
+  cursor: default;
+}
+
 .key-row {
   display: flex;
   align-items: stretch;

@@ -38,6 +38,7 @@ import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
+import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
@@ -81,7 +82,6 @@ const MAX_BATCH_CALLS = 400;
 const CAP_STEP = 10;
 const MAX_LOG_ENTRIES = 200;
 const RESULTS_INTERVAL_MS = 500;
-const QUESTION_TEXT_LENGTH = 60;
 const LABEL_LIMIT = 80;
 // Quick grading for redraws while a run is going, so each redraw stays fast. The config value is used after.
 const FAST_RESAMPLES = 200;
@@ -158,6 +158,9 @@ const IDS = {
   customAdd: "custom-model-add",
   customMessage: "custom-model-message",
   questionList: "question-list",
+  questionMenuButton: "question-menu-button",
+  questionMenuDialog: "question-menu-dialog",
+  questionMenuDone: "question-menu-done",
   questionChoose: "question-choose",
   questionCount: VIEW_IDS.batch["question-count"],
   tierFilter: "tier-filter",
@@ -295,11 +298,14 @@ function wireControls() {
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
   window.addEventListener(CHOICE_EVENT, onPlatformChosen);
-  dom.questionChoose.addEventListener("click", openQuestionPicker);
-  dom.questionAll.addEventListener("click", () => setChecks(dom.questionList, () => true));
-  dom.questionNone.addEventListener("click", () => setChecks(dom.questionList, () => false));
-  dom.questionCorrection.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("correction_test")));
-  dom.questionWrapper.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("wrapper_test")));
+  // The Questions dropdown is a native dialog too. Each choice inside it runs through runQuestionAction.
+  dom.questionMenuButton.addEventListener("click", () => dom.questionMenuDialog.showModal());
+  dom.questionMenuDone.addEventListener("click", () => dom.questionMenuDialog.close());
+  dom.questionAll.addEventListener("click", () => runQuestionAction("all"));
+  dom.questionNone.addEventListener("click", () => runQuestionAction("none"));
+  dom.questionCorrection.addEventListener("click", () => runQuestionAction("correction"));
+  dom.questionWrapper.addEventListener("click", () => runQuestionAction("wrapper"));
+  dom.questionChoose.addEventListener("click", () => runQuestionAction("choose"));
   dom.customAdd.addEventListener("click", addFromForm);
   dom.customName.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1132,6 +1138,21 @@ function openQuestionPicker() {
   });
 }
 
+/**
+ * Run one choice from the Questions dropdown. The dropdown closes first, so the one-by-one picker (a dialog of its
+ * own) never opens on top of it. The other choices tick the tick boxes: the rule for each one is in
+ * question-actions.js, so the tests can check it without a browser.
+ */
+function runQuestionAction(action) {
+  page.dom.questionMenuDialog.close();
+  if (action === "choose") {
+    openQuestionPicker();
+    return;
+  }
+  const ticked = idsForAction(action, page.questionRows.map((entry) => entry.question));
+  setChecks(page.dom.questionList, (input) => ticked.has(input.value));
+}
+
 /** Tick or untick one question from the picker. Does what a tick box change does: a fresh run, then a refresh. */
 function toggleQuestion(item) {
   item.input.checked = !item.input.checked;
@@ -1151,9 +1172,7 @@ function buildQuestionCard({ question }) {
 
 /** Return the question's label: "m01 · tier · first 60 characters of the question". */
 function questionLabel(question) {
-  const text = question.question;
-  const short = text.length > QUESTION_TEXT_LENGTH ? `${text.slice(0, QUESTION_TEXT_LENGTH)}…` : text;
-  return `${question.id} · ${question.tier} · ${short}`;
+  return `${question.id} · ${question.tier} · ${shortQuestionText(question.question)}`;
 }
 
 /** Fill the tier menu with each tier in the order the questions list them. The tier is reset to all tiers. */
@@ -1188,16 +1207,6 @@ function setStatus(text) {
 /** Return the checked values of the tick boxes in a container, in page order. */
 function checkedValues(container) {
   return Array.from(container.querySelectorAll("input[type='checkbox']:checked"), (input) => input.value);
-}
-
-/** Return the question object for a tick box, or undefined. */
-function questionFor(input) {
-  return page.questionsById.get(input.value);
-}
-
-/** Return a test that is true for a tick box whose question has the given flag set. */
-function flaggedAs(flagName) {
-  return (input) => questionFor(input)?.[flagName] === true;
 }
 
 /** Set every tick box in a container from a test, then refresh the plan. */
@@ -1370,11 +1379,21 @@ function updateGroupCount(countElement, container, noun) {
 /** Fill the thin lists under the Models and Questions cards with the ticked items, so the choice reads at a glance. */
 function renderSelectedLists() {
   const models = selectedEntries();
-  const questions = page.questionRows.filter((entry) => entry.input.checked);
+  const questions = page.questionRows.filter((entry) => entry.input.checked).map((entry) => entry.question);
   page.dom.modelSelected.replaceChildren(...selectedModelItems(models));
-  page.dom.questionSelected.replaceChildren(
-    ...questions.map((entry) => selectedItem(entry.question.id, entry.question.question)),
-  );
+  page.dom.questionSelected.replaceChildren(...numberedQuestionLines(questions).map(numberedQuestionItem));
+}
+
+/**
+ * Build one line of the numbered question list: the number, the question id, then the short text. The text is
+ * cut by numberedQuestionLines, so each question stays on one line.
+ */
+function numberedQuestionItem(line) {
+  return el("li", { className: "selected-item" }, [
+    el("span", { className: "selected-number", text: `${line.number}.` }),
+    el("span", { className: "selected-lead", text: line.id }),
+    el("span", { className: "selected-text", text: line.text }),
+  ]);
 }
 
 /** Build one line of a selected list: a small lead (rank or id) and the name or question text after it. */
