@@ -214,6 +214,9 @@
         </section>
         <section class="runs-section" aria-labelledby="batch-runs-saved-heading">
           <h3 class="runs-section-title" id="batch-runs-saved-heading">Saved</h3>
+          <!-- Where the saved runs are kept, then the saved runs themselves. Both are filled by the script. -->
+          <p class="field-hint" id="batch-storage-note" role="status"></p>
+          <div id="batch-runs-list"></div>
         </section>
         <div class="dialog-actions">
           <button type="button" class="btn btn-primary" id="batch-runs-done">Done</button>
@@ -501,8 +504,6 @@
       <!-- Saved runs for the Batch view. -->
       <section class="saved-runs panel" aria-labelledby="batch-saved-heading">
         <h2 class="panel-title" id="batch-saved-heading">Saved runs</h2>
-        <p class="field-hint" id="batch-storage-note" role="status"></p>
-        <div id="batch-runs-list"></div>
       </section>
 
       <!-- Export buttons. They start disabled and are enabled by the script once results exist. -->
