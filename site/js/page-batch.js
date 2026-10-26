@@ -38,6 +38,7 @@ import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
+import { idsForAction } from "./question-actions.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
@@ -148,6 +149,9 @@ const IDS = {
   customAdd: "custom-model-add",
   customMessage: "custom-model-message",
   questionList: "question-list",
+  questionMenuButton: "question-menu-button",
+  questionMenuDialog: "question-menu-dialog",
+  questionMenuDone: "question-menu-done",
   questionChoose: "question-choose",
   questionCount: VIEW_IDS.batch["question-count"],
   tierFilter: "tier-filter",
@@ -283,11 +287,14 @@ function wireControls() {
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
   window.addEventListener(CHOICE_EVENT, onPlatformChosen);
-  dom.questionChoose.addEventListener("click", openQuestionPicker);
-  dom.questionAll.addEventListener("click", () => setChecks(dom.questionList, () => true));
-  dom.questionNone.addEventListener("click", () => setChecks(dom.questionList, () => false));
-  dom.questionCorrection.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("correction_test")));
-  dom.questionWrapper.addEventListener("click", () => setChecks(dom.questionList, flaggedAs("wrapper_test")));
+  // The Questions dropdown is a native dialog too. Each choice inside it runs through runQuestionAction.
+  dom.questionMenuButton.addEventListener("click", () => dom.questionMenuDialog.showModal());
+  dom.questionMenuDone.addEventListener("click", () => dom.questionMenuDialog.close());
+  dom.questionAll.addEventListener("click", () => runQuestionAction("all"));
+  dom.questionNone.addEventListener("click", () => runQuestionAction("none"));
+  dom.questionCorrection.addEventListener("click", () => runQuestionAction("correction"));
+  dom.questionWrapper.addEventListener("click", () => runQuestionAction("wrapper"));
+  dom.questionChoose.addEventListener("click", () => runQuestionAction("choose"));
   dom.customAdd.addEventListener("click", addFromForm);
   dom.customName.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1027,6 +1034,21 @@ function openQuestionPicker() {
   });
 }
 
+/**
+ * Run one choice from the Questions dropdown. The dropdown closes first, so the one-by-one picker (a dialog of its
+ * own) never opens on top of it. The other choices tick the tick boxes: the rule for each one is in
+ * question-actions.js, so the tests can check it without a browser.
+ */
+function runQuestionAction(action) {
+  page.dom.questionMenuDialog.close();
+  if (action === "choose") {
+    openQuestionPicker();
+    return;
+  }
+  const ticked = idsForAction(action, page.questionRows.map((entry) => entry.question));
+  setChecks(page.dom.questionList, (input) => ticked.has(input.value));
+}
+
 /** Tick or untick one question from the picker. Does what a tick box change does: a fresh run, then a refresh. */
 function toggleQuestion(item) {
   item.input.checked = !item.input.checked;
@@ -1083,16 +1105,6 @@ function setStatus(text) {
 /** Return the checked values of the tick boxes in a container, in page order. */
 function checkedValues(container) {
   return Array.from(container.querySelectorAll("input[type='checkbox']:checked"), (input) => input.value);
-}
-
-/** Return the question object for a tick box, or undefined. */
-function questionFor(input) {
-  return page.questionsById.get(input.value);
-}
-
-/** Return a test that is true for a tick box whose question has the given flag set. */
-function flaggedAs(flagName) {
-  return (input) => questionFor(input)?.[flagName] === true;
 }
 
 /** Set every tick box in a container from a test, then refresh the plan. */

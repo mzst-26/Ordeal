@@ -272,20 +272,13 @@
               <select class="select" id="batch-question-set-select"></select>
             </div>
             <!-- The question choice sits under Question set, because the questions belong to that set. -->
-            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="question-choose" aria-haspopup="dialog">Choose questions</button>
-              <button type="button" class="btn" id="question-all">All</button>
-              <button type="button" class="btn" id="question-none">None</button>
-              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
-              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
-            </div>
+            <!-- One dropdown-shaped button holds the choices. Its popup is the native dialog after the form. -->
             <div class="field">
-              <label class="field-label" for="tier-filter">Show tier</label>
-              <select class="select" id="tier-filter">
-                <option value="all">All tiers</option>
-              </select>
+              <span class="field-label" id="question-menu-label">Questions</span>
+              <button type="button" class="select choice-trigger" id="question-menu-button" aria-haspopup="dialog"
+                aria-labelledby="question-menu-label question-menu-button">Select questions</button>
             </div>
+            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
             <!-- The ticked questions, one thin line each. The page fills it on every change. -->
             <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
             <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
@@ -467,6 +460,28 @@
           </div>
 
       </form>
+
+      <!-- The Questions dropdown popup: a native dialog with the choices and Show tier. A choice closes it, then acts.
+           It sits outside the form, so changing the tier is not treated as a form edit. Escape and Done close it. -->
+      <dialog class="question-menu-dialog" id="question-menu-dialog" aria-labelledby="question-menu-title">
+        <h2 class="dialog-title" id="question-menu-title">Questions</h2>
+        <div class="question-menu">
+          <button type="button" class="btn" id="question-all">All</button>
+          <button type="button" class="btn" id="question-none">None</button>
+          <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
+          <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
+          <button type="button" class="btn" id="question-choose" aria-haspopup="dialog">Choose questions</button>
+        </div>
+        <div class="field">
+          <label class="field-label" for="tier-filter">Show tier</label>
+          <select class="select" id="tier-filter">
+            <option value="all">All tiers</option>
+          </select>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn" id="question-menu-done">Done</button>
+        </div>
+      </dialog>
 
       <!-- Results: a ranked comparison and heatmap of the gauntlet measures, the fingerprint chart and its table. -->
       <section class="results panel" aria-labelledby="results-heading">

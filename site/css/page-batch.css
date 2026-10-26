@@ -138,6 +138,41 @@ fieldset.panel > .add-model {
   display: none;
 }
 
+/* The Questions dropdown popup: a native dialog, styled only while open, because a closed dialog must stay hidden.
+   It is a narrow column of choices, one full-width button each, so the menu is quick to scan. */
+.question-menu-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  width: min(22rem, calc(100vw - 2 * var(--page-gutter)));
+  max-height: 85vh;
+  overflow-y: auto;
+  margin: auto;
+  padding: var(--space-6);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.question-menu-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+/* The choices in the popup: one button per row, the label on the left so the list reads like a menu */
+.question-menu {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.question-menu .btn {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 /* The ticked items under the Models and Questions cards: one thin line each, in columns, scrolling when long */
 .selected-list {
   display: grid;
