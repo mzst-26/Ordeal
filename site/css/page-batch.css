@@ -1159,6 +1159,25 @@ fieldset:disabled .check-box {
   margin-bottom: 0;
 }
 
+/* Phone width: each results column may shrink to the screen, so a figure that is wider than the screen scrolls
+   inside its own box (.figure-scroll) and the page itself never scrolls sideways. Without these, the grid sizes
+   its column to the widest figure and pushes the whole page wider. */
+.results,
+.results-figures,
+.results-figures .figure-block {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.results-figures .figure-body,
+.results-figures .figure-block > * {
+  min-width: 0;
+}
+
+.results-controls {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .figure-scroll {
   overflow-x: auto;
   max-width: 100%;
