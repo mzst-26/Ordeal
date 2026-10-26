@@ -10,6 +10,7 @@ import { browserStorage, vault } from "./engine/token.js";
 import { createBatchLog } from "./engine/batch-log.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
+import { updateConditionDescription } from "./condition-text.js";
 import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
 import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
@@ -172,6 +173,7 @@ const IDS = {
   familyList: "family-list",
   familyCount: VIEW_IDS.batch["family-count"],
   condition: VIEW_IDS.batch["condition-select"],
+  conditionNote: "batch-condition-note",
   repeats: "repeats-input",
   concurrency: "concurrency-input",
   cap: VIEW_IDS.batch["cap-input"],
@@ -293,6 +295,7 @@ function wireControls() {
   dom.setupForm.addEventListener("input", onFormEdited);
   dom.pushbackSelect.addEventListener("change", onSuiteChanged);
   dom.questionSetSelect.addEventListener("change", onSuiteChanged);
+  dom.condition.addEventListener("change", refreshConditionNote);
   dom.shuffleToggle.addEventListener("change", onShuffleToggled);
   dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
@@ -507,6 +510,7 @@ function setupControls(config) {
   // A custom name is checked against every built-in name before it is accepted, so no two models share a name.
   page.customModels = checkedCustomModels(config, modelChoices(config).map((entry) => entry.id));
   fillConditionSelect(config.system_prompts);
+  refreshConditionNote();
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
@@ -729,6 +733,15 @@ function fillConditionSelect(systemPrompts) {
   page.dom.condition.append(
     ...ordered.map((key) => el("option", { value: key, text: CONDITION_LABELS[key] ?? key })),
   );
+}
+
+/**
+ * Write the description of the chosen condition under its dropdown. It runs when the page fills the menu, when a
+ * saved setup is restored, and when the user picks another option. Setting .value in code does not fire a change
+ * event, so those places call this function themselves.
+ */
+function refreshConditionNote() {
+  updateConditionDescription(page.dom.conditionNote, page.dom.condition.value);
 }
 
 /** Replace the options of a select with the given value and label pairs. */
@@ -1807,6 +1820,7 @@ function restoreChoices(config) {
   dom.cap.value = String(config.callCap);
   page.capTouched = true;
   dom.condition.value = config.condition;
+  refreshConditionNote();
 }
 
 /** Tick exactly the boxes whose values are in the list, and untick the rest. Does not refresh the plan. */
@@ -2554,6 +2568,7 @@ async function applyPresetSettings(settings) {
   }
   if (settings.condition !== undefined) {
     dom.condition.value = settings.condition;
+    refreshConditionNote();
   }
   notes.push(batchFixedSettingsNote(settings));
   onSelectionChanged();
