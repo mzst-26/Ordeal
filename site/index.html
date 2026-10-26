@@ -371,39 +371,46 @@
           <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
           <section class="run-panel panel" aria-labelledby="plan-heading">
             <h2 class="panel-title" id="plan-heading">The plan</h2>
-            <ul class="plan-list" id="plan-models"></ul>
-            <p class="plan-totals" id="plan-totals"></p>
-            <p class="plan-cost" id="plan-cost"></p>
-            <p class="plan-problem" id="plan-problem"></p>
+            <!-- The scroll box: the plan details, progress and log. It stops at --plan-body-max-height (tokens.css). -->
+            <div class="plan-body" id="plan-body" role="region" aria-label="Plan details, progress and log" tabindex="0">
+              <ul class="plan-list" id="plan-models"></ul>
+              <p class="plan-totals" id="plan-totals"></p>
+              <p class="plan-cost" id="plan-cost"></p>
+              <p class="plan-problem" id="plan-problem"></p>
 
-            <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
-            <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
-              <p class="confirm-text" id="confirm-text"></p>
+              <h3 class="label sub-heading">Progress</h3>
+              <div class="progress-track" id="progress-track" role="progressbar" aria-label="Batch progress"
+                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+              <p class="progress-line" id="progress-line"></p>
+              <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
+                Loading the data files.
+              </p>
+
+              <h3 class="label sub-heading">Log</h3>
+              <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
+                tabindex="0"></ol>
+            </div>
+
+            <!-- The controls sit outside the scroll box, so Start, Pause and Stop stay in view while the plan scrolls.
+                 The confirmation step sits here too, so the question appears next to the Start button. -->
+            <div class="plan-controls">
+              <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
+              <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
+                <p class="confirm-text" id="confirm-text"></p>
+                <div class="button-row">
+                  <button type="button" class="btn btn-primary" id="confirm-continue">Continue</button>
+                  <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+                </div>
+              </div>
+
               <div class="button-row">
-                <button type="button" class="btn btn-primary" id="confirm-continue">Continue</button>
-                <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
+                <button type="button" class="btn" id="pause-button" disabled>Pause</button>
+                <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
               </div>
             </div>
-
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
-              <button type="button" class="btn" id="pause-button" disabled>Pause</button>
-              <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
-            </div>
-
-            <h3 class="label sub-heading">Progress</h3>
-            <div class="progress-track" id="progress-track" role="progressbar" aria-label="Batch progress"
-              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <p class="progress-line" id="progress-line"></p>
-            <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
-              Loading the data files.
-            </p>
-
-            <h3 class="label sub-heading">Log</h3>
-            <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
-              tabindex="0"></ol>
           </section>
 
           <fieldset class="panel">

@@ -395,6 +395,24 @@ fieldset:disabled .check-box {
   margin-bottom: var(--space-1);
 }
 
+/* The plan body is a scroll box. The plan details, progress and log scroll inside it, and it stops at
+   --plan-body-max-height (tokens.css). min-height 0 lets a grid row shrink so the scroll can start. */
+.plan-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-height: 0;
+  max-height: var(--plan-body-max-height);
+  overflow-y: auto;
+  scrollbar-color: var(--edge) transparent;
+}
+
+/* The controls sit under the scroll box, not inside it, so Start, Pause and Stop never scroll out of view. */
+.plan-controls {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .plan-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
