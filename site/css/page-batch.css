@@ -865,19 +865,6 @@ fieldset:disabled .check-box {
   overflow-x: auto;
 }
 
-.probe-details {
-  font-family: var(--font-sans);
-  font-size: var(--size-ui);
-}
-
-.probe-details summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  color: var(--ink);
-  cursor: pointer;
-}
-
 .chart-frame {
   min-width: 0;
   margin: 0;
@@ -931,6 +918,208 @@ fieldset:disabled .check-box {
   color: var(--ink-mute);
 }
 
+/* Fig. 1, the fingerprint figure: a plain explanation, a view switch, then the Summary, Chart or Table view */
+.fp-explain {
+  margin: 0 0 var(--space-4);
+}
+
+.fp-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* The pressed view is drawn with a firm edge as well as its aria-pressed state, so it is not told apart by colour */
+.fp-view[aria-pressed="true"] {
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  font-weight: 600;
+}
+
+/* Summary: one block per model, with one sentence per probe */
+.fp-summary {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.fp-model-name {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fp-sentences {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-6);
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* Chart: one legend, then one block per probe with a bar for each model */
+.fp-chart {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.fp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.fp-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A swatch takes its model's colour from --series, set by the script. A repeat model is striped. */
+.fp-swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--series, var(--ink-mute));
+}
+
+.fp-swatch.is-repeat,
+.fp-fill.is-repeat {
+  background: repeating-linear-gradient(45deg, var(--series, var(--ink-mute)) 0 3px, transparent 3px 6px);
+}
+
+/* The scale and the bars share one two-column grid, so the 0%, 50% and 100% labels line up with the bars */
+.fp-scale {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr);
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.fp-scale-track {
+  position: relative;
+  min-width: 0;
+  height: 1.5em;
+}
+
+.fp-tick {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.fp-tick.is-start {
+  left: 0;
+}
+
+.fp-tick.is-middle {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.fp-tick.is-end {
+  right: 0;
+}
+
+.fp-probe {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fp-probe + .fp-probe {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+}
+
+.fp-probe-name {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--size-ui);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.fp-bar-row {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* The track is the full 0% to 100% width. Its middle gridline is drawn in the background. */
+.fp-track {
+  position: relative;
+  min-width: 0;
+  height: 1.25rem;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--rule), var(--rule));
+  background-size: 1px 100%;
+  background-position: 50% 0;
+  background-repeat: no-repeat;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.fp-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--series, var(--ink-mute));
+}
+
+/* The 95% range: a line with an end at each bound. A thin surface ring keeps it readable over a coloured bar. */
+.fp-range {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-left: 2px solid var(--ink);
+  border-right: 2px solid var(--ink);
+  box-shadow: 0 0 0 1px var(--paper-raised);
+  box-sizing: border-box;
+}
+
+.fp-range::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid var(--ink);
+}
+
+/* "Not run yet" is text inside its own track, so it cannot overlap any other label */
+.fp-not-run {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
 /* 7. Export and footer */
 .export {
   display: grid;
@@ -968,6 +1157,25 @@ fieldset:disabled .check-box {
 
 .results-figures .figure-axes {
   margin-bottom: 0;
+}
+
+/* Phone width: each results column may shrink to the screen, so a figure that is wider than the screen scrolls
+   inside its own box (.figure-scroll) and the page itself never scrolls sideways. Without these, the grid sizes
+   its column to the widest figure and pushes the whole page wider. */
+.results,
+.results-figures,
+.results-figures .figure-block {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.results-figures .figure-body,
+.results-figures .figure-block > * {
+  min-width: 0;
+}
+
+.results-controls {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .figure-scroll {
