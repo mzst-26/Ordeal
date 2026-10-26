@@ -189,13 +189,41 @@
     <!-- VIEW II: Batch. Hidden until the router shows it; its script is loaded the first time it is shown. -->
     <section data-view="batch" hidden>
       <header class="masthead">
-        <p class="section-label"><span class="section-number">II.</span> Batch</p>
-        <h1>The Batch</h1>
+        <div class="batch-masthead-top">
+          <div>
+            <p class="section-label"><span class="section-number">II.</span> Batch</p>
+            <h1>The Batch</h1>
+          </div>
+          <!-- The Runs button opens the popup with the unfinished and saved runs. The script writes its count. -->
+          <button type="button" class="btn runs-button" id="batch-runs-button" aria-haspopup="dialog">Runs</button>
+        </div>
         <p class="standfirst">
           Tick what to run. We show the exact number of calls first, then run them one by one in your browser,
           with pauses and a hard cap.
         </p>
       </header>
+
+      <!-- The Runs popup: a native dialog. Unfinished runs (Resume and Discard) and saved runs sit in it, so the
+           page body does not carry them. Escape and the Done button close it. -->
+      <dialog class="runs-dialog" id="batch-runs-dialog" aria-labelledby="batch-runs-title">
+        <h2 class="dialog-title" id="batch-runs-title">Runs</h2>
+        <section class="runs-section" aria-labelledby="batch-runs-unfinished-heading">
+          <h3 class="runs-section-title" id="batch-runs-unfinished-heading">Unfinished</h3>
+          <!-- The count line and the unfinished runs, filled by the script. Each run has Resume and Discard. -->
+          <p class="field-hint" id="batch-unfinished-count"></p>
+          <div class="notice-region" id="batch-resume-notices"></div>
+        </section>
+        <section class="runs-section" aria-labelledby="batch-runs-saved-heading">
+          <h3 class="runs-section-title" id="batch-runs-saved-heading">Saved</h3>
+          <!-- The count line, where the saved runs are kept, then the saved runs themselves. All are filled by the script. -->
+          <p class="field-hint" id="batch-saved-count"></p>
+          <p class="field-hint" id="batch-storage-note" role="status"></p>
+          <div id="batch-runs-list"></div>
+        </section>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="batch-runs-done">Done</button>
+        </div>
+      </dialog>
 
       <!-- Summary figure cards, filled by the script. -->
       <div class="dash-kpis">
@@ -220,8 +248,6 @@
           <p class="kpi-note">Source: The plan. At most this many new steps; saved replies are reused.</p>
         </div>
       </div>
-
-      <div class="notice-region" id="batch-resume-notices"></div>
 
       <!-- Platform and model: filled by platform-section.js. The choice applies to the batch and live pages. -->
       <div id="platform-section"></div>
@@ -475,13 +501,6 @@
             </table>
           </div>
         </details>
-      </section>
-
-      <!-- Saved runs for the Batch view. -->
-      <section class="saved-runs panel" aria-labelledby="batch-saved-heading">
-        <h2 class="panel-title" id="batch-saved-heading">Saved runs</h2>
-        <p class="field-hint" id="batch-storage-note" role="status"></p>
-        <div id="batch-runs-list"></div>
       </section>
 
       <!-- Export buttons. They start disabled and are enabled by the script once results exist. -->

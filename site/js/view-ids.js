@@ -32,7 +32,6 @@ export const VIEW_IDS = {
     "resume-notices": "batch-resume-notices",
     "runs-list": "batch-runs-list",
     "storage-note": "batch-storage-note",
-    "saved-heading": "batch-saved-heading",
     "model-count": "batch-model-count",
     "question-count": "batch-question-count",
     "family-count": "batch-family-count",

@@ -1049,6 +1049,47 @@ p {
   color: var(--ink-soft);
 }
 
+/* The Runs popup: a native dialog holding the unfinished and saved runs. It is styled only while open, because a
+   closed dialog must stay hidden, and the author display rule would otherwise override the browser's own rule.
+   It is a narrow column, and on a phone it keeps the 16px gutter from the page-gutter token. */
+.runs-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  width: min(44rem, calc(100vw - 2 * var(--page-gutter)));
+  max-height: 85vh;
+  overflow-y: auto;
+  margin: auto;
+  padding: var(--space-6);
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.runs-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+/* Each section of the popup: a heading, its count line, then its list or notices */
+.runs-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.runs-section-title {
+  margin: 0;
+}
+
+@media (max-width: 40rem) {
+  .runs-dialog[open] {
+    padding: var(--space-4);
+  }
+}
+
 /* Picker dialog: wide, scrolls inside itself, and stacks to one column on phones */
 .picker-dialog {
   display: flex;

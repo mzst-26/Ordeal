@@ -19,6 +19,10 @@ class FakeElement {
   getAttribute(name) {
     return this.attributes.has(name) ? this.attributes.get(name) : null;
   }
+  // A view with no dialogs open: the router looks for open dialogs before it hides a view.
+  querySelectorAll() {
+    return [];
+  }
   get hidden() {
     return this.attributes.has("hidden");
   }
@@ -97,6 +101,19 @@ test("show hides the other sections and sets aria-current on the matching nav li
   assert.equal(views.batch.hidden, true);
   assert.equal(links[2].getAttribute("aria-current"), "page");
   assert.equal(links[0].getAttribute("aria-current"), null);
+});
+
+// A modal dialog left open in a view that gets hidden keeps the rest of the page inert, so it must be closed first.
+test("show closes an open dialog inside a view before it hides that view", () => {
+  const { views, document, window } = makeDom();
+  let closedCount = 0;
+  const dialog = { open: true, close() { this.open = false; closedCount += 1; } };
+  views.batch.querySelectorAll = (selector) => (selector === "dialog[open]" && dialog.open ? [dialog] : []);
+  const router = createRouter({ views, mounts: noMounts(), document, window });
+  router.show("batch");
+  router.show("live");
+  assert.equal(closedCount, 1);
+  assert.equal(dialog.open, false);
 });
 
 test("show sets the document title for the view", () => {

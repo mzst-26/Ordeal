@@ -27,6 +27,17 @@ export function routeFromLocation(hash, pathname) {
 }
 
 /**
+ * Close every dialog that is open inside a view that is about to be hidden. A modal dialog keeps the rest of the page
+ * inert while it is open. If the view went hidden with the dialog still open (for example after Back or Forward),
+ * the page could stay blocked until a reload, so the router closes it first.
+ */
+function closeOpenDialogs(view) {
+  for (const dialog of view.querySelectorAll("dialog[open]")) {
+    dialog.close();
+  }
+}
+
+/**
  * Create the router. `views` maps each view name to its <section>. `mounts` maps each view name to a function
  * that sets the page up; it is called with the section once, the first time that view is shown, and never
  * again, so the page keeps its state while the visitor is on other views. Returns the router's functions:
@@ -46,6 +57,9 @@ export function createRouter({ views, mounts, document, window }) {
   function show(view) {
     const target = known(view);
     for (const name of VIEWS) {
+      if (name !== target) {
+        closeOpenDialogs(views[name]);
+      }
       views[name].hidden = name !== target;
     }
     for (const link of document.querySelectorAll("[data-nav-view]")) {

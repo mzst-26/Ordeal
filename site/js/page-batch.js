@@ -36,6 +36,7 @@ import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
+import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import {
@@ -130,6 +131,11 @@ const IDS = {
   resumeNotices: VIEW_IDS.batch["resume-notices"],
   runsList: VIEW_IDS.batch["runs-list"],
   storageNote: VIEW_IDS.batch["storage-note"],
+  runsButton: "batch-runs-button",
+  runsDialog: "batch-runs-dialog",
+  runsDone: "batch-runs-done",
+  unfinishedCount: "batch-unfinished-count",
+  savedCount: "batch-saved-count",
   fixedSettings: "fixed-settings",
   modelCount: VIEW_IDS.batch["model-count"],
   modelChoose: "model-choose",
@@ -285,6 +291,9 @@ function wireControls() {
   dom.stop.addEventListener("click", stopRun);
   dom.confirmContinue.addEventListener("click", confirmStart);
   dom.confirmCancel.addEventListener("click", cancelConfirmation);
+  // The Runs popup is a native dialog. showModal() traps focus inside it and close() hands focus back.
+  dom.runsButton.addEventListener("click", () => dom.runsDialog.showModal());
+  dom.runsDone.addEventListener("click", () => dom.runsDialog.close());
   dom.exportGauntlet.addEventListener("click", exportGauntletCsv);
   dom.exportProbes.addEventListener("click", exportProbesCsv);
   dom.exportReplies.addEventListener("click", exportRepliesJson);
@@ -370,11 +379,12 @@ async function startStorage() {
     kind: KIND_BATCH,
     queue: page.queue,
     unitWord: "units",
-    onResume: resumeBatchRun,
+    onResume: resumeFromPopup,
     onChanged: onRunDeleted,
   };
   page.panels.notices = buildResumeNotices({ ...shared, activeRunId: () => page.runId });
-  page.panels.list = buildRunsList(shared);
+  // The count line in the popup already says "No saved runs yet", so the list shows nothing extra when it is empty.
+  page.panels.list = buildRunsList({ ...shared, emptyText: null });
   page.dom.resumeNotices.replaceChildren(page.panels.notices.root);
   page.dom.runsList.replaceChildren(page.panels.list.root);
   await refreshRuns();
@@ -407,17 +417,31 @@ async function showLatestBatchRun() {
   );
 }
 
-/** Redraw the notices and the Saved runs list from storage. A storage problem leaves the lists as they were. */
+/**
+ * Redraw the notices and the Saved runs list from storage, then the counts that show them. A storage problem leaves
+ * the lists and the counts as they were.
+ */
 async function refreshRuns() {
   if (page.panels.list === undefined) {
     return;
   }
   try {
-    await page.panels.notices.refresh();
-    await page.panels.list.refresh();
+    const unfinished = await page.panels.notices.refresh();
+    const saved = await page.panels.list.refresh();
+    showRunCounts(unfinished, saved);
   } catch {
     showPageStatus("The saved runs could not be read. The page still works.");
   }
+}
+
+/**
+ * Write the counts for the Runs popup: the label on the Runs button and the line at the top of each section. The
+ * wording comes from runs-popup-text.js, so the button and the popup never disagree.
+ */
+function showRunCounts(unfinished, saved) {
+  page.dom.runsButton.textContent = runsButtonText(unfinished, saved);
+  page.dom.unfinishedCount.textContent = unfinishedCountText(unfinished);
+  page.dom.savedCount.textContent = savedCountText(saved);
 }
 
 /** After a saved run is deleted, the batch on screen is no longer saved, and both lists are drawn again. */
@@ -1465,6 +1489,15 @@ async function beginRun(confirmedId) {
   });
   updateControls();
   page.runner.start().catch(handleRunError);
+}
+
+/**
+ * Resume from the Runs popup, whether the run is in the Unfinished or the Saved section. The popup closes first, so
+ * the visitor sees the form that the run was loaded into rather than a dialog that hides it.
+ */
+function resumeFromPopup(run) {
+  page.dom.runsDialog.close();
+  return resumeBatchRun(run);
 }
 
 /** Resume a saved batch from the notices or the list. The form is set back from the run, its saved units are reused. */
