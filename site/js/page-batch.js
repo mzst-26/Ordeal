@@ -12,7 +12,7 @@ import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
 import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
-import { DEFAULT_PLATFORM_ID } from "./platforms.js";
+import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
 import { setRunLocked } from "./run-lock.js";
 import {
@@ -244,8 +244,13 @@ const page = {
  */
 export function mountBatch(root) {
   page.dom = findElements(root);
-  // The "not in the list" field passes the typed name to addTypedModel, the same add path as "Add another model name".
-  mountModelCheck(root.querySelector("#model-check"), addTypedModel);
+  // The "not in the list" field uses the same add path as "Add another model name" (addTypedModel), and the same key
+  // prompt for the chosen platform as a run (keyReadyFor).
+  mountModelCheck(root.querySelector("#model-check"), {
+    onCheck: addTypedModel,
+    keyReady: keyForChosenPlatform,
+    checkingText: checkingTextFor,
+  });
   page.chartPanel = makeChartPanel(
     page.dom.chartHost,
     page.dom.chartTable,
@@ -876,6 +881,21 @@ async function keyReadyFor(platform) {
     return true;
   }
   return askForToken({ vault, platformId: platform.id });
+}
+
+/** Ask for the key of the chosen platform, the same prompt a run uses. False when no platform can be chosen. */
+async function keyForChosenPlatform() {
+  if (page.platform === null) return false;
+  return keyReadyFor(page.platform);
+}
+
+/** Return the line shown while a typed name is checked, such as "Checking org/name on Nebius...". */
+function checkingTextFor(text) {
+  const platform = page.platform;
+  if (platform === null) return "Checking the name on the platform...";
+  const parsed = parseModelReference(platform, text);
+  const model = parsed.ok ? parsed.model : String(text).trim();
+  return `Checking ${model} on ${platform.name}...`;
 }
 
 /**

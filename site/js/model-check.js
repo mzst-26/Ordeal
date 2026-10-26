@@ -6,34 +6,34 @@
 // Saving a separate choice here would be a second add path, and nothing reads that choice, so a found name would
 // never reach the run. This module therefore keeps no state of its own and does not save anything.
 
-import { askForToken } from "./token-dialog.js";
-import { vault } from "./engine/token.js";
-import { el } from "./ui.js";
 import { isRunLocked } from "./run-lock.js";
+import { el } from "./ui.js";
 import { RUN_LOCKED_MESSAGE, keyChanged } from "./platform-section.js";
 
 const NO_KEY_HINT = "Add your key first, then check the model.";
 const ADD_LABEL = "Add a model that is not in the list";
-const CHECKING_TEXT = "Checking the name on the platform...";
 const MODEL_HINT = "Type a model id such as org/name, or paste its link.";
 const MODEL_PLACEHOLDER = "org/name, hf:org/name, or a link to the model page";
 
 /**
- * Draw the field into root, and connect Check model to onCheck. onCheck(text) is the page's add function: it returns
- * {message, added, addedModels}, the same result "Add another model name" gets, and the line shows its message.
+ * Draw the field into root and connect Check model. The page passes three functions:
+ * - onCheck(text) is the add function. It returns {message, added, addedModels}, the same result "Add another model
+ *   name" gets, and the line shows its message.
+ * - keyReady() asks for the key of the chosen platform, the same prompt a run uses, and resolves true when one is ready.
+ * - checkingText(text) returns the line shown while the name is checked, such as "Checking org/name on Nebius...".
  * A missing root is ignored, so a page without this field never throws.
  */
-export function mountModelCheck(root, onCheck) {
+export function mountModelCheck(root, { onCheck, keyReady, checkingText }) {
   if (!root) return;
-  const view = buildCheck(root, onCheck);
+  const view = buildCheck(root, { onCheck, keyReady, checkingText });
   root.replaceChildren(...view.nodes);
   view.checkButton.addEventListener("click", () => runCheck(view));
 }
 
 /** Build the field's elements. Nothing is connected yet, and nothing the visitor types is put in as markup. */
-function buildCheck(root, onCheck) {
+function buildCheck(root, functions) {
   const inputId = `${root.id}-input`;
-  const view = { onCheck };
+  const view = { ...functions };
   view.input = el("input", {
     className: "text-input",
     id: inputId,
@@ -57,24 +57,22 @@ function buildCheck(root, onCheck) {
 }
 
 /**
- * Check the typed name through the page's add path. The key is asked for first, as before, because the platform's own
- * list is needed to confirm the name. A busy flag stops a second check from starting while one runs.
+ * Check the typed name through the page's add path. The key for the chosen platform is asked for first, as before,
+ * because the platform's own list is needed to confirm the name. A busy flag stops a second check from starting.
  */
 async function runCheck(view) {
   if (isRunLocked()) {
     view.status.textContent = RUN_LOCKED_MESSAGE;
     return;
   }
-  if (!vault.has()) {
-    await askForToken({ vault });
-    keyChanged();
-  }
-  if (!vault.has()) {
+  const ready = await view.keyReady();
+  keyChanged();
+  if (!ready) {
     view.status.textContent = NO_KEY_HINT;
     return;
   }
   view.checkButton.disabled = true;
-  view.status.textContent = CHECKING_TEXT;
+  view.status.textContent = view.checkingText(view.input.value);
   try {
     const result = await view.onCheck(view.input.value);
     view.status.textContent = result.message;
