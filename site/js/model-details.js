@@ -80,6 +80,16 @@ export function modelOptionLabel(entry) {
   return `${rankText(rankOf(entry))} ${shortName(entry?.id)}`;
 }
 
+/**
+ * Return the catalogue number of a model as text, "#19", for every place that shows it: the picker card, the selected
+ * line and the plan line. The number is set once per list (see withCatalogueNumbers in model-list.js), so it reads
+ * the same whatever the picker is filtered or sorted by. A missing or non-whole number gives "unknown", never a guess.
+ */
+export function catalogueNumberText(entry) {
+  const number = entry?.number;
+  return Number.isInteger(number) && number > 0 ? `#${number}` : UNKNOWN;
+}
+
 /** Return the part of a model id after the last slash, such as "GLM-5.3" from "zai-org/GLM-5.3". */
 function shortName(id) {
   return String(id ?? "").split("/").pop();

@@ -113,6 +113,16 @@ export function groupByLetter(ids) {
   return groups;
 }
 
+/**
+ * Give each model its catalogue number: the first entry is 1, the next is 2, and so on, in the order given. The
+ * page passes the catalogue first and the names the visitor added after it, so a catalogue number never moves when
+ * the picker filters or sorts. Numbering from the sorted list would move a model every time the sort changed.
+ * Returns new objects; the given entries are not changed.
+ */
+export function withCatalogueNumbers(entries) {
+  return entries.map((entry, index) => ({ ...entry, number: index + 1 }));
+}
+
 /** Return the names in the order the picker shows them: letter groups in order, names inside each group by full id. */
 export function sortModelIds(ids) {
   return groupByLetter(ids).flatMap((group) => group.ids);

@@ -18,7 +18,7 @@ import { setRunLocked } from "./run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
   withAddedModel, withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform,
-  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups,
+  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups, withCatalogueNumbers,
 } from "./model-list.js";
 import { buildModelAddArea } from "./model-popup.js";
 import { csvCell } from "./engine/csv.js";
@@ -34,7 +34,7 @@ import {
 } from "./chart-panel.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
-import { hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
+import { catalogueNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
@@ -551,12 +551,16 @@ function setModelEntries(entries) {
   }
 }
 
-/** Return the rows for a platform: the config models for Nebius only, otherwise its saved list, then the added names. */
+/**
+ * Return the rows for a platform: the config models for Nebius only, otherwise its saved list, then the added names.
+ * The catalogue numbers are set here, once, in this order. The card, the selected line and the plan line all read
+ * the number from the row, so they always agree, and a filter or a sort in the picker never changes it.
+ */
 function buildEntries(platform) {
   const base = platform.id === DEFAULT_PLATFORM_ID ? configEntries() : listEntries(platform.id);
   const added = addedRows(base.map((entry) => entry.id), page.addedModels)
     .map((entry) => ({ ...entry, row: modelRowText({ id: entry.id }) }));
-  return [...base, ...added];
+  return withCatalogueNumbers([...base, ...added]);
 }
 
 /**
@@ -606,7 +610,7 @@ function selectedModelIds() {
 function selectedModelItems(models) {
   const shown = models.slice(0, MAX_POPUP_ROWS).map((entry) => {
     const row = rowOf(entry);
-    const item = selectedItem(row.rank, shortName(row.name));
+    const item = selectedItem(catalogueNumberText(entry), shortName(row.name));
     // The id is kept on the line, so the page (and its tests) can read which models are ticked.
     item.dataset.model = entry.id;
     return item;
@@ -760,17 +764,20 @@ function buildCheckbox(value, {
   return el("label", { className, title }, children);
 }
 
-/** Build the text of one picker card: the rank, the short name with its note, and the facts under the name. */
+/**
+ * Build the text of one picker card: the catalogue number, the short name with its note, and the facts under the name.
+ * The number is always shown, so a plain name from a saved list has it too; such a card has no facts, only the name.
+ */
 function buildModelCard(entry) {
   const row = rowOf(entry);
   const note = entryNote(entry);
   const name = note ? `${shortName(row.name)} (${note})` : shortName(row.name);
-  // A plain name from a saved list has no rank or facts, so the card shows the name alone.
+  const number = el("span", { className: "model-rank", text: catalogueNumberText(entry) });
   if (hasNoDetails(row)) {
-    return el("span", { className: "pick-model" }, [el("span", { className: "pick-model-name", text: name })]);
+    return el("span", { className: "pick-model" }, [number, el("span", { className: "pick-model-name", text: name })]);
   }
   return el("span", { className: "pick-model", title: row.basis }, [
-    el("span", { className: "model-rank", text: row.rank }),
+    number,
     el("span", { className: "pick-model-name", text: name }),
     buildModelFacts(row),
   ]);
@@ -1235,7 +1242,8 @@ function renderPlan(choices, plan) {
   if (plan === null) {
     dom.planTotals.textContent = PLAN_EMPTY_TEXT;
   } else {
-    dom.planModels.append(...plan.models.map(planItem));
+    const entryById = new Map(page.modelEntries.map((entry) => [entry.id, entry]));
+    dom.planModels.append(...plan.models.map((row) => planItem(row, entryById.get(row.model))));
     dom.planTotals.textContent = totalsSentence(plan.totals, choices);
   }
   dom.planCost.textContent = plan === null ? "" : costSentence(plan.totals.atMostNew, choices);
@@ -1260,11 +1268,14 @@ function setKpi(valueElement, text) {
   valueElement.closest(".kpi-card").classList.toggle("is-empty", empty);
 }
 
-/** Return one plan line for a model: its saved replies and the most new calls it can need. */
-function planItem(row) {
+/**
+ * Return one plan line for a model: its catalogue number, its saved replies and the most new calls it can need.
+ * The entry is the model's row, which carries the number; a model with no row shows "unknown" for its number.
+ */
+function planItem(row, entry) {
   const saved = formatCount(row.saved);
   const newSteps = formatCount(row.atMostNew);
-  const text = `${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
+  const text = `${catalogueNumberText(entry)} ${shortName(row.model)}: ${saved} saved, at most ${newSteps} new steps`;
   return el("li", { text });
 }
 
