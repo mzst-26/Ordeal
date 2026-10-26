@@ -279,8 +279,8 @@
                 aria-labelledby="question-menu-label question-menu-button">Select questions</button>
             </div>
             <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
-            <!-- The ticked questions, one thin line each. The page fills it on every change. -->
-            <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
+            <!-- The ticked questions as a numbered list, one line each. It has a fixed height and scrolls. The page fills it. -->
+            <ol class="selected-list question-numbered" id="batch-question-selected" aria-label="Selected questions"></ol>
             <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
             <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
               hidden></div>

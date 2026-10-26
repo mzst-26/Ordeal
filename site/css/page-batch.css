@@ -222,6 +222,25 @@ fieldset.panel > .add-model {
   white-space: nowrap;
 }
 
+/* The numbered list of the ticked questions: one line per question, numbered down one column. It has a fixed height
+   (the token in tokens.css) and scrolls inside it. The number is a plain column, so 1, 2, 3 line up. */
+.question-numbered {
+  display: block;
+  height: var(--questions-list-height);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-color: var(--edge) transparent;
+}
+
+.question-numbered .selected-number {
+  flex: none;
+  min-width: 2ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mute);
+}
+
 /* A question card in the picker: the id and tier on a small line, the question text below */
 .pick-question {
   display: grid;

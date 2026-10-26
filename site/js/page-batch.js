@@ -38,7 +38,7 @@ import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
 import { updateSelectionCount } from "./selection-count.js";
-import { idsForAction } from "./question-actions.js";
+import { idsForAction, numberedQuestionLines } from "./question-actions.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
@@ -1273,11 +1273,21 @@ function updateGroupCount(countElement, container, noun) {
 /** Fill the thin lists under the Models and Questions cards with the ticked items, so the choice reads at a glance. */
 function renderSelectedLists() {
   const models = selectedEntries();
-  const questions = page.questionRows.filter((entry) => entry.input.checked);
+  const questions = page.questionRows.filter((entry) => entry.input.checked).map((entry) => entry.question);
   page.dom.modelSelected.replaceChildren(...selectedModelItems(models));
-  page.dom.questionSelected.replaceChildren(
-    ...questions.map((entry) => selectedItem(entry.question.id, entry.question.question)),
-  );
+  page.dom.questionSelected.replaceChildren(...numberedQuestionLines(questions).map(numberedQuestionItem));
+}
+
+/**
+ * Build one line of the numbered question list: the number, the question id, then the short text. The text is
+ * cut by numberedQuestionLines, so each question stays on one line.
+ */
+function numberedQuestionItem(line) {
+  return el("li", { className: "selected-item" }, [
+    el("span", { className: "selected-number", text: `${line.number}.` }),
+    el("span", { className: "selected-lead", text: line.id }),
+    el("span", { className: "selected-text", text: line.text }),
+  ]);
 }
 
 /** Build one line of a selected list: a small lead (rank or id) and the name or question text after it. */
