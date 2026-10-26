@@ -30,7 +30,7 @@ export const KEY_EVENT = "ordeal:key-changed";
 
 // Plain messages shared with the model check, so both places say the same thing.
 export const NO_SELECTABLE_MESSAGE = "No platform is available in this page right now.";
-export const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform or model.";
+export const RUN_LOCKED_MESSAGE = "A batch is running or waiting to start. Stop it or wait for it to finish before you change the platform, the key or the models.";
 
 const NO_PLATFORMS_MESSAGE = "The platform list could not be loaded, so no platform can be chosen.";
 const PICKER_TITLE = "Choose a platform";
@@ -186,7 +186,7 @@ function renderControls(view) {
 }
 
 /** Return the text of a value from the list, or an empty text when the value is not a string. Never "undefined". */
-export function textOf(value) {
+function textOf(value) {
   return typeof value === "string" ? value : "";
 }
 
