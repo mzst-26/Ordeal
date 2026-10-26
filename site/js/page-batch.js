@@ -22,6 +22,7 @@ import {
   nextAddedNumber, numberAddedModels, readAddedCounter, writeAddedCounter,
 } from "./model-list.js";
 import { buildModelAddArea } from "./model-popup.js";
+import { mountModelCheck } from "./model-check.js";
 import { csvCell } from "./engine/csv.js";
 import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
@@ -243,6 +244,8 @@ const page = {
  */
 export function mountBatch(root) {
   page.dom = findElements(root);
+  // The "not in the list" field passes the typed name to addTypedModel, the same add path as "Add another model name".
+  mountModelCheck(root.querySelector("#model-check"), addTypedModel);
   page.chartPanel = makeChartPanel(
     page.dom.chartHost,
     page.dom.chartTable,
