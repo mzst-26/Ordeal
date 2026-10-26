@@ -154,6 +154,13 @@ fieldset.panel > .add-model {
   display: none;
 }
 
+/* The ticked models are a scroll box of their own. The cap comes from tokens.css, so a short list keeps its natural
+   height. The Questions list is not given this class, so it keeps the 16rem cap above. */
+.selected-list.models-body {
+  max-height: var(--models-body-max-height);
+  scrollbar-color: var(--edge) transparent;
+}
+
 .selected-item {
   display: flex;
   align-items: baseline;
@@ -386,6 +393,24 @@ fieldset:disabled .check-box {
 
 .run-panel h2 {
   margin-bottom: var(--space-1);
+}
+
+/* The plan body is a scroll box. The plan details, progress and log scroll inside it, and it stops at
+   --plan-body-max-height (tokens.css). min-height 0 lets a grid row shrink so the scroll can start. */
+.plan-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-height: 0;
+  max-height: var(--plan-body-max-height);
+  overflow-y: auto;
+  scrollbar-color: var(--edge) transparent;
+}
+
+/* The controls sit under the scroll box, not inside it, so Start, Pause and Stop never scroll out of view. */
+.plan-controls {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .plan-list {
