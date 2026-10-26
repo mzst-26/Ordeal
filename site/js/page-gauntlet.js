@@ -26,6 +26,7 @@ import {
 } from "./saved-runs.js";
 import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices,
+  wireRunsPopup, showRunCounts, closePopupBeforeResume,
 } from "./persistence-ui.js";
 
 const DATA_PATHS = {
@@ -134,6 +135,7 @@ export function mountGauntlet(root) {
     openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
   page.dom.questionChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.question, "Choose a question", "Search questions", questionCard));
+  wireRunsPopup({ button: page.dom.runsButton, dialog: page.dom.runsDialog, done: page.dom.runsDone });
   renderAll();
   loadData();
 }
@@ -174,6 +176,11 @@ function findElements(root) {
     notices: byId(root, VIEW_IDS.gauntlet["resume-notices"]),
     runsList: byId(root, VIEW_IDS.gauntlet["runs-list"]),
     storageNote: byId(root, VIEW_IDS.gauntlet["storage-note"]),
+    runsButton: byId(root, "gauntlet-runs-button"),
+    runsDialog: byId(root, "gauntlet-runs-dialog"),
+    runsDone: byId(root, "gauntlet-runs-done"),
+    unfinishedCount: byId(root, "gauntlet-unfinished-count"),
+    savedCount: byId(root, "gauntlet-saved-count"),
     footer: byId(root, "footer-text"),
     kpis: {
       breaking: byId(root, "gauntlet-kpi-breaking"),
@@ -239,11 +246,13 @@ async function startStorage() {
     kind: KIND_GAUNTLET,
     queue: page.queue,
     unitWord: "steps",
-    onResume: resumeGauntletRun,
+    // Resume is pressed inside the Runs popup, so the popup closes before the run is loaded into the desk.
+    onResume: closePopupBeforeResume(page.dom.runsDialog, resumeGauntletRun),
     onChanged: onRunDeleted,
   };
   page.panels.notices = buildResumeNotices({ ...shared, activeRunId: () => page.runId });
-  page.panels.list = buildRunsList(shared);
+  // The count line in the popup already says "No saved runs yet", so the list shows nothing extra when it is empty.
+  page.panels.list = buildRunsList({ ...shared, emptyText: null });
   page.dom.notices.replaceChildren(page.panels.notices.root);
   page.dom.runsList.replaceChildren(page.panels.list.root);
   await refreshRuns();
@@ -255,8 +264,14 @@ async function refreshRuns() {
     return;
   }
   try {
-    await page.panels.notices.refresh();
-    await page.panels.list.refresh();
+    const unfinished = await page.panels.notices.refresh();
+    const saved = await page.panels.list.refresh();
+    // The counts go on the Runs button and in each popup section, so they always match what the popup lists.
+    showRunCounts({
+      button: page.dom.runsButton,
+      unfinishedLine: page.dom.unfinishedCount,
+      savedLine: page.dom.savedCount,
+    }, unfinished, saved);
   } catch {
     showStatus("The saved runs could not be read. The page still works.");
   }

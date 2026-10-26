@@ -1028,16 +1028,6 @@ p {
   box-shadow: var(--shadow-soft);
 }
 
-.saved-runs {
-  display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-12);
-}
-
-.saved-runs h2 {
-  margin: 0;
-}
-
 .run-list {
   margin: 0;
   padding: 0;

@@ -26,15 +26,38 @@
     <!-- VIEW I: Gauntlet. One model, one question, pressed level by level. -->
     <section data-view="gauntlet">
       <header class="masthead">
-        <p class="section-label"><span class="section-number">I.</span> Gauntlet</p>
-        <h1>The Gauntlet</h1>
+        <div class="masthead-top">
+          <div>
+            <p class="section-label"><span class="section-number">I.</span> Gauntlet</p>
+            <h1>The Gauntlet</h1>
+          </div>
+          <!-- The Runs button opens the popup with the unfinished and saved runs. The script writes its count. -->
+          <button type="button" class="btn runs-button" id="gauntlet-runs-button" aria-haspopup="dialog">Runs</button>
+        </div>
         <p class="standfirst">
           Ask one model one question, press it level by level, and see when it gives up a right answer.
         </p>
       </header>
 
-      <!-- Empty container: the page script puts notices about resuming a saved run here. -->
-      <div class="notice-region" id="gauntlet-resume-notices"></div>
+      <!-- The Runs popup: a native dialog, the same as on the Batch page. Unfinished runs (Resume and Discard) and saved
+           runs sit in it. Escape and the Done button close it. The script fills every list and count line. -->
+      <dialog class="runs-dialog" id="gauntlet-runs-dialog" aria-labelledby="gauntlet-runs-title">
+        <h2 class="dialog-title" id="gauntlet-runs-title">Runs</h2>
+        <section class="runs-section" aria-labelledby="gauntlet-runs-unfinished-heading">
+          <h3 class="runs-section-title" id="gauntlet-runs-unfinished-heading">Unfinished</h3>
+          <p class="field-hint" id="gauntlet-unfinished-count"></p>
+          <div class="notice-region" id="gauntlet-resume-notices"></div>
+        </section>
+        <section class="runs-section" aria-labelledby="gauntlet-runs-saved-heading">
+          <h3 class="runs-section-title" id="gauntlet-runs-saved-heading">Saved</h3>
+          <p class="field-hint" id="gauntlet-saved-count"></p>
+          <p class="field-hint" id="gauntlet-storage-note" role="status"></p>
+          <div id="gauntlet-runs-list"></div>
+        </section>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="gauntlet-runs-done">Done</button>
+        </div>
+      </dialog>
 
       <!-- Platform and key: filled by platform-section.js. It shares the saved platform with the batch page. -->
       <div id="platform-section-gauntlet"></div>
@@ -171,13 +194,6 @@
         </div>
         <script type="module" src="/js/levels-drawer.js"></script>
       </div>
-
-      <!-- Saved runs: the storage note and the list are filled in by the script. -->
-      <section class="saved-runs" aria-labelledby="gauntlet-saved-heading">
-        <h2 id="gauntlet-saved-heading">Saved runs</h2>
-        <p class="field-hint" id="gauntlet-storage-note" role="status"></p>
-        <div id="gauntlet-runs-list"></div>
-      </section>
 
       <footer class="page-footer">
         <p id="footer-text">

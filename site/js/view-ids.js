@@ -16,7 +16,6 @@ export const VIEW_IDS = {
     "resume-notices": "gauntlet-resume-notices",
     "runs-list": "gauntlet-runs-list",
     "storage-note": "gauntlet-storage-note",
-    "saved-heading": "gauntlet-saved-heading",
   },
   batch: {
     "pushback-select": "batch-pushback-select",
