@@ -136,7 +136,8 @@ def main() -> int:
         platform_results[platform.id] = result
         print_line(platform.id, result)
     if should_write(platform_results):
-        write_atomically(catalog.build_catalogue(platform_results), OUTPUT_PATH)
+        catalogue = catalog.build_catalogue(platform_results)
+        write_atomically(catalog.keep_details(catalogue, previous), OUTPUT_PATH)
         print(f"Wrote {OUTPUT_PATH}")
     else:
         print("No platform was refreshed, so models.json was not changed.")

@@ -1,5 +1,37 @@
 {
   "checked": "2026-10-25",
+  "details": {
+    "Qwen/Qwen3-30B-A3B-Instruct-2507": {
+      "display_name": "Qwen3 30B-A3B Instruct (2507)",
+      "family": "Qwen",
+      "params_b": 30,
+      "active_params_b": 3,
+      "reasoning": false,
+      "open_weights": true,
+      "release_date": null,
+      "source": "model id"
+    },
+    "google/gemma-3-27b-it": {
+      "display_name": "Gemma 3 27B IT",
+      "family": "Gemma",
+      "params_b": 27,
+      "active_params_b": null,
+      "reasoning": false,
+      "open_weights": true,
+      "release_date": null,
+      "source": "model id"
+    },
+    "nvidia/nemotron-3-super-120b-a12b": {
+      "display_name": "Nemotron 3 Super 120B-A12B",
+      "family": "Nemotron",
+      "params_b": 120,
+      "active_params_b": 12,
+      "reasoning": null,
+      "open_weights": true,
+      "release_date": null,
+      "source": "model id"
+    }
+  },
   "platforms": {
     "huggingface": {
       "status": "refreshed",

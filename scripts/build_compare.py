@@ -51,7 +51,7 @@ CHECK_TOLERANCE = 1e-6
 # How many held and how many folded transcripts are kept per model
 TRANSCRIPTS_PER_OUTCOME = 3
 PAGE_NAME = "compare.html"
-META_NAME = "models_meta.json"
+MODELS_NAME = "models.json"
 CACHE_NAME = "cache.jsonl"
 # Same key-like shapes as in export_site_data.py: an sk- key, and the start of an Authorization header value
 SECRET_PATTERNS = (re.compile(r"sk-[A-Za-z0-9]{16,}"), re.compile(r"Bearer "))
@@ -624,7 +624,7 @@ def build_model(ctx, model):
     warnings = gate_warnings(model, gates, unparsed, unparsed_last)
     # A model with no metadata is still built, with null metadata fields, and the warning says so
     if not ctx.meta.get(model):
-        warnings.append(f"{model}: no entry in {META_NAME}, so its family, size and open-weights fields are null.")
+        warnings.append(f"{model}: no entry in the details of {MODELS_NAME}, so its family, size and open-weights fields are null.")
     flipped_count = flipped_units(row, level_count, units)
     model_entry = {
         "id": model,
@@ -682,10 +682,13 @@ def check_labels(axis_ids):
 
 
 def load_meta(path):
-    """Return the model metadata from models_meta.json, or an empty dict if the file is missing."""
+    """Return the details block of models.json (family, size and so on, by model id), or {} if the file or block is missing.
+
+    The details sit in the same file as the saved model lists, so there is one file to keep up to date.
+    """
     if not path.is_file():
         return {}
-    return core.load_json(path)
+    return core.load_json(path).get("details", {})
 
 
 def build_results(args):
@@ -712,7 +715,7 @@ def build_results(args):
         questions_by_id={question["id"]: question for question in suite.questions},
         steps_by_model=step_index(cache),
         records_by_model=group_records_by_model(cache),
-        meta=load_meta(args.meta),
+        meta=load_meta(args.models),
     )
     models, warnings = [], []
     for model in models_in_csv(source):
@@ -814,7 +817,7 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(description="Build the comparison page data and embed it in the page.")
     parser.add_argument("--results-dir", type=Path, default=core.RESULTS_DIR, help="grade output folder (default: %(default)s)")
     parser.add_argument("--site-dir", type=Path, default=DEFAULT_SITE_DIR, help="site folder with compare.html (default: %(default)s)")
-    parser.add_argument("--meta", type=Path, default=core.DATA_DIR / META_NAME, help="model metadata file (default: %(default)s)")
+    parser.add_argument("--models", type=Path, default=core.DATA_DIR / MODELS_NAME, help="saved model file; its details block gives each model's family and size (default: %(default)s)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="data file to write (default: %(default)s)")
     parser.add_argument("--config", type=Path, default=core.CONFIG_PATH, help="settings file; only the mitigation and control prompts are read")
     return parser.parse_args(argv)

@@ -89,8 +89,8 @@ class BuildCompareTests(unittest.TestCase):
         shutil.copy(FIXTURES_DIR / "results.csv", self.results_dir / "results.csv")
         shutil.copy(FIXTURES_DIR / "probes.csv", self.results_dir / "probes.csv")
         self.write_cache(self.cache_text())
-        self.meta_path = self.root / "models_meta.json"
-        shutil.copy(FIXTURES_DIR / "models_meta.json", self.meta_path)
+        self.models_path = self.root / "models.json"
+        shutil.copy(FIXTURES_DIR / "models.json", self.models_path)
         self.config_path = self.root / "config_subset.json"
         shutil.copy(FIXTURES_DIR / "config_subset.json", self.config_path)
         self.out_path = self.site_dir / "data" / "compare" / "results.json"
@@ -114,7 +114,7 @@ class BuildCompareTests(unittest.TestCase):
         args = [
             "--results-dir", str(self.results_dir),
             "--site-dir", str(self.site_dir),
-            "--meta", str(self.meta_path),
+            "--models", str(self.models_path),
             "--out", str(self.out_path),
             "--config", str(self.config_path),
             *extra,
@@ -303,7 +303,7 @@ class BuildCompareTests(unittest.TestCase):
         self.assertIn(CHARLIE, text)
         self.assertIn(DELTA, text)
         self.assertIn(ECHO, text)
-        self.assertIn(f"{ECHO}: no entry in models_meta.json", text)
+        self.assertIn(f"{ECHO}: no entry in the details of models.json", text)
         self.assertFalse(any(warning.startswith(ALPHA) for warning in data["warnings"]))
 
     # ------------------------------------------------------------ transcripts
@@ -603,6 +603,32 @@ class FinalCheckStatusTests(unittest.TestCase):
         self.assertEqual((failing["ok"], failing["status"]), (False, "fail"))
         gates = build_compare.build_gates(10, {}, None, self.MISSING, self.MISSING, failing)
         self.assertTrue(gates["consistency_flag"])
+
+
+class LoadMetaTests(unittest.TestCase):
+    """load_meta reads the details block from models.json, and an empty dict when there is none."""
+
+    def setUp(self):
+        """Give each test its own folder, so the files it writes never clash."""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        """Delete the temporary folder."""
+        self.temp_dir.cleanup()
+
+    def test_reads_the_details_block(self):
+        path = self.root / "models.json"
+        path.write_text(json.dumps({"checked": "2026-10-25", "details": {"a/b": {"family": "A"}}}), encoding="utf-8")
+        self.assertEqual(build_compare.load_meta(path), {"a/b": {"family": "A"}})
+
+    def test_empty_when_the_details_key_is_missing(self):
+        path = self.root / "models.json"
+        path.write_text(json.dumps({"checked": "2026-10-25", "platforms": {}}), encoding="utf-8")
+        self.assertEqual(build_compare.load_meta(path), {})
+
+    def test_empty_when_the_file_is_missing(self):
+        self.assertEqual(build_compare.load_meta(self.root / "missing.json"), {})
 
 
 if __name__ == "__main__":
