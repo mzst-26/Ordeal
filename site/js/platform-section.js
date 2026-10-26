@@ -1,5 +1,5 @@
 // The "Platform and key" panel. It holds the platform and the API key only: the visitor picks a platform from a popup
-// of cards, and uses the existing key dialog for the key. Models are picked in section 4 of the batch page instead
+// of cards, and uses the existing key dialog for the key. Models are picked in section 5 of the batch page instead
 // (see model-check.js and page-batch.js), so there is one place to pick them. Only the platform id is saved for this
 // browser. The key stays in the token vault, which keeps it in memory unless the visitor asks to remember it.
 //

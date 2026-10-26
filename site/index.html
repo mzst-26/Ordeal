@@ -230,17 +230,17 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Models ticked</p>
           <p class="kpi-value" id="batch-kpi-models">No data loaded</p>
-          <p class="kpi-note">Source: section 4, Pick models. Counts the ticked models.</p>
+          <p class="kpi-note">Source: section 5, Pick models. Counts the ticked models.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
           <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
-          <p class="kpi-note">Source: section 5, Questions. Counts the ticked questions.</p>
+          <p class="kpi-note">Source: section 3, Suites, under Question set. Counts the ticked questions.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Probe families</p>
           <p class="kpi-value" id="batch-kpi-families">No data loaded</p>
-          <p class="kpi-note">Source: section 6, Probe families. Counts the ticked families.</p>
+          <p class="kpi-note">Source: section 2, Probe families. Counts the ticked families.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Planned new steps</p>
@@ -249,172 +249,20 @@
         </div>
       </div>
 
-      <!-- Platform and key: filled by platform-section.js. The platform applies to the batch and live pages. Models are picked in section 4. -->
+      <!-- Platform and key: filled by platform-section.js. The platform applies to the batch and live pages. Models are picked in section 5. -->
       <div id="platform-section"></div>
 
       <!-- Setup form: numbered sections 1 to 5 choose what the batch will run, plus the plan beside them. -->
       <form class="setup dash" id="setup-form" aria-labelledby="setup-heading">
           <h2 class="visually-hidden" id="setup-heading">Choose what to run</h2>
 
-          <fieldset class="panel span-4">
+          <div class="setup-left span-4">
+          <fieldset class="panel">
             <legend class="panel-title"><span class="section-number">1.</span> Presets</legend>
             <div id="batch-preset-panel"></div>
           </fieldset>
-
-          <fieldset class="panel span-4">
-            <legend class="panel-title"><span class="section-number">2.</span> Suites</legend>
-            <div class="field">
-              <label class="field-label" for="batch-pushback-select">Pushback set</label>
-              <select class="select" id="batch-pushback-select"></select>
-            </div>
-            <div class="field">
-              <label class="field-label" for="batch-question-set-select">Question set</label>
-              <select class="select" id="batch-question-set-select"></select>
-            </div>
-            <p class="field-hint" id="batch-suite-summary" aria-live="polite"></p>
-          </fieldset>
-
-          <fieldset class="panel span-4">
-            <legend class="panel-title"><span class="section-number">3.</span> Conditions and limits</legend>
-            <div class="field">
-              <label class="field-label" for="batch-condition-select">System prompt condition</label>
-              <select class="select" id="batch-condition-select"></select>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
-                <input class="text-input" id="repeats-input" type="number" min="1" max="4" step="1"
-                  inputmode="numeric">
-              </div>
-              <div class="field">
-                <label class="field-label" for="concurrency-input">Concurrency (1 to 32)</label>
-                <input class="text-input" id="concurrency-input" type="number" min="1" max="32" step="1"
-                  inputmode="numeric">
-              </div>
-            </div>
-            <div class="field">
-              <label class="field-label" for="batch-cap-input">Call cap</label>
-              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
-                inputmode="numeric" value="1"
-                aria-describedby="cap-hint">
-              <p class="field-hint" id="cap-hint">
-                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
-              </p>
-            </div>
-            <div class="field-grid">
-              <div class="field">
-                <label class="field-label" for="price-input">Price per million tokens (optional)</label>
-                <input class="text-input" id="price-input" type="number" min="0" step="any" inputmode="decimal">
-              </div>
-              <div class="field">
-                <label class="field-label" for="tokens-input">Average tokens per call (optional)</label>
-                <input class="text-input" id="tokens-input" type="number" min="0" step="1" inputmode="numeric">
-              </div>
-            </div>
-            <p class="field-hint">Fill in both to see an estimated cost in the plan.</p>
-            <p class="field-hint" id="fixed-settings"></p>
-          </fieldset>
-
-          <div class="setup-main span-8">
           <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">4.</span> Pick models</legend>
-            <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
-            <p class="field-hint" id="model-rank-note">Each card shows the model's number. The number stays the same when the list is filtered or sorted. A name you add is marked +1, +2 and so on, so it never clashes with a catalogue number. The Nebius list is also in score order, highest first. Hover a card for its source.</p>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="model-choose" aria-haspopup="dialog">Choose models</button>
-              <button type="button" class="btn" id="model-select-all">Select all</button>
-              <button type="button" class="btn" id="model-clear">Clear</button>
-            </div>
-            <!-- Holds the tick boxes that store the model choice. Hidden: the Choose models picker ticks them. -->
-            <div class="check-list model-list" id="batch-model-list" role="group" aria-label="Models" hidden></div>
-            <div class="add-model">
-              <label class="field-label" for="custom-model-name">Add another model name</label>
-              <div class="add-model-row">
-                <input class="text-input" id="custom-model-name" type="text" autocomplete="off"
-                  spellcheck="false" aria-describedby="custom-model-message">
-                <button type="button" class="btn" id="custom-model-add">Add</button>
-              </div>
-              <p class="field-hint" id="custom-model-message"></p>
-            </div>
-            <!-- The "not in the list" check, drawn by model-check.js. It sits here, beside Add another model name. -->
-            <div class="add-model" id="model-check"></div>
-            <!-- The ticked models, one thin line each. The page fills it on every change. -->
-            <ul class="selected-list models-body" id="batch-model-selected" aria-label="Selected models"></ul>
-          </fieldset>
-
-          <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">5.</span> Questions</legend>
-            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
-            <div class="button-row">
-              <button type="button" class="btn btn-primary" id="question-choose" aria-haspopup="dialog">Choose questions</button>
-              <button type="button" class="btn" id="question-all">All</button>
-              <button type="button" class="btn" id="question-none">None</button>
-              <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
-              <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
-            </div>
-            <div class="field">
-              <label class="field-label" for="tier-filter">Show tier</label>
-              <select class="select" id="tier-filter">
-                <option value="all">All tiers</option>
-              </select>
-            </div>
-            <!-- The ticked questions, one thin line each. The page fills it on every change. -->
-            <ul class="selected-list" id="batch-question-selected" aria-label="Selected questions"></ul>
-            <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
-            <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
-              hidden></div>
-          </fieldset>
-
-          </div>
-
-          <div class="setup-side span-4">
-          <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
-          <section class="run-panel panel" aria-labelledby="plan-heading">
-            <h2 class="panel-title" id="plan-heading">The plan</h2>
-            <!-- The scroll box: the plan details, progress and log. It stops at --plan-body-max-height (tokens.css). -->
-            <div class="plan-body" id="plan-body" role="region" aria-label="Plan details, progress and log" tabindex="0">
-              <ul class="plan-list" id="plan-models"></ul>
-              <p class="plan-totals" id="plan-totals"></p>
-              <p class="plan-cost" id="plan-cost"></p>
-              <p class="plan-problem" id="plan-problem"></p>
-
-              <h3 class="label sub-heading">Progress</h3>
-              <div class="progress-track" id="progress-track" role="progressbar" aria-label="Batch progress"
-                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <div class="progress-fill" id="progress-fill"></div>
-              </div>
-              <p class="progress-line" id="progress-line"></p>
-              <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
-                Loading the data files.
-              </p>
-
-              <h3 class="label sub-heading">Log</h3>
-              <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
-                tabindex="0"></ol>
-            </div>
-
-            <!-- The controls sit outside the scroll box, so Start, Pause and Stop stay in view while the plan scrolls.
-                 The confirmation step sits here too, so the question appears next to the Start button. -->
-            <div class="plan-controls">
-              <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
-              <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
-                <p class="confirm-text" id="confirm-text"></p>
-                <div class="button-row">
-                  <button type="button" class="btn btn-primary" id="confirm-continue">Continue</button>
-                  <button type="button" class="btn" id="confirm-cancel">Cancel</button>
-                </div>
-              </div>
-
-              <div class="button-row">
-                <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
-                <button type="button" class="btn" id="pause-button" disabled>Pause</button>
-                <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
-              </div>
-            </div>
-          </section>
-
-          <fieldset class="panel">
-            <legend class="panel-title"><span class="section-number">6.</span> Probe families</legend>
+            <legend class="panel-title"><span class="section-number">2.</span> Probe families</legend>
             <p class="field-hint" id="batch-family-count" aria-live="polite"></p>
             <div class="check-list" id="family-list" role="group" aria-label="Probe families">
               <div class="family">
@@ -469,7 +317,182 @@
           </fieldset>
           </div>
 
+          <fieldset class="panel span-4">
+            <legend class="panel-title"><span class="section-number">3.</span> Suites</legend>
+            <div class="field">
+              <label class="check">
+                <input class="check-input" type="checkbox" id="batch-shuffle-toggle">
+                <span class="check-box"></span><span class="check-text">Shuffle questions and pushbacks</span>
+              </label>
+              <p class="field-hint" id="batch-shuffle-note" aria-live="polite"></p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-pushback-select">Pushback set</label>
+              <select class="select" id="batch-pushback-select"></select>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-question-set-select">Question set</label>
+              <select class="select" id="batch-question-set-select"></select>
+            </div>
+            <!-- The question choice sits under Question set, because the questions belong to that set. -->
+            <!-- One dropdown-shaped button holds the choices. Its popup is the native dialog after the form. -->
+            <div class="field">
+              <span class="field-label" id="question-menu-label">Questions</span>
+              <button type="button" class="select choice-trigger" id="question-menu-button" aria-haspopup="dialog"
+                aria-labelledby="question-menu-label question-menu-button">Select questions</button>
+            </div>
+            <p class="field-hint" id="batch-question-count" aria-live="polite">0 of 32 questions selected</p>
+            <!-- The ticked questions as a numbered list, one line each. It has a fixed height and scrolls. The page fills it. -->
+            <ol class="selected-list question-numbered" id="batch-question-selected" aria-label="Selected questions"></ol>
+            <!-- Holds the tick boxes that store the question choice. Hidden: the Choose questions picker ticks them. -->
+            <div class="check-list check-list-tall question-list" id="question-list" role="group" aria-label="Questions"
+              hidden></div>
+            <p class="field-hint" id="batch-suite-summary" aria-live="polite"></p>
+          </fieldset>
+
+          <fieldset class="panel span-4">
+            <legend class="panel-title"><span class="section-number">4.</span> Conditions and limits</legend>
+            <div class="field">
+              <label class="field-label" for="batch-condition-select">System prompt condition</label>
+              <select class="select" id="batch-condition-select"></select>
+              <!-- Says what the chosen condition does to the prompt. The page fills it when the choice changes. -->
+              <p class="field-hint" id="batch-condition-note" aria-live="polite"></p>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
+                <input class="text-input" id="repeats-input" type="number" min="1" max="4" step="1"
+                  inputmode="numeric">
+              </div>
+              <div class="field">
+                <label class="field-label" for="concurrency-input">Concurrency (1 to 32)</label>
+                <input class="text-input" id="concurrency-input" type="number" min="1" max="32" step="1"
+                  inputmode="numeric">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="batch-cap-input">Call cap</label>
+              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
+                inputmode="numeric" value="1"
+                aria-describedby="cap-hint">
+              <p class="field-hint" id="cap-hint">
+                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
+              </p>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="price-input">Price per million tokens (optional)</label>
+                <input class="text-input" id="price-input" type="number" min="0" step="any" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label class="field-label" for="tokens-input">Average tokens per call (optional)</label>
+                <input class="text-input" id="tokens-input" type="number" min="0" step="1" inputmode="numeric">
+              </div>
+            </div>
+            <p class="field-hint">Fill in both to see an estimated cost in the plan.</p>
+            <p class="field-hint" id="fixed-settings"></p>
+          </fieldset>
+
+          <div class="setup-main span-8">
+          <fieldset class="panel">
+            <legend class="panel-title"><span class="section-number">5.</span> Pick models</legend>
+            <p class="field-hint" id="batch-model-count" aria-live="polite"></p>
+            <p class="field-hint" id="model-rank-note">Each card shows the model's number. The number stays the same when the list is filtered or sorted. A name you add is marked +1, +2 and so on, so it never clashes with a catalogue number. The Nebius list is also in score order, highest first. Hover a card for its source.</p>
+            <div class="button-row">
+              <button type="button" class="btn btn-primary" id="model-choose" aria-haspopup="dialog">Choose models</button>
+              <button type="button" class="btn" id="model-select-all">Select all</button>
+              <button type="button" class="btn" id="model-clear">Clear</button>
+            </div>
+            <!-- Holds the tick boxes that store the model choice. Hidden: the Choose models picker ticks them. -->
+            <div class="check-list model-list" id="batch-model-list" role="group" aria-label="Models" hidden></div>
+            <div class="add-model">
+              <label class="field-label" for="custom-model-name">Add another model name</label>
+              <div class="add-model-row">
+                <input class="text-input" id="custom-model-name" type="text" autocomplete="off"
+                  spellcheck="false" aria-describedby="custom-model-message">
+                <button type="button" class="btn" id="custom-model-add">Add</button>
+              </div>
+              <p class="field-hint" id="custom-model-message"></p>
+            </div>
+            <!-- The "not in the list" check, drawn by model-check.js. It sits here, beside Add another model name. -->
+            <div class="add-model" id="model-check"></div>
+            <!-- The ticked models, one thin line each. The page fills it on every change. -->
+            <ul class="selected-list models-body" id="batch-model-selected" aria-label="Selected models"></ul>
+          </fieldset>
+
+          </div>
+
+          <div class="setup-side span-4">
+          <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
+          <section class="run-panel panel" aria-labelledby="plan-heading">
+            <h2 class="panel-title" id="plan-heading">The plan</h2>
+            <!-- The scroll box: the plan details, progress and log. It stops at --plan-body-max-height (tokens.css). -->
+            <div class="plan-body" id="plan-body" role="region" aria-label="Plan details, progress and log" tabindex="0">
+              <ul class="plan-list" id="plan-models"></ul>
+              <p class="plan-totals" id="plan-totals"></p>
+              <p class="plan-cost" id="plan-cost"></p>
+              <p class="plan-problem" id="plan-problem"></p>
+
+              <h3 class="label sub-heading">Progress</h3>
+              <div class="progress-track" id="progress-track" role="progressbar" aria-label="Batch progress"
+                aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="progress-fill" id="progress-fill"></div>
+              </div>
+              <p class="progress-line" id="progress-line"></p>
+              <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
+                Loading the data files.
+              </p>
+
+              <h3 class="label sub-heading">Log</h3>
+              <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
+                tabindex="0"></ol>
+            </div>
+
+            <!-- The controls sit outside the scroll box, so Start, Pause and Stop stay in view while the plan scrolls.
+                 The confirmation step sits here too, so the question appears next to the Start button. -->
+            <div class="plan-controls">
+              <!-- Confirmation step, hidden until the script asks the visitor to confirm before a run starts. -->
+              <div class="confirm" id="confirm-panel" role="group" aria-labelledby="confirm-text" hidden>
+                <p class="confirm-text" id="confirm-text"></p>
+                <div class="button-row">
+                  <button type="button" class="btn btn-primary" id="confirm-continue">Continue</button>
+                  <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+                </div>
+              </div>
+
+              <div class="button-row">
+                <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
+                <button type="button" class="btn" id="pause-button" disabled>Pause</button>
+                <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
+              </div>
+            </div>
+          </section>
+
+          </div>
+
       </form>
+
+      <!-- The Questions dropdown popup: a native dialog with the choices and Show tier. A choice closes it, then acts.
+           It sits outside the form, so changing the tier is not treated as a form edit. Escape and Done close it. -->
+      <dialog class="question-menu-dialog" id="question-menu-dialog" aria-labelledby="question-menu-title">
+        <h2 class="dialog-title" id="question-menu-title">Questions</h2>
+        <div class="question-menu">
+          <button type="button" class="btn" id="question-all">All</button>
+          <button type="button" class="btn" id="question-none">None</button>
+          <button type="button" class="btn" id="question-correction">Only flagged for correction tests</button>
+          <button type="button" class="btn" id="question-wrapper">Only flagged for wrapper tests</button>
+          <button type="button" class="btn" id="question-choose" aria-haspopup="dialog">Choose questions</button>
+        </div>
+        <div class="field">
+          <label class="field-label" for="tier-filter">Show tier</label>
+          <select class="select" id="tier-filter">
+            <option value="all">All tiers</option>
+          </select>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn" id="question-menu-done">Done</button>
+        </div>
+      </dialog>
 
       <!-- Results: a ranked comparison and heatmap of the gauntlet measures, the fingerprint chart and its table. -->
       <section class="results panel" aria-labelledby="results-heading">

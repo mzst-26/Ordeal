@@ -456,27 +456,3 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
-/* The model and question menus: they look like a dropdown, with a chevron, but a click opens the popup picker */
-.choice-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  text-align: left;
-  cursor: pointer;
-}
-
-.choice-trigger::after {
-  content: "";
-  flex: none;
-  width: 0.45em;
-  height: 0.45em;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(45deg) translateY(-0.2em);
-}
-
-.choice-trigger:disabled {
-  cursor: default;
-}

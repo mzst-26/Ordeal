@@ -1,4 +1,4 @@
-// The "not in the list" field in section 4 (Pick models) of the batch page. The visitor types a model name that the
+// The "not in the list" field in section 5 (Pick models) of the batch page. The visitor types a model name that the
 // picker does not have and presses Check model. This module only draws the field and asks the page to add the name.
 //
 // Why there is one add path: the page's own "Add another model name" field and this one must do the same thing. A name
@@ -43,7 +43,7 @@ function buildCheck(root, functions) {
     spellcheck: "false",
     placeholder: MODEL_PLACEHOLDER,
   });
-  // The button takes the same width as the other section 4 actions (see .platform-action in page-batch.css).
+  // The button takes the same width as the other section 5 actions (see .platform-action in page-batch.css).
   view.checkButton = el("button", { type: "button", className: "btn btn-primary platform-action", text: "Check model" });
   view.status = el("p", { className: "field-hint platform-status", id: `${root.id}-status`, role: "status", "aria-live": "polite" });
   view.nodes = [

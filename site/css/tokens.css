@@ -70,6 +70,9 @@
      one scrolls inside the box at this height. Change the number here and both pages follow. */
   --models-body-max-height: 16rem;
   --plan-body-max-height: 28rem;
+  /* The numbered list of the ticked questions is a fixed height, not a maximum, so it takes this space every time
+     and scrolls inside it. A short selection still leaves the same box, so the section below does not move. */
+  --questions-list-height: 16rem;
 
   /* Colour plate: Paper (light) */
   --paper: #F5EFE3;
