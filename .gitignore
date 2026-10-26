@@ -33,3 +33,11 @@ dist/
 .netlify
 build/
 *.egg-info/
+
+# Run results: the files the batch page downloads, and the results file the export script writes.
+# They are made by running the site or the scripts. They are not code, so they must not be committed.
+batch-gauntlet.csv
+batch-probes.csv
+batch-replies.json
+ordeal-batch-log-*.jsonl
+site/data/results.json
