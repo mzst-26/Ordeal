@@ -7,4 +7,3 @@ rule 10 in CLAUDE.md.
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
 | batch/96-cli-web-platforms | agent-af0e600b82cf2d3fc | ordeal/providers.py, tests/test_providers.py, ordeal/cli.py, tests/test_cli.py | 2026-10-27 |
-| batch/98-cli-results-in-docs | agent-a46f15c4cda83f634 | ordeal/cli.py, tests/test_cli.py | 2026-10-27 |
