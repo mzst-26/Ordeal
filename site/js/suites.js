@@ -21,6 +21,21 @@ export const DEFAULT_QUESTION_SET = "easy";
 // The one suite whose saved replies are in sample_run.json. Those replies were recorded with no system prompt.
 export const SAVED_SUITE_NAME = "gauntlet_v3+easy";
 
+// The one suite choice that each page offers. A visitor picks exactly one of these three. A fixed choice names one
+// pushback set and one question set. Shuffle names no fixed sets: it is the mixed order from mixed-order.js, which
+// asks both question sets in one order, each with its own pushback set. The value of a fixed choice is its suite name.
+export const SHUFFLE_CHOICE = "shuffle";
+export const DEFAULT_CHOICE = "gauntlet_v3+easy";
+const SUITE_CHOICES = Object.freeze([
+  Object.freeze({
+    value: "gauntlet_v4+hard", label: "Gauntlet v4 – hard questions", pushbackSet: "gauntlet_v4", questionSet: "hard",
+  }),
+  Object.freeze({
+    value: DEFAULT_CHOICE, label: "Gauntlet v3 – easy questions", pushbackSet: "gauntlet_v3", questionSet: "easy",
+  }),
+  Object.freeze({ value: SHUFFLE_CHOICE, label: "Shuffle", pushbackSet: null, questionSet: null }),
+]);
+
 /** Return true when the name is a pushback set this site knows. */
 export function isPushbackSet(name) {
   return Object.hasOwn(PUSHBACK_SETS, name);
@@ -31,32 +46,73 @@ export function isQuestionSet(name) {
   return Object.hasOwn(QUESTION_SETS, name);
 }
 
-/** Return the names of the pushback sets, in the order they are listed. */
-export function pushbackSetNames() {
-  return Object.keys(PUSHBACK_SETS);
-}
-
-/** Return the names of the question sets, in the order they are listed. */
-export function questionSetNames() {
-  return Object.keys(QUESTION_SETS);
-}
-
 /** Return true for the suite whose saved replies exist in the site data. */
 export function isSavedSuite(suite) {
   return suite.name === SAVED_SUITE_NAME;
 }
 
 /**
- * Return the one-line description of a suite for the page, such as "gauntlet_v3+easy: 10 levels, 32 questions".
- * The name already says which pushback set and question set the suite uses.
+ * Return the one-line description of a suite for the page, such as "Gauntlet v3 – easy questions: 10 levels, 32 questions".
+ * The label comes from the choice the suite belongs to. A suite with no choice (none is offered now) shows its name.
  */
 export function suiteSummary(suite) {
-  return `${suite.name}: ${suite.levelCount} levels, ${suite.questions.length} questions`;
+  const choice = findChoice(choiceValueOfSets(suite.ladderName, suite.questionSet));
+  const label = choice === null ? suite.name : choice.label;
+  return `${label}: ${suite.levelCount} levels, ${suite.questions.length} questions`;
 }
 
-/** Return the dropdown entries for a list of set names. Each set is shown under its own name. */
-export function setMenuChoices(names) {
-  return names.map((name) => ({ value: name, label: name }));
+/** Return the menu entries of the suite choice, one per option, in the order the page lists them. */
+export function suiteChoiceMenu() {
+  return SUITE_CHOICES.map((choice) => ({ value: choice.value, label: choice.label }));
+}
+
+/** Return the option with this value, or null when the site does not offer it. */
+function findChoice(value) {
+  return SUITE_CHOICES.find((choice) => choice.value === value) ?? null;
+}
+
+/**
+ * Return the { pushbackSet, questionSet } that a fixed choice stands for. Throws for Shuffle, which has no fixed sets,
+ * and for any value the site does not offer. The pages call this only with a value from the menu.
+ */
+export function setsOfChoice(value) {
+  const choice = findChoice(value);
+  if (choice === null || choice.pushbackSet === null) {
+    throw new Error(`The suite ${value} is not one this site offers.`);
+  }
+  return fixedChoice(choice.pushbackSet, choice.questionSet);
+}
+
+/**
+ * Return the choice value for a pair of sets, or null when the site no longer offers that pair. The pairings
+ * gauntlet_v3 with hard and gauntlet_v4 with easy are not offered, so they give null.
+ */
+export function choiceValueOfSets(pushbackSet, questionSet) {
+  const choice = SUITE_CHOICES.find((item) => item.pushbackSet === pushbackSet && item.questionSet === questionSet);
+  return choice === undefined ? null : choice.value;
+}
+
+/**
+ * Return the choice value that a suite on the page stands for: Shuffle for a mixed suite, otherwise the value of
+ * its pair. A fixed pair that is not offered gives null.
+ */
+export function choiceValueOfSuite(suite) {
+  if (suite.mixed === true) {
+    return SHUFFLE_CHOICE;
+  }
+  return choiceValueOfSets(suite.ladderName, suite.questionSet);
+}
+
+/**
+ * Return a plain line for a pair of sets the site no longer offers, such as "gauntlet_v3 with hard questions is no
+ * longer offered on this site." Returns "" for an offered pair. Saved runs and presets that hold a retired pair are
+ * refused with this line, rather than being guessed into another pair.
+ */
+export function retiredPairText(pushbackSet, questionSet) {
+  if (choiceValueOfSets(pushbackSet, questionSet) !== null) {
+    return "";
+  }
+  return `${pushbackSet} with ${questionSet} questions is no longer offered on this site.`;
 }
 
 /** Return a choice of two sets: the shape the pages pass to selectSuite. */
