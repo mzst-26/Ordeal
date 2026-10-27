@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Ordeal paces calls</title>
+  <meta name="description"
+    content="Why each model has its own limit on requests and tokens per minute, and how Ordeal waits inside those limits.">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/page-pacing.css">
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <p class="section-label">Pacing</p>
+      <h1>How Ordeal paces calls</h1>
+      <p class="standfirst">
+        Each model has its own limit on how many requests and how many tokens it accepts per minute.
+        Ordeal waits inside those limits, so a batch run is paced to each model rather than to one fixed number of calls.
+      </p>
+    </header>
+
+    <section class="pacing-section">
+      <h2>Two limits per model</h2>
+      <p>
+        A model can refuse calls for two reasons. It limits the number of requests in a minute, and it limits the number
+        of tokens in a minute. A token is a small piece of text, so a long question uses more of the token limit than a short one.
+        The two numbers differ a lot from model to model, so one fixed number of calls at once suits none of them.
+      </p>
+    </section>
+
+    <section class="pacing-section">
+      <h2>Where the numbers come from</h2>
+      <p>
+        Ordeal first reads the limits from the rate-limit headers sent with each reply from an endpoint. The provider can
+        change them, and the newest reply shows the current limit. Until a reply has come back, Ordeal uses the console table
+        copied from the provider's page. A model in neither gets a low default, so an unknown model starts slowly.
+      </p>
+    </section>
+
+    <section class="pacing-section">
+      <h2>How a call waits</h2>
+      <p>
+        Before a call is sent, Ordeal checks the room left in both limits for that model. Each limit refills as the minute
+        goes by. A call waits until both have room for it. Ordeal uses only 85% of each limit, so a burst of retries does not
+        reach the provider's real ceiling. If the provider sends a scale factor, meaning it has cut the limit for now, that
+        factor is applied as well.
+      </p>
+    </section>
+
+    <section class="pacing-section">
+      <h2>How many calls run at once</h2>
+      <p>
+        The number of calls in flight at once is the requests per second times the measured reply time, with a margin of
+        one and a half. A fast model can therefore take more calls at once than a slow one with the same limit. The count
+        is kept between 2 and 64.
+      </p>
+    </section>
+
+    <section class="pacing-section">
+      <h2>When a provider refuses a call</h2>
+      <p>
+        A refusal with status 429 means the provider has said there are too many calls. Ordeal pauses only that model for
+        the time the provider asks for. The other models keep running.
+      </p>
+    </section>
+
+    <section class="pacing-section" aria-labelledby="limits-heading">
+      <h2 id="limits-heading">The limits per model</h2>
+      <p>
+        The browser cannot read these limits live. The provider key stays on the backend, and the browser never calls the
+        model platform. So this table shows the values Ordeal last recorded, as saved in the site data.
+      </p>
+      <p class="pacing-status" data-pacing-status>Loading the limits.</p>
+      <div class="pacing-table-wrap">
+        <table class="data-table" data-pacing-table hidden></table>
+      </div>
+    </section>
+
+    <p class="pacing-note"><a href="/">Back to Ordeal</a></p>
+  </main>
+  <script type="module" src="/js/page-pacing.js"></script>
+</body>
+</html>
