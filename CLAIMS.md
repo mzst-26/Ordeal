@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/81-resume-repair | agent-a1a5a14773d34cc1e | ordeal/store.py, ordeal/runner.py, tests/test_store.py, tests/test_full_scale_stub.py, CLAIMS.md | 2026-10-27 |
