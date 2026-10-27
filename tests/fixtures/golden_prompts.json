@@ -1,0 +1,165 @@
+{
+ "description": "SHA-256 of every message list sent by flows.run_flows, per suite, condition and probe family set. Each hash covers all questions of the suite, in order. 'calls' counts the messages lists hashed.",
+ "hashes": {
+  "gauntlet_v3+easy|control|all": {
+   "calls": 1752,
+   "sha256": "d59db40eaebf36f962fbc8cf6a497827a7353d76339845b6ad5c5cdf7e8c125e"
+  },
+  "gauntlet_v3+easy|control|corrections": {
+   "calls": 64,
+   "sha256": "d879e85618925d8750b93fe22a4104b887243d135e77702989dacbf2ab3cae17"
+  },
+  "gauntlet_v3+easy|control|dose": {
+   "calls": 608,
+   "sha256": "7b869228a7a72154001ad20b1f4ce257dca296b06a9fc396c8031f79ceb8015c"
+  },
+  "gauntlet_v3+easy|control|fingerprint_twins": {
+   "calls": 768,
+   "sha256": "50e53d9aba2e4c1541a9c9d7de6e02d2dc7aa3b35b7b03a71ed1d06f0140fdd8"
+  },
+  "gauntlet_v3+easy|control|gauntlet": {
+   "calls": 408,
+   "sha256": "ece921cf979f606bf7ec0305aa212293044e8ca70ecd38e212bc927258d59ee0"
+  },
+  "gauntlet_v3+easy|mitigation|all": {
+   "calls": 1752,
+   "sha256": "fff960c4bb5d42a25d03083212fe4ddf2aa2ad7df1bbeb3e099132b10864acd2"
+  },
+  "gauntlet_v3+easy|mitigation|corrections": {
+   "calls": 64,
+   "sha256": "f33b494fc35a2ac6b8ce73d2d396987b60b7b4c2b870481d06f6dd8b219acd07"
+  },
+  "gauntlet_v3+easy|mitigation|dose": {
+   "calls": 608,
+   "sha256": "efc770bb9a8db357a7ac17d96177b7b60597882b9d95419cd7ed3bfe001ba280"
+  },
+  "gauntlet_v3+easy|mitigation|fingerprint_twins": {
+   "calls": 768,
+   "sha256": "dc6f0c094c2c5c12d97aba426955ecd6c1eeac888d1b9e0f5b2a0ae7bc22306b"
+  },
+  "gauntlet_v3+easy|mitigation|gauntlet": {
+   "calls": 408,
+   "sha256": "76d12b19228ee8dfe4b45fa3761aae3c32bf406fe75b5594e093bd351cd76c78"
+  },
+  "gauntlet_v3+easy|none|all": {
+   "calls": 1752,
+   "sha256": "b3130fc86313984891d1f93e714c939373a16e285b556e27d426a29d6cf2b741"
+  },
+  "gauntlet_v3+easy|none|corrections": {
+   "calls": 64,
+   "sha256": "2420eeb9082db01c790716feab7921f7ea590c8d669c2f5f21da530927c24780"
+  },
+  "gauntlet_v3+easy|none|dose": {
+   "calls": 608,
+   "sha256": "f2b59bee3b9105394f7867c27fd1babc683c4ff1bb453de6e14fca3a38bb0578"
+  },
+  "gauntlet_v3+easy|none|fingerprint_twins": {
+   "calls": 768,
+   "sha256": "dbc6ba7742de5fea8127ab28babef064381e3e7b3c50dbb9049f0dee318bb144"
+  },
+  "gauntlet_v3+easy|none|gauntlet": {
+   "calls": 408,
+   "sha256": "8acccabad2b7d12b280cb6e6ad7da74a2296bdd959ebb840736d643d291308e5"
+  },
+  "gauntlet_v3+easy|third_person|all": {
+   "calls": 1752,
+   "sha256": "73ebefb31a90def99d90117f45d51a6d8e287054f2e462074ebe047347e94193"
+  },
+  "gauntlet_v3+easy|third_person|corrections": {
+   "calls": 64,
+   "sha256": "44df01a84a03fa850acac71070bccf8bec4c61ce0c95e7fa5ad2108d2e17e780"
+  },
+  "gauntlet_v3+easy|third_person|dose": {
+   "calls": 608,
+   "sha256": "b9fefd9fb0663ff7ccf3923d1372d16ddaf19736c712ed7628343329c99e155a"
+  },
+  "gauntlet_v3+easy|third_person|fingerprint_twins": {
+   "calls": 768,
+   "sha256": "acaea8b93f7f91f3a6ecd8729e3f09d82e991b4effd6b31499c63ac72e642e24"
+  },
+  "gauntlet_v3+easy|third_person|gauntlet": {
+   "calls": 408,
+   "sha256": "109ce9dc739e54c967e17046b993fa5313182c254191d51ffbd28d51259ec67b"
+  },
+  "gauntlet_v4+hard|control|all": {
+   "calls": 3703,
+   "sha256": "c8100c55089ec1bd9ec83adae34b6cf8fd6cb181985c4222951f5d2cc6aab2da"
+  },
+  "gauntlet_v4+hard|control|corrections": {
+   "calls": 119,
+   "sha256": "851fb320044e017a7ec1386241483f3f03f691b30dd1cd8d50f31c189876cfb6"
+  },
+  "gauntlet_v4+hard|control|dose": {
+   "calls": 1121,
+   "sha256": "9ff2525be02ff52102b4a5d0fab3eba0c5ed49523bfcd35561e976454b2c7a25"
+  },
+  "gauntlet_v4+hard|control|fingerprint_twins": {
+   "calls": 1770,
+   "sha256": "249ffd4e0dd67aa8217a242b3e280bad405fe787dd5589ae493989765dbcad80"
+  },
+  "gauntlet_v4+hard|control|gauntlet": {
+   "calls": 870,
+   "sha256": "c85de20fbf96a930413996a98a44531149511783cec09642422462089e72e66a"
+  },
+  "gauntlet_v4+hard|mitigation|all": {
+   "calls": 3703,
+   "sha256": "73fa85600bdfd571c243d4d42e048238d1d6f15752258cbe4218c931dd8f2ea2"
+  },
+  "gauntlet_v4+hard|mitigation|corrections": {
+   "calls": 119,
+   "sha256": "6deb39e202e7e4a9a692f894f0c19f02ddf0c6022d2fa96e91fe2f9c12035fad"
+  },
+  "gauntlet_v4+hard|mitigation|dose": {
+   "calls": 1121,
+   "sha256": "f299eabd56f3dbc5305d9ac37f654d08d6ef7ac20a60e9a44fb574b2cf5c9802"
+  },
+  "gauntlet_v4+hard|mitigation|fingerprint_twins": {
+   "calls": 1770,
+   "sha256": "c635549df61962eda89ac379f162f547cc951579a7b479196064420db5f9b39e"
+  },
+  "gauntlet_v4+hard|mitigation|gauntlet": {
+   "calls": 870,
+   "sha256": "51b4f815eb9e14e727d793ccb5a457a7cbf0aa8e93295419743e30bfe284c39a"
+  },
+  "gauntlet_v4+hard|none|all": {
+   "calls": 3703,
+   "sha256": "c40881bc6e43c90ffab59b36dd8aad5483702bc8b6f03fbf7303643fc557d57e"
+  },
+  "gauntlet_v4+hard|none|corrections": {
+   "calls": 119,
+   "sha256": "f7ff3c458a4b8ae62853817331cb0c988151b5a7400c7768d6b134e3f15ac1b9"
+  },
+  "gauntlet_v4+hard|none|dose": {
+   "calls": 1121,
+   "sha256": "67811bbba060f6d79a4e3c412e7c7a413a23d930a23ee0f2478647b3c5a3657b"
+  },
+  "gauntlet_v4+hard|none|fingerprint_twins": {
+   "calls": 1770,
+   "sha256": "8ebb678997e9ad9767707a63ecda22bdf033aeb3ae8a00b3bfa79a850c02a0bd"
+  },
+  "gauntlet_v4+hard|none|gauntlet": {
+   "calls": 870,
+   "sha256": "eb883a52f773878a0757ce1f619615c7b892abde550caadc991e8d4a43ea1c1b"
+  },
+  "gauntlet_v4+hard|third_person|all": {
+   "calls": 3703,
+   "sha256": "235f293794bf4b9a33f86b10c1fc68076b8f288c6ca00c9bd6693889d035cdb1"
+  },
+  "gauntlet_v4+hard|third_person|corrections": {
+   "calls": 119,
+   "sha256": "5d7c412ea1b00a9ca6365112905b61b1ca82bedc2ff9100504cec7e844824fd3"
+  },
+  "gauntlet_v4+hard|third_person|dose": {
+   "calls": 1121,
+   "sha256": "1c95d6d643cc6014132e07862b62f7c106f56de1687dfef9621986d5ca4359b6"
+  },
+  "gauntlet_v4+hard|third_person|fingerprint_twins": {
+   "calls": 1770,
+   "sha256": "0269e4b20a70362f9435483d7e13ca5912f055296c795ef0724b7006a74e1ab8"
+  },
+  "gauntlet_v4+hard|third_person|gauntlet": {
+   "calls": 870,
+   "sha256": "e7c2dd1162db37ac008d9bc908770520c86b09d83652ac4627a78022a5df1c47"
+  }
+ }
+}
