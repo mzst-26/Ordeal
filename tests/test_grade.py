@@ -793,6 +793,45 @@ class FullOutputTests(unittest.TestCase):
         self.assertNotIn("nan", full_output)
 
 
+# Group: the saved-files lines printed after a grade run. They give the full folder once, then what each file holds.
+class SavedFilesLineTests(unittest.TestCase):
+    """The printed lines say where the three files are, as full paths, and what each one holds."""
+
+    def test_folder_is_printed_once_as_a_full_path_with_one_line_per_file(self) -> None:
+        """Three files in one folder give the folder line, then one line for each file, in order."""
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            lines = grade.saved_files_lines(out / "results.csv", out / "probes.csv", out / "by_difficulty.csv")
+        self.assertEqual(lines[0], f"Files saved in: {out.resolve()}")
+        self.assertEqual(len(lines), 4)
+        self.assertTrue(lines[1].startswith("  results.csv: "), lines[1])
+        self.assertTrue(lines[2].startswith("  probes.csv: "), lines[2])
+        self.assertTrue(lines[3].startswith("  by_difficulty.csv: "), lines[3])
+
+    def test_a_file_moved_out_of_the_folder_is_printed_with_its_full_path(self) -> None:
+        """A probes file set with --probes-csv lives elsewhere, so its line gives its full path, not its short name."""
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / "out"
+            elsewhere = Path(folder) / "saved" / "probes-copy.csv"
+            lines = grade.saved_files_lines(out / "results.csv", elsewhere, out / "by_difficulty.csv")
+        self.assertEqual(lines[2], f"  {elsewhere.resolve()}: {grade.PROBES_MEANING}")
+
+    def test_main_prints_the_saved_files_after_the_tables(self) -> None:
+        """The run ends with the saved-files lines, so the folder is the last thing the reader sees."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            out_dir = Path(folder) / "out"
+            save_v4_hard_replies(cache_path, "correct")
+            argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(out_dir)]
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                grade.main(argv)
+        lines = buffer.getvalue().splitlines()
+        saved_lines = lines[-4:]
+        self.assertEqual(saved_lines[0], f"Files saved in: {out_dir.resolve()}")
+        self.assertTrue(saved_lines[3].startswith("  by_difficulty.csv: "), saved_lines[3])
+
+
 # The columns of the three saved files. The grading and the charts read them, so they must never change.
 PROBE_HEADER = [
     "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",

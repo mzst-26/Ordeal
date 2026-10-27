@@ -963,6 +963,30 @@ def print_summary(rows: list[dict], suite: core.Suite) -> None:
         print(summary_line(row))
 
 
+# What each saved file holds. These are printed after a run, so the reader knows which file to open.
+RESULTS_MEANING = "one row per model with the main numbers (flip rates, baseline accuracy) and their intervals"
+PROBES_MEANING = "one row per probe measure for each model, with its estimate and interval"
+DIFFICULTY_MEANING = "the results split by question difficulty, question tier and pushback axis"
+
+
+def saved_files_lines(results_path: Path, probes_path: Path, difficulty_path: Path) -> list[str]:
+    """Return the lines that say where the three saved files are, and what each one holds.
+
+    The folder is printed once, as a full path. A file that was moved out of that folder with
+    --results-csv or --probes-csv gets its own full path, so the reader never looks in the wrong place.
+    """
+    folder = results_path.parent.resolve()
+    lines = [f"Files saved in: {folder}"]
+    for path, meaning in (
+        (results_path, RESULTS_MEANING),
+        (probes_path, PROBES_MEANING),
+        (difficulty_path, DIFFICULTY_MEANING),
+    ):
+        name = path.name if path.parent.resolve() == folder else str(path.resolve())
+        lines.append(f"  {name}: {meaning}")
+    return lines
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Read the command-line options. --results-csv and --probes-csv are full paths that replace the --out-dir names."""
     parser = argparse.ArgumentParser(description="Grade saved replies, write the CSV files and print the tables.")
@@ -1136,14 +1160,14 @@ def main(argv: list[str] | None = None) -> int:
     difficulty_path = results_path.parent / BY_DIFFICULTY_FILE_NAME
     difficulty_result_rows = difficulty_rows(replies_by_experiment[suite.experiment], suite.questions, config)
     write_difficulty_csv(difficulty_result_rows, difficulty_path)
-    print(f"Results for suite '{suite.name}', condition '{args.condition}' written to {results_path}")
-    print(f"Probe results written to {probes_path}")
-    print(f"Difficulty results written to {difficulty_path}")
     if args.full:
         print_gauntlet_table(gauntlet_rows, suite)
     else:
         print_summary(gauntlet_rows, suite)
     print_probe_table(probe_rows, full=args.full)
+    # Last, so the folder of the saved files is the final thing the reader sees after a run.
+    for line in saved_files_lines(results_path, probes_path, difficulty_path):
+        print(line)
     return 0
 
 
