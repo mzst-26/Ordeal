@@ -213,7 +213,7 @@ const page = {
   caches: new Map(),          // the reply cache of each suite, by suite name (the runner reads and writes it)
   cache: new Map(),           // the reply cache of the suite on the form
   questionsById: new Map(),   // question objects by id, for the suite on the form
-  allModels: [],              // the ids of the models on the chosen platform, catalog order first (chart colours use it)
+  allModels: [],              // the ids of the models on the chosen platform, catalog order first
   modelEntries: [],           // the models on the chosen platform, in popup order: {id, row, note, unchecked}
   ticked: new Set(),          // the ids ticked on the chosen platform: the only models a run uses
   platform: null,             // the platform the model rows belong to, or null when none can be chosen
@@ -2316,12 +2316,12 @@ function drawFingerprint(models, probeRows) {
 }
 
 /**
- * Describe one ticked model for the figure: its id, its short name, its catalogue number as text (such as "#19"),
- * and its place in the full list (which sets its colour). The number is what a reader uses to find the model in the picker.
+ * Describe one ticked model for the figure: its id, its short name and its catalogue number as text (such as "#19").
+ * The number is what a reader uses to find the model in the picker.
  */
 function figureModel(model) {
   const entry = page.modelEntries.find((item) => item.id === model);
-  return { id: model, name: shortName(model), numberText: modelNumberText(entry), index: page.allModels.indexOf(model) };
+  return { id: model, name: shortName(model), numberText: modelNumberText(entry) };
 }
 
 /** Enable each export only when it has something to save. */

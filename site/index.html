@@ -540,8 +540,12 @@
             <button type="button" class="btn fp-view" data-fp-view="chart" aria-pressed="false">Chart</button>
             <button type="button" class="btn fp-view" data-fp-view="table" aria-pressed="false">Table</button>
           </div>
+          <div class="field fp-probe-picker" id="fingerprint-probe-field" hidden>
+            <label class="field-label" for="fingerprint-probe">Probe</label>
+            <select class="select" id="fingerprint-probe"></select>
+          </div>
           <div class="fp-summary" id="fingerprint-summary"></div>
-          <div class="fp-chart" id="fingerprint-chart" role="group" aria-label="Fingerprint flip rates, one bar per probe and model" hidden></div>
+          <div class="fp-chart" id="fingerprint-chart" role="group" aria-label="Fingerprint flip rates for the chosen probe, one bar per model" hidden></div>
           <div class="table-scroll" id="fingerprint-table" hidden></div>
           <p class="chart-caption">
             "Not run yet" means the batch has no replies for that probe and model yet.
