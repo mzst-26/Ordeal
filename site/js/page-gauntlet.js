@@ -1382,8 +1382,8 @@ async function resumeGauntletRun(run) {
   }
   // replayGauntlet rebuilds the turns and letters from the saved steps; a null nextLevel means all levels are saved.
   const replay = replayGauntlet(run);
+  // Every level is saved, so nothing is sent. The status is left as it was: a stopped run can only move to running.
   if (replay.nextLevel === null) {
-    await page.queue.run(() => setStatus(page.storage.adapter, run.id, "done"));
     showStatus(RUN_FINISHED_TEXT);
     await refreshRuns();
     return;

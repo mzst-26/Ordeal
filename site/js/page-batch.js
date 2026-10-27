@@ -106,7 +106,7 @@ const NO_MODEL_RESULT_TEXT = "No replies yet for this model under the chosen con
 const NOT_SAVED_TEXT = "This run is not saved in this window, so a reload would start it again.";
 const SAVE_PROBLEM_TEXT = "Some results could not be saved, so a reload would repeat those calls.";
 const RESUME_BLOCKED_TEXT = "Wait for the batch to finish or stop before you resume another run.";
-const RUN_DONE_TEXT = "Every unit of this run is already saved, so the run is marked done.";
+const RUN_DONE_TEXT = "Every unit of this run is already saved. Nothing was sent; the results are shown.";
 const PRESET_HINT = "Presets hold the sets, the models, the families, the limits and the system prompt.";
 const PLATFORM_CHANGED_TEXT = "The platform changed before the run started, so nothing was sent. Tick the models again, then press Start.";
 const NO_PLATFORM_ADD_TEXT = "No platform is chosen, so no model can be added.";
@@ -1736,8 +1736,9 @@ async function resumeBatchRun(run) {
     return;
   }
   const remaining = pendingUnits(run).length;
+  // Nothing is left to send, so the status is not changed. A stopped run can only move to running, not to done, and
+  // leaving it stopped keeps Resume available to open the results again.
   if (remaining === 0) {
-    await page.queue.run(() => setRunStatus(page.storage.adapter, run.id, "done"));
     setStatus(RUN_DONE_TEXT);
     await refreshRuns();
     return;
