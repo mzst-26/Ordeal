@@ -15,6 +15,12 @@ These rules apply to every change in this repository, including the work of suba
    are editing.
 5. **Use tokens carefully.** Do not extend a task beyond what was asked. Keep quality high, and spend the
    budget on the parts that matter.
+6. **Map every area a change touches before any work starts.** One request often needs changes in several places,
+   such as two pages and a shared module, even when only one page is named. Before a subagent starts, search the
+   whole app for the old behaviour: its words, element ids, controls, data names and tests, not only the page the
+   request names. Write the result down as a list of areas. Each area says what changes, or why it does not change.
+   Give each area its own task. A change is reported as done only when every area on the list is changed or
+   explained, and the reviewer checks the list against a fresh search. Say the list in the final report.
 
 ## Project notes
 
