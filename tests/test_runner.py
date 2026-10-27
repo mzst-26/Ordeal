@@ -330,6 +330,11 @@ class PacedRunnerTests(unittest.IsolatedAsyncioTestCase):
         await self.run_once(FakeClient(), waits=[])
         self.assertEqual(self.pacer.state_for(MODEL).in_flight, 0)
 
+    def test_config_has_the_global_limit_and_no_per_model_count(self) -> None:
+        """Pacing replaces the fixed per-model count, so config.json keeps 'concurrency' and drops the old key."""
+        self.assertIn("concurrency", CONFIG)
+        self.assertNotIn("per_model_concurrency", CONFIG)
+
 
 # Fake client for the pacing tests: it notes the fake time of each call, then answers like FakeClient, so a
 # test can measure how long the pacer held the model back between two tries.
