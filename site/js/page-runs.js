@@ -4,9 +4,9 @@
 // runs-api.js.
 
 import { el } from "./ui.js";
-import { openPageStorage } from "./persistence-ui.js";
+import { openPageStorage, downloadText } from "./persistence-ui.js";
 import { getBrowserId } from "./browser-id.js";
-import { fetchRunList, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "./runs-api.js";
+import { fetchRunList, fetchRunRecord, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "./runs-api.js";
 
 const LOADING_TEXT = "Loading runs.";
 const EMPTY_TEXT = "No runs are stored yet.";
@@ -39,7 +39,24 @@ function buildRow(summary, browserId, onDeleted) {
   if (summary.mine) {
     action.addEventListener("click", () => removeRun(summary.id, browserId, onDeleted));
   }
-  return el("li", { className: "run-item" }, [el("div", { className: "run-main" }, details), action]);
+  const download = el("button", {
+    type: "button",
+    className: "btn",
+    text: "Download",
+    "aria-label": `Download ${text.title}, saved ${summary.id.slice(0, 8)}`,
+  });
+  download.addEventListener("click", () => downloadRun(summary.id));
+  return el("li", { className: "run-item" }, [el("div", { className: "run-main" }, details), download, action]);
+}
+
+/** Save one run to this computer as a JSON file. The run is read from the server first, so the file is complete. */
+async function downloadRun(id) {
+  try {
+    const record = await fetchRunRecord(id);
+    downloadText(`ordeal-run-${id}.json`, JSON.stringify(record.run ?? record, null, 2), "application/json");
+  } catch (error) {
+    setStatus(error.message);
+  }
 }
 
 /** Ask for confirmation, delete the run for this browser, then redraw the list. */

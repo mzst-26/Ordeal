@@ -38,7 +38,9 @@ import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model
 import { rateLimitRowFor } from "./rate-limits.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
-import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
+import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns } from "./store/run-store.js";
+import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns } from "./auto-save.js";
+import { findResumableRun, resumeSignature } from "./run-housekeeping.js";
 import { createPresetStore } from "./presets.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
@@ -196,6 +198,7 @@ const IDS = {
   progressTrack: "progress-track",
   progressLine: "progress-line",
   statusLine: VIEW_IDS.batch["status-line"],
+  saveStatus: "batch-save-status",
   logList: "log-list",
   resultsMessage: "results-message",
   resultsConditionField: "results-condition-field",
@@ -387,6 +390,9 @@ async function startStorage() {
   page.storage = await openPageStorage();
   page.presets = createPresetStore(page.storage.adapter);
   page.dom.storageNote.textContent = storageText(page.storage.fallback);
+  onSaveStatus((text) => {
+    page.dom.saveStatus.textContent = text;
+  });
   page.panels.presets = buildPresetPanel({
     idPrefix: "batch",
     page: "batch",
@@ -414,6 +420,8 @@ async function startStorage() {
   });
   page.dom.resumeNotices.replaceChildren(page.panels.notices.root);
   page.dom.runsList.replaceChildren(page.panels.list.root);
+  // Runs this browser saved on the server come back first, so the lists and the latest run are complete.
+  await restoreServerRuns(page.storage.adapter);
   await refreshRuns();
   await showLatestBatchRun();
 }
@@ -1646,6 +1654,13 @@ async function openRunFor(choices) {
         await resumeRun(adapter, resumedId);
         return resumedId;
       }
+      // A Start with the same settings as a run that can still be carried on continues that run. So a run that was
+      // stopped and started again is one saved run, never two.
+      const carried = findResumableRun(await listRuns(adapter), resumeSignature(batchConfig(choices)));
+      if (carried !== null) {
+        await resumeRun(adapter, carried.id);
+        return carried.id;
+      }
       const plannedUnits = plannedBatchUnits(choices.models, choices.questions, choices.repeats);
       const label = batchLabel(choices);
       const created = await createRun(adapter, { label, config: batchConfig(choices), plannedUnits });
@@ -1725,6 +1740,8 @@ async function startConditionRun(condition) {
   page.runId = await openRunFor(choices);
   if (page.runId === null) {
     setStatus(`Running. ${NOT_SAVED_TEXT}`);
+  } else {
+    scheduleServerSave(page.storage.adapter, page.runId);
   }
   page.resumeRunId = null;
   page.log.record("run-started", {
@@ -2062,9 +2079,11 @@ function saveFinishedUnit(event) {
     return;
   }
   const { adapter } = page.storage;
-  page.queue.run(() => saveResult(adapter, runId, key, unitPayload(records))).catch(() => {
-    addLogEntry("Note", SAVE_PROBLEM_TEXT);
-  });
+  page.queue.run(() => saveResult(adapter, runId, key, unitPayload(records)))
+    .then(() => scheduleServerSave(adapter, runId))
+    .catch(() => {
+      addLogEntry("Note", SAVE_PROBLEM_TEXT);
+    });
 }
 
 /** Handle a finished step. A new call is kept for the export; a reused one is only counted. */
@@ -2184,6 +2203,7 @@ function finishSavedRun(status) {
   const { adapter } = page.storage;
   page.queue.run(() => setRunStatus(adapter, runId, status))
     .then(() => refreshRuns())
+    .then(() => saveServerNow(adapter, runId))
     .catch(() => addLogEntry("Note", SAVE_PROBLEM_TEXT));
 }
 

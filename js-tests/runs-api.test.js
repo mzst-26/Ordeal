@@ -10,7 +10,6 @@ import {
   fetchRunRecord,
   saveRunOnServer,
   deleteRun,
-  planBrowserCopies,
   keepBrowserCopies,
   hoursLeft,
   sizeText,
@@ -65,18 +64,25 @@ test("fetchRunList throws a plain error when the server fails", async () => {
 });
 
 // A save sends the kind and the run as JSON, and names the browser in its own header.
-test("saveRunOnServer posts the run with the browser id in a header", async () => {
+test("saveRunOnServer posts the run with its own id and the browser id in a header", async () => {
   const { fetchFn, calls } = fakeFetch(201, { id: ID_A });
-  assert.deepEqual(await saveRunOnServer("batch", { label: "one" }, BROWSER, fetchFn), { id: ID_A });
+  const run = { id: ID_A, label: "one" };
+  assert.deepEqual(await saveRunOnServer(run, "batch", BROWSER, fetchFn), { id: ID_A });
   assert.equal(calls[0].init.method, "POST");
   assert.equal(calls[0].init.headers["x-browser-id"], BROWSER);
-  assert.deepEqual(JSON.parse(calls[0].init.body), { kind: "batch", run: { label: "one" } });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { id: ID_A, kind: "batch", run });
+});
+
+// Saving a run that is already on the server replaces it, so a 200 is also a success.
+test("saveRunOnServer accepts 200 as well as 201, because a saved run is replaced, not added again", async () => {
+  const { fetchFn } = fakeFetch(200, { id: ID_A });
+  assert.deepEqual(await saveRunOnServer({ id: ID_A }, "gauntlet", BROWSER, fetchFn), { id: ID_A });
 });
 
 // A refused save shows the server's own plain message, such as the browser being over its 100 MB.
 test("saveRunOnServer shows the server's message when a save is refused", async () => {
   const { fetchFn } = fakeFetch(413, { error: "This browser has used its 100 MB." });
-  await assert.rejects(saveRunOnServer("batch", {}, BROWSER, fetchFn), /used its 100 MB/);
+  await assert.rejects(saveRunOnServer({ id: ID_A }, "batch", BROWSER, fetchFn), /used its 100 MB/);
 });
 
 // Deleting names the browser in the header, and the run id in the address.
@@ -94,22 +100,13 @@ test("deleteRun explains a run from another browser in plain words", async () =>
   await assert.rejects(deleteRun(ID_A, BROWSER, fetchFn), /only delete runs saved from this browser/);
 });
 
-// Only gauntlet runs are copied into the browser. Runs already held in the browser are not copied again.
-test("planBrowserCopies picks gauntlet runs that are not yet in the browser", () => {
-  const summaries = [
-    { id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 },
-    { id: ID_B, kind: "batch", createdAt: NOW, size: 1 },
-  ];
-  assert.deepEqual(planBrowserCopies(summaries, []), [ID_A]);
-  assert.deepEqual(planBrowserCopies(summaries, [ID_A]), []);
-});
-
-// keepBrowserCopies fetches each planned gauntlet run and saves its run document in the browser store.
-test("keepBrowserCopies saves a copy of each planned gauntlet run and no batch run", async () => {
+// Only this browser's own runs are copied back. A run another browser saved is left alone, even if it is a batch run.
+// The copy is written only when the run id in the record matches the id asked for.
+test("keepBrowserCopies copies this browser's gauntlet run, and leaves another browser's run alone", async () => {
   const adapter = createMemoryAdapter();
   const summaries = [
-    { id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 },
-    { id: ID_B, kind: "batch", createdAt: NOW, size: 1 },
+    { id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1, mine: true },
+    { id: ID_B, kind: "batch", createdAt: NOW, size: 1, mine: false },
   ];
   const record = { id: ID_A, kind: "gauntlet", createdAt: NOW, run: { id: ID_A, label: "one", results: {} } };
   const { fetchFn, calls } = fakeFetch(200, record);
@@ -121,7 +118,7 @@ test("keepBrowserCopies saves a copy of each planned gauntlet run and no batch r
 // A record whose run id does not match is not copied, so a bad server answer cannot write the wrong run.
 test("keepBrowserCopies skips a record whose run id does not match", async () => {
   const adapter = createMemoryAdapter();
-  const summaries = [{ id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 }];
+  const summaries = [{ id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1, mine: true }];
   const record = { id: ID_A, kind: "gauntlet", createdAt: NOW, run: { id: ID_B, label: "x" } };
   const { fetchFn } = fakeFetch(200, record);
   assert.equal(await keepBrowserCopies(adapter, summaries, fetchFn), 0);

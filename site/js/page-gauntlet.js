@@ -18,6 +18,7 @@ import { openPicker } from "./picker-dialog.js";
 import { mountModelCheck } from "./model-check.js";
 import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
 import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
+import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns, enforceLocalCaps } from "./auto-save.js";
 import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
@@ -187,6 +188,7 @@ function findElements(root) {
     spine: byId(root, "spine"),
     spineMessage: byId(root, "spine-message"),
     status: byId(root, VIEW_IDS.gauntlet["status-line"]),
+    saveStatus: byId(root, "gauntlet-save-status"),
     conversation: byId(root, "conversation"),
     presetHost: byId(root, VIEW_IDS.gauntlet["preset-panel"]),
     notices: byId(root, VIEW_IDS.gauntlet["resume-notices"]),
@@ -257,6 +259,10 @@ async function startStorage() {
     hint: PRESET_HINT,
   });
   page.dom.presetHost.replaceChildren(page.panels.presets.root);
+  onSaveStatus((text) => {
+    page.dom.saveStatus.textContent = text;
+  });
+  await restoreServerRuns(page.storage.adapter);
   const shared = {
     adapter: page.storage.adapter,
     kind: KIND_GAUNTLET,
@@ -1045,12 +1051,16 @@ async function persistStep(run, payload) {
         });
         await setStatus(adapter, created.id, "running");
         page.runId = created.id;
+        // Only the newest gauntlet copies are kept in this browser, so the oldest go once a new one starts.
+        await enforceLocalCaps(adapter, created.id);
       }
       await saveResult(adapter, page.runId, payload.step, gauntletStepPayload(payload));
+      scheduleServerSave(adapter, page.runId);
       // Saving the last pressure level marks the saved run done and stops further saves (page.runFinished).
       if (payload.step === `level_${run.suite.levelCount}`) {
         await setStatus(adapter, page.runId, "done");
         page.runFinished = true;
+        await saveServerNow(adapter, page.runId);
       }
     });
   } catch {

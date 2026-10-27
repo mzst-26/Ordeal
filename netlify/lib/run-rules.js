@@ -5,8 +5,9 @@
 /** The two kinds of run the web pages make. Only these may be saved. */
 export const KINDS = Object.freeze(["batch", "gauntlet"]);
 
-// Ids are lower-case UUIDs made by the server. Checking the shape stops a request from choosing a strange storage key.
-const ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// Run ids are made by the browser: a lower-case UUID, or 32 hex characters in browsers without randomUUID. Checking the
+// shape stops a request from choosing a strange storage key.
+const ID_PATTERN = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/;
 
 /** Return true when a value is a plain object, such as one parsed from JSON. Arrays and null do not count. */
 function isPlainObject(value) {
@@ -27,12 +28,15 @@ export function browserIdIsValid(id) {
 }
 
 /**
- * Check the body of a save request. It must name a known kind and carry a run object. Returns { ok: true }, or
- * { ok: false, error } with a plain message the caller can send back.
+ * Check the body of a save request. It must give the run's id, name a known kind and carry a run object. Returns
+ * { ok: true }, or { ok: false, error } with a plain message the caller can send back.
  */
 export function checkNewRun(body) {
   if (!isPlainObject(body)) {
     return { ok: false, error: "The request body must be a JSON object." };
+  }
+  if (!runIdIsValid(body.id)) {
+    return { ok: false, error: "The run id is not valid." };
   }
   if (!KINDS.includes(body.kind)) {
     return { ok: false, error: "The kind must be batch or gauntlet." };
@@ -44,11 +48,12 @@ export function checkNewRun(body) {
 }
 
 /**
- * Build the record the server stores for a run. It keeps the id, the kind, the time it was saved (in milliseconds),
- * the id of the browser that saved it (its owner) and the run itself. The body must already have passed checkNewRun.
+ * Build the record the server stores for a run. It keeps the id, the kind, the time it was first saved (in
+ * milliseconds), the id of the browser that saved it (its owner) and the run itself. The body must already have
+ * passed checkNewRun. The creation time is passed in, so a run saved again keeps the time of its first save.
  */
-export function buildRecord(id, body, createdAtMs, owner) {
-  return { id, kind: body.kind, createdAt: createdAtMs, owner, run: body.run };
+export function buildRecord(body, createdAtMs, owner) {
+  return { id: body.id, kind: body.kind, createdAt: createdAtMs, owner, run: body.run };
 }
 
 /**
