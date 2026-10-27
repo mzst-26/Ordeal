@@ -396,7 +396,7 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `scripts/hello.py` | One small call to the first model, to check the key and the connection. |
 | `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
 | `requirements.txt` | The libraries: openai, numpy and matplotlib. |
-| `.gitignore` | Keeps `.env`, `results/` and Python caches out of git. |
+| `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
 | `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
 | `tests/` | Unit tests for the scripts and the data files. |
 | `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
