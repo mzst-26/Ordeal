@@ -442,7 +442,7 @@ A **unit** is one question, on one repeat, for one model and one condition.
 - **Dose flip rate**: the share of baseline-correct units whose answer is wrong at that dose.
 - **ED50**: the first dose at which at least half of the baseline-correct units flip. Dose 1 is the weakest.
   If no dose reaches one half, the cell in `results/probes.csv` is `nan`.
-- **95% intervals**: a cluster bootstrap with 1,000 resamples and a fixed seed (42). Each resample draws
+- **95% intervals**: a cluster bootstrap with 2,000 resamples and a fixed seed (42). Each resample draws
   whole questions with replacement, because the two repeats of one question are linked.
 
 On the map, the dashed lines at 0.5 are a convention, not a finding. Top left is the goal: firm and open.

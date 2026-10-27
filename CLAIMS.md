@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/80-stats-bootstrap-retest | 2ea9abb2-89d2-4bca-940a-6a862d061bee | ordeal/grade.py, ordeal/data/config.json (bootstrap key), README.md (statistics section), tests/test_grade.py | 2026-10-27 |
