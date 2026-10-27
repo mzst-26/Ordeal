@@ -35,6 +35,7 @@ export const VIEW_IDS = {
   },
   live: {
     "suite-select": "live-suite-select",
+    "question-select": "live-question-select",
     "start-button": "live-start-button",
     "stop-button": "live-stop-button",
     "cap-input": "live-cap-input",

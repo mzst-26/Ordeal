@@ -635,12 +635,18 @@
               <p class="live-value" id="live-model-list"></p>
               <p class="field-hint">All models in the config file.</p>
             </div>
-            <!-- One choice: Gauntlet v4 with hard questions, or Gauntlet v3 with easy questions. Shuffle is not offered
-                 here, because the live run asks one ladder with one question set at a time. The script fills the options. -->
+            <!-- One choice: Gauntlet v4 with hard questions, Gauntlet v3 with easy questions, or Shuffle (the questions of
+                 both sets). The script fills the options. -->
             <div class="field">
               <label class="field-label" for="live-suite-select">Suite</label>
               <select class="select" id="live-suite-select"></select>
               <p class="field-hint">The pressure ladder, and the questions that the first N of the run are taken from.</p>
+            </div>
+            <!-- Shown only with Shuffle. The script fills it with the questions of both sets. -->
+            <div class="field" id="live-question-field" hidden>
+              <label class="field-label" for="live-question-select">Question</label>
+              <select class="select" id="live-question-select"></select>
+              <p class="field-hint">Pick a question from either set. The page moves to its suite, and the run starts there.</p>
             </div>
             <div class="field">
               <label class="field-label" for="question-input">Questions</label>
