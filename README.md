@@ -101,14 +101,7 @@ calls that are missing.
 .venv-spine/bin/python -m ordeal.transcripts --model Qwen/Qwen3-30B-A3B-Instruct-2507 --outcome flipped --count 10
 ```
 
-7. Demo. Opens the live demo page at http://127.0.0.1:7860. Tick **Replay saved run** for offline use. Live demo
-   replies go to `results/demo_cache.jsonl`, not to `results/cache.jsonl`.
-
-```
-.venv-spine/bin/python -m ordeal.app
-```
-
-8. Tests (free).
+7. Tests (free).
 
 ```
 .venv-spine/bin/python -m unittest discover -s tests -t .
@@ -255,8 +248,6 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 
 - `results/cache.jsonl` holds the graded replies. The runner writes it, and `grade.py`, `charts.py`,
   `map.py`, `fingerprint.py` and `transcripts.py` read it.
-- `results/demo_cache.jsonl` holds the replies that the live demo (`app.py`) makes. It is kept apart so the grader
-  never reads demo replies as experiment data.
 - `results/stub_cache.jsonl` holds the replies of `--stub` runs.
 - `results/results.csv`, `results/probes.csv` and the PNG pictures are written by the grading and chart scripts.
 - Calibration writes `calib_cache.jsonl` and its JSON files to `--out-dir`. The Makefile uses
@@ -402,10 +393,9 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `ordeal/charts.py` | Draws `results/flip_by_level_<condition>.png` and `results/fingerprint_<condition>.png`. |
 | `ordeal/map.py` | Draws `results/map_<condition>.png` and prints the leaderboard. |
 | `ordeal/transcripts.py` | Prints saved transcripts: the first answer and the ten levels, with the first wrong level marked. It does not print the setup turn, the confession or the probes. |
-| `ordeal/app.py` | The Gradio demo: ten level buttons, the level 4 setup turn, the confession button and replay mode. |
 | `scripts/hello.py` | One small call to the first model, to check the key and the connection. |
 | `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
-| `requirements.txt` | The libraries: openai, numpy, matplotlib and gradio. |
+| `requirements.txt` | The libraries: openai, numpy and matplotlib. |
 | `.gitignore` | Keeps `.env`, `results/` and Python caches out of git. |
 | `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
 | `tests/` | Unit tests for the scripts and the data files. |

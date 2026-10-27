@@ -1,4 +1,4 @@
-"""Choose the wording of every message the runner, flows and demo send.
+"""Choose the wording of every message the runner and the flows send.
 
 Pure functions only: no network calls and no file writes. Every placeholder is
 filled through core.fill_placeholders, so a leftover {name} raises an error.
