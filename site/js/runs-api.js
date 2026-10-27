@@ -4,6 +4,8 @@
 
 import { listRuns, keepRunCopy } from "./store/run-store.js";
 import { RETENTION_HOURS, HOUR_MS } from "./run-retention.js";
+import { planRestore } from "./run-housekeeping.js";
+import { getBrowserId } from "./browser-id.js";
 
 /** The note the runs page shows, so the visitor knows the 24-hour, 100 MB and delete rules. */
 export const RUNS_NOTE_TEXT = `Runs are kept for ${RETENTION_HOURS} hours. Each browser can keep up to 100 MB, and you can `
@@ -36,9 +38,12 @@ export function runsUrl(id) {
   return id === undefined ? API_PATH : `${API_PATH}?id=${encodeURIComponent(id)}`;
 }
 
-/** Read the list of runs from the server and return the summaries. Reading needs no browser id. */
+/**
+ * Read the list of runs from the server and return the summaries. This browser's id goes in the header, so the server
+ * can mark the runs this browser saved (mine). Reading does not change anything.
+ */
 export async function fetchRunList(fetchFn = defaultFetch) {
-  const response = await fetchFn(runsUrl());
+  const response = await fetchFn(runsUrl(), { headers: { [BROWSER_HEADER]: getBrowserId() } });
   if (!response.ok) throw new Error(LIST_ERROR_TEXT);
   const body = await response.json();
   return body.runs;
@@ -52,16 +57,17 @@ export async function fetchRunRecord(id, fetchFn = defaultFetch) {
 }
 
 /**
- * Save a run on the server for this browser. The kind and the run go in the body, and the browser id goes in the
- * header. A refusal (for example, the browser is over its 100 MB) comes back with the server's plain message.
+ * Save a run on the server for this browser. The run's own id, its kind and the run go in the body, and the browser id
+ * goes in the header. Saving a run again with the same id replaces its copy, so a resumed run is never stored twice.
+ * A refusal (for example, the browser is over its 100 MB) comes back with the server's plain message.
  */
-export async function saveRunOnServer(kind, run, browserId, fetchFn = defaultFetch) {
+export async function saveRunOnServer(run, kind, browserId, fetchFn = defaultFetch) {
   const response = await fetchFn(runsUrl(), {
     method: "POST",
     headers: { "content-type": "application/json", [BROWSER_HEADER]: browserId },
-    body: JSON.stringify({ kind, run }),
+    body: JSON.stringify({ id: run.id, kind, run }),
   });
-  if (response.status === 201) return response.json();
+  if (response.status === 200 || response.status === 201) return response.json();
   const body = await response.json().catch(() => ({}));
   throw new Error(body.error ?? SAVE_ERROR_TEXT);
 }
@@ -82,24 +88,13 @@ export async function deleteRun(id, browserId, fetchFn = defaultFetch) {
 }
 
 /**
- * Return the ids of the gauntlet runs that have no copy in the browser yet. Batch runs are never copied, so they
- * are left out here, and a run already held in the browser is left out too.
- */
-export function planBrowserCopies(summaries, localIds) {
-  const held = new Set(localIds);
-  return summaries
-    .filter((summary) => summary.kind === "gauntlet" && !held.has(summary.id))
-    .map((summary) => summary.id);
-}
-
-/**
- * Save a browser copy of each planned gauntlet run, fetched from the server. A record whose run id does not match
- * the id asked for is skipped, so a bad answer cannot write the wrong run. Returns how many copies were saved.
+ * Save a browser copy of each run this browser should get back from the server (see planRestore). A record whose run
+ * id does not match the id asked for is skipped, so a bad answer cannot write the wrong run. Returns how many were saved.
  */
 export async function keepBrowserCopies(adapter, summaries, fetchFn = defaultFetch) {
   const localRuns = await listRuns(adapter);
   let copied = 0;
-  for (const id of planBrowserCopies(summaries, localRuns.map((run) => run.id))) {
+  for (const id of planRestore(summaries, localRuns)) {
     const record = await fetchRunRecord(id, fetchFn);
     if (record.run && record.run.id === id) {
       await keepRunCopy(adapter, record.run);

@@ -73,9 +73,11 @@ async function handleGet(request) {
 }
 
 /**
- * Save a run for the browser that sent it. The browser's runs are capped at 100 MB, and a save over that is refused
- * with nothing removed. The whole store is capped at 1.5 GB: when a save would go over, the oldest runs are removed
- * first. A run too big for the whole store is refused with 413, and nothing is removed for it.
+ * Save a run for the browser that sent it. The run keeps the id the browser gave it, so saving the same run again
+ * replaces its copy instead of adding one. A run saved again keeps the time of its first save, and the browser may
+ * not replace a run that another browser saved. The browser's runs are capped at 100 MB, and a save over that is
+ * refused with nothing removed. The whole store is capped at 1.5 GB: when a save would go over, the oldest runs are
+ * removed first. A run too big for the whole store is refused with 413, and nothing is removed for it.
  */
 async function handlePost(request) {
   const owner = browserIdFrom(request);
@@ -89,15 +91,20 @@ async function handlePost(request) {
   const check = checkNewRun(body);
   if (!check.ok) return jsonResponse(400, { error: check.error });
 
-  const id = randomUUID();
-  const record = buildRecord(id, body, Date.now(), owner);
-  const bytes = Buffer.byteLength(JSON.stringify(record), "utf8");
   const store = openRunStore();
-  const runs = toRetentionRuns(await listSummaries(store));
-  if (!fitsBrowserCap(runs, owner, bytes)) {
+  const existing = await readRecord(store, body.id);
+  if (existing !== null && existing.owner !== owner) {
+    return jsonResponse(403, { error: "That run was saved from another browser." });
+  }
+  const createdAt = existing === null ? Date.now() : existing.createdAt;
+  const record = buildRecord(body, createdAt, owner);
+  const bytes = Buffer.byteLength(JSON.stringify(record), "utf8");
+  // The run being replaced is left out of the totals, because its old copy is about to go.
+  const others = toRetentionRuns(await listSummaries(store)).filter((run) => run.id !== body.id);
+  if (!fitsBrowserCap(others, owner, bytes)) {
     return jsonResponse(413, { error: "This browser has used its 100 MB. Delete one of its runs to make room." });
   }
-  const plan = planSizeCleanup(runs, bytes);
+  const plan = planSizeCleanup(others, bytes);
   if (!plan.fits) {
     return jsonResponse(413, { error: "This run is too large for the 1.5 GB store." });
   }
@@ -105,7 +112,8 @@ async function handlePost(request) {
     await removeRecord(store, oldId);
   }
   await writeRecord(store, record, bytes);
-  return jsonResponse(201, { id, kind: record.kind, createdAt: record.createdAt, size: bytes });
+  const status = existing === null ? 201 : 200;
+  return jsonResponse(status, { id: body.id, kind: record.kind, createdAt: record.createdAt, size: bytes });
 }
 
 /** Delete one run. Only the browser that saved it may delete it. */

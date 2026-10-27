@@ -22,10 +22,10 @@ test("the saved kinds are batch and gauntlet", () => {
 
 // A save needs a known kind and a run object. Anything else is refused with a plain message.
 test("checkNewRun accepts a known kind with a run object, and refuses the rest", () => {
-  assert.deepEqual(checkNewRun({ kind: "gauntlet", run: { id: "x" } }), { ok: true });
-  assert.equal(checkNewRun({ kind: "other", run: {} }).ok, false);
-  assert.equal(checkNewRun({ kind: "batch" }).ok, false);
-  assert.equal(checkNewRun({ kind: "batch", run: [] }).ok, false);
+  assert.deepEqual(checkNewRun({ id: VALID_ID, kind: "gauntlet", run: { id: "x" } }), { ok: true });
+  assert.equal(checkNewRun({ id: VALID_ID, kind: "other", run: {} }).ok, false);
+  assert.equal(checkNewRun({ id: VALID_ID, kind: "batch" }).ok, false);
+  assert.equal(checkNewRun({ id: VALID_ID, kind: "batch", run: [] }).ok, false);
   assert.equal(checkNewRun(null).ok, false);
   assert.equal(checkNewRun("text").ok, false);
 });
@@ -47,8 +47,15 @@ test("browserIdIsValid only accepts a lower-case UUID", () => {
 
 // The stored record keeps the id, kind, creation time, owner and run.
 test("buildRecord keeps the owner browser with the run", () => {
-  const record = buildRecord(VALID_ID, { kind: "batch", run: { label: "one" } }, 1000, BROWSER);
+  const record = buildRecord({ id: VALID_ID, kind: "batch", run: { label: "one" } }, 1000, BROWSER);
   assert.deepEqual(record, { id: VALID_ID, kind: "batch", createdAt: 1000, owner: BROWSER, run: { label: "one" } });
+});
+
+// A save must name the run's own id, so the same run is always replaced, never added again.
+test("checkNewRun refuses a save with no valid run id", () => {
+  assert.equal(checkNewRun({ kind: "batch", run: {} }).ok, false);
+  assert.equal(checkNewRun({ id: "x", kind: "batch", run: {} }).ok, false);
+  assert.deepEqual(checkNewRun({ id: VALID_ID, kind: "batch", run: {} }), { ok: true });
 });
 
 // The summary read from the metadata carries the size, and the owner for the server to check against.
