@@ -66,14 +66,6 @@ export function suiteChoiceMenu() {
   return menuOf(SUITE_CHOICES);
 }
 
-/**
- * Return the menu entries of the fixed choices only: every option except Shuffle. The Live page uses these, because
- * it runs one ladder with one question at a time and cannot run the mixed order that Shuffle needs.
- */
-export function fixedChoiceMenu() {
-  return menuOf(SUITE_CHOICES.filter((choice) => choice.pushbackSet !== null));
-}
-
 /** Return the { value, label } entries of a list of choices. Both menus share this, so their labels always match. */
 function menuOf(choices) {
   return choices.map((choice) => ({ value: choice.value, label: choice.label }));

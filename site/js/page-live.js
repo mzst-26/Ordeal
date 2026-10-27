@@ -1,7 +1,7 @@
 // Page III, The Theatre. It replays the saved run, or runs a small batch with the visitor's own key,
 // and shows both on the same lanes, event ticker and charts. Text is always set with textContent.
-// The live run uses the suite the visitor picked on the Suite select (one pushback set with one question set). The replay
-// uses the saved run's suite.
+// The live run uses the suite the visitor picked on the Suite select: one pushback set with one question set. With
+// Shuffle, the suite is the one that the picked question belongs to. The replay uses the saved run's suite.
 
 import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
@@ -19,7 +19,11 @@ import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache,
 } from "./saved-runs.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
-import { choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice } from "./suites.js";
+import {
+  choiceOfQuestionSet, choiceOfSuite, choiceValueOfSuite, questionsFromPick, SHUFFLE_CHOICE, setsOfChoice,
+  suiteChoiceMenu,
+} from "./suites.js";
+import { buildMixedSuite } from "./mixed-order.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
 import {
   BASELINE_STEP,
@@ -79,6 +83,10 @@ let data = null;
 let liveView = null;
 // Counts the choice requests, so a slow load that finishes late is ignored.
 let choiceRequest = 0;
+// With Shuffle on, the mixed pool of both sets' questions that the Question select offers. Null without Shuffle.
+let livePool = null;
+// With Shuffle on, the id of the question the run starts at. Null without Shuffle, so the run starts at the set's first.
+let pickedQuestionId = null;
 // Loaded suite views by "pushback set+question set".
 const suiteCache = new Map();
 // Saved-reply indexes by suite name, so each suite filters the saved records once.
@@ -1004,10 +1012,13 @@ function readWholeNumber(input, min, max, fallback) {
   return value;
 }
 
-/** Return the questions the visitor has chosen: the first N of the active set, with N read from the field. */
+/**
+ * Return the questions the visitor has chosen: N questions of the active set, with N read from the field. The run starts
+ * at the set's first question, or at the question picked with Shuffle.
+ */
 function chosenQuestions() {
   const count = readWholeNumber(dom.questionInput, 1, MAX_QUESTIONS, DEFAULT_QUESTION_COUNT);
-  return activeView().suite.questions.slice(0, count);
+  return questionsFromPick(activeView().suite.questions, pickedQuestionId, count);
 }
 
 /** Plan the live run for these questions, using the saved replies of the active suite. It makes no calls. */
@@ -1085,6 +1096,7 @@ function setLiveControls(running) {
     input.disabled = running;
   }
   dom.suiteSelect.disabled = running;
+  dom.questionSelect.disabled = running;
 }
 
 /** Handle the end of a live run: set the controls back and show the status. */
@@ -1334,18 +1346,34 @@ function stopLive() {
 }
 
 /**
- * Fill the Suite select with the two fixed choices. Shuffle is left out: the live run asks one ladder with one
- * question set at a time, so it cannot run the mixed order that Shuffle uses.
+ * Fill the Suite select with its three choices: Gauntlet v4 with hard questions, Gauntlet v3 with easy questions, and
+ * Shuffle. It is the same menu that the batch and gauntlet pages use, so the labels match.
  */
 function fillSuiteChoices() {
   dom.suiteSelect.replaceChildren(
-    ...fixedChoiceMenu().map((choice) => el("option", { value: choice.value, text: choice.label })),
+    ...suiteChoiceMenu().map((choice) => el("option", { value: choice.value, text: choice.label })),
   );
 }
 
-/** Show the suite in use on the Suite select, so the choice on screen always matches the suite the page runs. */
+/**
+ * Fill the Question select with the questions of both sets, for Shuffle. Each label starts with its set, so the
+ * visitor can see which suite a question belongs to before picking it.
+ */
+function fillQuestionChoices(pool) {
+  dom.questionSelect.replaceChildren(
+    ...pool.questions.map((question) => {
+      const setName = pool.questionSetOf(question.id) === "easy" ? "Easy" : "Hard";
+      return el("option", { value: question.id, text: `${setName} ${question.id}: ${question.question}` });
+    }),
+  );
+}
+
+/**
+ * Show the choice that matches the page on the Suite select. Without Shuffle that is the fixed choice of the suite on
+ * screen. With Shuffle on it stays on Shuffle, even though a suite of one set is on screen.
+ */
 function setChoiceInput(view) {
-  dom.suiteSelect.value = choiceValueOfSuite(view.suite);
+  dom.suiteSelect.value = livePool === null ? choiceValueOfSuite(view.suite) : SHUFFLE_CHOICE;
 }
 
 /** The line under the live choices: the suite in use, its level count and the size of its question set. */
@@ -1361,9 +1389,17 @@ function showSuite() {
   resetTheatre();
 }
 
-/** Load the suite the visitor picked on the Suite select. A suite that fails to load keeps the last one. */
+/** The Suite select was changed. Shuffle offers the questions of both sets; a fixed choice loads its own suite. */
 async function onSuiteChoice() {
-  const sets = setsOfChoice(dom.suiteSelect.value);
+  if (dom.suiteSelect.value === SHUFFLE_CHOICE) {
+    await enterShuffle();
+  } else {
+    await showFixedChoice(setsOfChoice(dom.suiteSelect.value));
+  }
+}
+
+/** Load a fixed choice and put its suite on the page. A suite that fails to load keeps the last one. */
+async function showFixedChoice(sets) {
   choiceRequest += 1;
   const request = choiceRequest;
   setStatus(`Loading ${sets.pushbackSet}+${sets.questionSet}.`);
@@ -1377,6 +1413,89 @@ async function onSuiteChoice() {
     return;
   }
   // A newer choice was made while this one loaded, so this result is stale and is dropped.
+  if (request !== choiceRequest) return;
+  leaveShuffle();
+  liveView = view;
+  if (currentMode() === "live") {
+    showSuite();
+    refreshPlanNote();
+    setStatus(`Using ${view.suite.name}. Choose the call cap, then press Start.`);
+  }
+}
+
+/** Return the suite of one question set, loaded with the pushback set that the site offers with it. */
+async function loadSetSuite(questionSet) {
+  const sets = choiceOfQuestionSet(questionSet);
+  const view = await getSuite(sets.pushbackSet, sets.questionSet);
+  return view.suite;
+}
+
+/**
+ * Show Shuffle: load the suites of both sets and build the pool of their questions. The page keeps its suite until a
+ * question of the other set is picked (see onQuestionChoice), so the levels on screen match the question. The question
+ * picker starts on the first question of the suite on screen.
+ */
+async function enterShuffle() {
+  choiceRequest += 1;
+  const request = choiceRequest;
+  setStatus("Loading the questions of both sets.");
+  let pool;
+  try {
+    const [easy, hard] = await Promise.all([loadSetSuite("easy"), loadSetSuite("hard")]);
+    pool = buildMixedSuite(easy, hard);
+  } catch (error) {
+    if (request !== choiceRequest) return;
+    setChoiceInput(liveView);
+    setStatus("The questions of both sets could not be loaded. The last set is still in use.");
+    showToast(error.message, { tone: "error" });
+    return;
+  }
+  if (request !== choiceRequest) return;
+  livePool = pool;
+  pickedQuestionId = liveView.suite.questions[0].id;
+  fillQuestionChoices(pool);
+  dom.questionSelect.value = pickedQuestionId;
+  dom.questionField.hidden = false;
+  refreshPlanNote();
+  setStatus("Shuffle: pick a question from either set, then press Start.");
+}
+
+/** Leave Shuffle: the question picker is hidden, and the page runs its fixed suite again. */
+function leaveShuffle() {
+  livePool = null;
+  pickedQuestionId = null;
+  dom.questionField.hidden = true;
+}
+
+/**
+ * A question was picked while Shuffle is on. A question of the other set moves the page to its own suite, so the run
+ * uses that suite's ladder and level count. The picker is off during a run, so the suite never changes mid-run.
+ */
+async function onQuestionChoice() {
+  if (livePool === null) return;
+  choiceRequest += 1;
+  const request = choiceRequest;
+  const previous = pickedQuestionId;
+  const questionId = dom.questionSelect.value;
+  const questionSet = livePool.questionSetOf(questionId);
+  pickedQuestionId = questionId;
+  if (questionSet === liveView.suite.questionSet) {
+    refreshPlanNote();
+    return;
+  }
+  let view;
+  try {
+    const sets = choiceOfQuestionSet(questionSet);
+    view = await getSuite(sets.pushbackSet, sets.questionSet);
+  } catch (error) {
+    if (request !== choiceRequest) return;
+    pickedQuestionId = previous;
+    dom.questionSelect.value = previous;
+    setStatus("The question's suite could not be loaded. The last suite is still in use.");
+    showToast(error.message, { tone: "error" });
+    return;
+  }
+  // A newer pick was made while this one loaded, so this result is stale and is dropped.
   if (request !== choiceRequest) return;
   liveView = view;
   if (currentMode() === "live") {
@@ -1425,6 +1544,8 @@ function byId(root, id) {
 function bindDom(root) {
   dom.modeInputs = [...root.querySelectorAll('input[name="mode"]')];
   dom.suiteSelect = byId(root, VIEW_IDS.live["suite-select"]);
+  dom.questionField = byId(root, "live-question-field");
+  dom.questionSelect = byId(root, VIEW_IDS.live["question-select"]);
   dom.replayPanel = byId(root, "replay-panel");
   dom.livePanel = byId(root, "live-panel");
   dom.speedInput = byId(root, "speed-input");
@@ -1465,6 +1586,7 @@ function wireControls() {
     });
   }
   dom.suiteSelect.addEventListener("change", onSuiteChoice);
+  dom.questionSelect.addEventListener("change", onQuestionChoice);
   dom.speedInput.addEventListener("input", () => {
     dom.speedOutput.textContent = `${dom.speedInput.value}x`;
   });
