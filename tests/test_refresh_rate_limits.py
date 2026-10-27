@@ -79,5 +79,16 @@ class MergeModelLimitsTests(unittest.TestCase):
         self.assertNotIn("source", new_entry)
 
 
+class CheckModelTests(unittest.TestCase):
+    """check_model with no client (no key set): nothing is called, and the old entry is kept with 'needs a key'."""
+
+    def test_no_key_gives_needs_a_key_and_keeps_the_entry(self):
+        """Without a client the status is 'needs a key' and the entry is the same as before."""
+        new_entry, status = refresh_rate_limits.check_model(None, "some/model", OLD_ENTRY)
+        self.assertEqual(status, "needs a key")
+        self.assertEqual(new_entry, OLD_ENTRY)
+        self.assertIsNot(new_entry, OLD_ENTRY)
+
+
 if __name__ == "__main__":
     unittest.main()
