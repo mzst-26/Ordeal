@@ -143,6 +143,49 @@ class Failure:
 
 
 @dataclass
+class HealthCounts:
+    """What one model's new calls looked like in this run. The health guard reads these to decide on a pause.
+
+    'calls' counts every call that ended, whether it gave a reply or failed for good. 'graded_replies' counts
+    the replies at graded steps (see is_graded_step), and 'unparsed_replies' the graded ones with no 'Answer: X'.
+    """
+
+    calls: int = 0
+    failures: int = 0
+    graded_replies: int = 0
+    unparsed_replies: int = 0
+
+
+def health_problem(counts: HealthCounts, config: dict[str, Any]) -> str | None:
+    """Return why the model should be paused, or None while it is still healthy.
+
+    Nothing is judged before health_min_calls calls, because a few bad calls say little about a model.
+    After that, a rate above its limit pauses the model. A rate exactly at the limit is not above it.
+    """
+    if counts.calls == 0 or counts.calls < config["health_min_calls"]:
+        return None
+    failure_rate = counts.failures / counts.calls
+    if failure_rate > config["health_max_failure_rate"]:
+        return (
+            f"{counts.failures} of {counts.calls} calls failed ({failure_rate:.0%}), "
+            f"above the limit of {config['health_max_failure_rate']:.0%}"
+        )
+    # With no graded reply yet there is no unparsed rate to judge, so it counts as zero.
+    unparsed_rate = counts.unparsed_replies / counts.graded_replies if counts.graded_replies else 0.0
+    if unparsed_rate > config["health_max_unparsed_rate"]:
+        return (
+            f"{counts.unparsed_replies} of {counts.graded_replies} graded replies had no 'Answer: X' line "
+            f"({unparsed_rate:.0%}), above the limit of {config['health_max_unparsed_rate']:.0%}"
+        )
+    return None
+
+
+def model_is_unhealthy(counts: HealthCounts, config: dict[str, Any]) -> bool:
+    """True when the model should be paused: enough calls, and a failure or unparsed rate above its limit."""
+    return health_problem(counts, config) is not None
+
+
+@dataclass
 class RunStats:
     """The counts shown in the summary."""
 
