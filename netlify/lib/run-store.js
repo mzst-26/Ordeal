@@ -1,55 +1,59 @@
-// Reads and writes saved runs in Netlify Blobs. Each run is one blob, keyed by "run-" and its id. The size, kind
-// and save time are kept as blob metadata, so a list can be drawn without downloading every run. This file only
-// talks to storage; the rules (what may be saved, how long it is kept) live in run-rules.js and run-retention.js.
+// Reads and writes saved runs in Netlify Blobs. Each run is one blob, keyed owner/<visitor id>/<run id>, so every
+// visitor's runs sit under their own prefix. The kind, save time and size are kept as blob metadata, so a list can be
+// drawn without downloading every run. This file only talks to storage. The rules (who may see what, the caps and
+// the expiry) live in run-rules.js, visitor-rules.js and run-retention.js. Every function takes the store as an
+// argument, so the handlers can be tested with a fake store.
 
 import { getStore } from "@netlify/blobs";
-import { summaryOf } from "./run-rules.js";
+import { parseOwnerKey, OWNER_ROOT } from "../../site/js/visitor-rules.js";
 
 // The name of the Netlify Blobs store that holds every saved run.
 export const STORE_NAME = "web-runs";
-// Every run key starts with this prefix, so a list can ask for runs only.
-const KEY_PREFIX = "run-";
 
 /** Open the store. Netlify reads the site's credentials from its own environment, so none are passed here. */
 export function openRunStore() {
   return getStore(STORE_NAME);
 }
 
-/** Return the storage key for a run id. */
-function keyFor(id) {
-  return KEY_PREFIX + id;
-}
-
 /**
- * Return the summary of every stored run, read from metadata only. The store is read one page at a time, so a long
- * list is not loaded in one go. A run that vanishes between the list and the metadata read is skipped.
+ * Return one entry for every stored run of every visitor: its storage key (as id), its owner (the visitor id), its
+ * run id, and its kind, save time and size from the metadata. Keys that are not run keys are skipped, and so is a
+ * run that vanishes between the list and the metadata read. The store is read one page at a time.
  */
-export async function listSummaries(store) {
-  const summaries = [];
-  for await (const page of store.list({ prefix: KEY_PREFIX, paginate: true })) {
+export async function listEntries(store) {
+  const entries = [];
+  for await (const page of store.list({ prefix: `${OWNER_ROOT}/`, paginate: true })) {
     for (const blob of page.blobs) {
-      const entry = await store.getMetadata(blob.key);
-      if (entry !== null) {
-        summaries.push(summaryOf(blob.key.slice(KEY_PREFIX.length), entry.metadata));
-      }
+      const owned = parseOwnerKey(blob.key);
+      if (owned === null) continue;
+      const found = await store.getMetadata(blob.key);
+      if (found === null) continue;
+      entries.push({
+        id: blob.key,
+        owner: owned.visitorId,
+        runId: owned.runId,
+        kind: found.metadata.kind,
+        createdAt: found.metadata.createdAt,
+        bytes: found.metadata.bytes,
+      });
     }
   }
-  return summaries;
+  return entries;
 }
 
-/** Save a stored record, with its kind, creation time and size kept as metadata. */
-export async function writeRecord(store, record, bytes) {
+/** Save a stored record under its key, with its kind, creation time and size kept as metadata. */
+export async function writeRecord(store, key, record, bytes) {
   const metadata = { kind: record.kind, createdAt: record.createdAt, bytes };
-  await store.setJSON(keyFor(record.id), record, { metadata });
+  await store.setJSON(key, record, { metadata });
 }
 
-/** Return the stored record for one run id, or null when there is none. */
-export async function readRecord(store, id) {
-  const found = await store.getWithMetadata(keyFor(id), { type: "json" });
+/** Return the stored record for one key, or null when there is none. */
+export async function readRecord(store, key) {
+  const found = await store.getWithMetadata(key, { type: "json" });
   return found === null ? null : found.data;
 }
 
-/** Delete one run. Deleting a run that is not there does nothing. */
-export async function removeRecord(store, id) {
-  await store.delete(keyFor(id));
+/** Delete one stored run by its key. Deleting a key that is not there does nothing. */
+export async function removeKey(store, key) {
+  await store.delete(key);
 }

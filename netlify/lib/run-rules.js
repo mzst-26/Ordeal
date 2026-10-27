@@ -50,11 +50,3 @@ export function buildRecord(id, body, createdAtMs) {
 export function summaryOf(id, metadata) {
   return { id, kind: metadata.kind, createdAt: metadata.createdAt, size: metadata.bytes };
 }
-
-/**
- * Turn list summaries into the shape the retention rules in site/js/run-retention.js read: id, createdAt and bytes.
- * The rules name the size "bytes", while the list shows it as "size", so this one place does the renaming.
- */
-export function toRetentionRuns(summaries) {
-  return summaries.map((summary) => ({ id: summary.id, createdAt: summary.createdAt, bytes: summary.size }));
-}

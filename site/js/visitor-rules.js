@@ -10,7 +10,7 @@ export const VISITOR_ID_MIN_LENGTH = 32;
 export const VISITOR_ID_MAX_LENGTH = 128;
 
 // The first part of every run key. A list of all runs asks for this prefix, and the owner key names the visitor.
-const OWNER_ROOT = "owner";
+export const OWNER_ROOT = "owner";
 
 // Letters, digits, - and _ only. A slash is refused, because a slash would change where a key points.
 const VISITOR_ID_PATTERN = /^[A-Za-z0-9_-]+$/;

@@ -92,22 +92,3 @@ export function planVisitorSave({
   // Removing every run of this visitor was not enough, so other visitors fill the store. Nothing is removed.
   return { removeIds: [], fits: false, reason: "store" };
 }
-
-/**
- * The batch 90 rule, kept until the server moves to per-visitor storage in the next commit. It removes the oldest
- * runs of any visitor. It is not used by the per-visitor design.
- */
-export function planSizeCleanup(runs, incomingBytes, maxBytes = MAX_STORE_BYTES) {
-  // Oldest first: the run created earliest is the first to go. A copy is sorted so the caller's order stays as it was.
-  const oldestFirst = [...runs].sort((a, b) => a.createdAt - b.createdAt);
-  let remaining = totalBytes(oldestFirst);
-  const removeIds = [];
-  for (const run of oldestFirst) {
-    if (remaining + incomingBytes <= maxBytes) {
-      break;
-    }
-    removeIds.push(run.id);
-    remaining -= run.bytes;
-  }
-  return { removeIds, fits: remaining + incomingBytes <= maxBytes };
-}
