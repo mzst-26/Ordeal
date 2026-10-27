@@ -1,4 +1,4 @@
-// Checks the write password that guards saving and deleting runs. The password lives in the WRITE_PASSWORD
+// Checks the admin password that guards the prune and clear actions. Visitors never type it. The password lives in the WRITE_PASSWORD
 // environment variable, set in the Netlify dashboard, and is never written into the code. A request must send it
 // as "Authorization: Bearer <password>". The comparison is made in constant time, so a caller cannot learn the
 // password one character at a time from how long the check takes.

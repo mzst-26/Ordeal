@@ -1,4 +1,4 @@
-// Tests for the pure logic of the web run functions: the write password check and the rules for a saved run.
+// Tests for the pure logic of the web run functions: the admin password check and the rules for a saved run.
 // They use plain objects and strings only. Nothing calls Netlify, Netlify Blobs or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";

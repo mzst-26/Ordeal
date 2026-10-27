@@ -234,22 +234,33 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
   repeats, temperature, max tokens, concurrency, call cap and system-prompt condition. Presets can be saved,
   loaded, renamed and deleted.
 - Saved runs in the browser and presets are per browser. Another browser or device sees none of them. Runs saved
-  to the server are listed on the runs page for everyone who opens it.
+  to the server are listed on the runs page for the browser that saved them (see [Web run storage](#web-run-storage)).
 - Neither saved runs nor presets store the key. A key-looking field is refused.
 
 ## Web run storage
 
 The website has a small server part: Netlify functions in `netlify/functions/`. They keep saved web runs in Netlify
-Blobs, and the runs page (`/runs.html`) lists them.
+Blobs. The runs page (`/runs.html`) lists only the runs of the browser that opens it. The site has no database.
 
-- **What is stored:** each run's id, kind (batch or gauntlet), save time, size and run record. The key is never stored.
-- **7-day rule:** a run is kept for 7 days. A scheduled function runs once a day and removes runs older than that.
-- **1.5 GB cap:** the whole store holds up to 1.5 GB. When a save would go over, the oldest runs are removed first
-  until it fits. A run too big for the whole cap is refused.
-- **Password:** saving and deleting need the write password. Set it in the Netlify dashboard as the environment
-  variable `WRITE_PASSWORD` (Site configuration, then Environment variables). It is never written into the code. If it
-  is not set, no run can be saved or deleted. Reading the list needs no password.
-- **Browser copies:** gauntlet runs also keep a copy in the browser's IndexedDB. Batch runs are not copied.
+- **Each browser has its own runs.** On its first visit a browser makes a random visitor id of 128 bits and keeps it
+  in localStorage. Every save, list, read and delete sends that id in the `x-visitor-id` header. The server stores
+  each run under `owner/<visitor id>/<run id>` and shows a visitor only their own runs, so one visitor cannot list,
+  read or delete another's runs. No key is ever stored on the server.
+- **What is saved:** a Gauntlet run is saved in full, since it is small. A Batch run is saved as a summary only:
+  the totals, the gauntlet measures and each model's numbers, a few kilobytes. The full batch data stays in the
+  browser and can be downloaded. The Save to my runs button appears after a run finishes. No password is asked.
+- **7-day rule:** a run is kept for 7 days. A scheduled function runs once a day and removes the expired runs of
+  every visitor.
+- **Caps:** each visitor may hold 200 MB, and the whole store may hold 1.5 GB. A save that would break a cap first
+  removes that visitor's own oldest runs, and only as many as it needs. If that cannot make room, the save is refused
+  with a message, and nothing is removed.
+- **Admin password:** `WRITE_PASSWORD` is for the owner only. Set it in the Netlify dashboard (Site configuration,
+  then Environment variables); it is never written into the code. It allows `POST /api/runs-admin` with
+  `{"action": "prune"}` (remove the expired runs now) or `{"action": "clear"}` (remove every run of every visitor),
+  sent as `Authorization: Bearer <password>`. If it is not set, those actions are refused. Visitors never type it.
+- **A visitor id can be lost** when the browser's site data is cleared, when storage is blocked (the id then lasts
+  only for that tab), or when the site is opened in another browser or on another device. Those runs are then
+  not shown to that browser.
 
 ## Where the key comes from
 
@@ -270,7 +281,7 @@ Blobs, and the runs page (`/runs.html`) lists them.
 - Calibration writes `calib_cache.jsonl` and its JSON files to `--out-dir`. The Makefile uses
   `scratch/calibration/`, which is not in git.
 - The website keeps saved runs in the visitor's browser (IndexedDB, as above). Its small server part keeps the
-  owner's saved web runs in Netlify Blobs (see [Web run storage](#web-run-storage)). It has no Supabase or other
+  visitors' saved web runs in Netlify Blobs, one set per browser (see [Web run storage](#web-run-storage)). It has no Supabase or other
   database.
 
 ## Calibrating the questions
