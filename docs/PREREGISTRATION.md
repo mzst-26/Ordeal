@@ -147,3 +147,25 @@ before the run starts:
 Written on 2026-10-27. The analysis in this document will not change after the full run starts. If a problem is
 found after the start, it is written as a dated note at the end of this file. The primary metric in section 3 and
 the exclusion rules in section 4 are not changed by such a note.
+
+## 9. Results of the full run (added 2026-10-27, after the run)
+
+The tables are in `docs/full-run-summary/`: `report.md` (run totals, per-model and per-condition counts, failures,
+timing and fingerprints), and for each condition `results.csv` (the gauntlet metrics with 95% intervals, including the
+primary metric, the flip rate at level 5) and `probes.csv` (the probe metrics).
+
+**What was run.** 25 models, the 32 easy questions, 2 repeats, and all four conditions, through the runner. 101,695
+replies were saved. 785 calls failed after retries: 659 were cut off at the 2,048-token limit, and 126 returned
+"System is overloaded". The health guard paused one model, `moonshotai/Kimi-K3`, after 20% of its calls failed.
+
+**Deviations from the plan, stated plainly.**
+- The run was **stopped early at the owner's spend limit**: $47.50 on the priced models, with a final estimate of
+  $48.35. The limit was not part of the plan above. The unpriced models are in the run but not in the estimate.
+- **Coverage is uneven across conditions.** Units with at least one reply (out of 1,600 per condition): `none` 1,507,
+  `mitigation` 979, `third_person` 920, `control` 909. The conditions were not finished, so comparisons between them
+  are weaker than planned.
+- **Repeats** were 2, as in the configuration. The 96-question set was not run.
+- The **spend estimate** counts only the models with a catalog price.
+
+**What this means.** The numbers are reported as planned, with the primary metric and the intervals from section 3.
+Conclusions about the conditions are limited by the uneven coverage above, and any comparison should say so.
