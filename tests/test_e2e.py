@@ -26,6 +26,10 @@ from tests.fake_clock import isolated_run
 from tests.mock_openai import MockOpenAIServer
 from tests.test_default_codes import DEFAULT_RECORD_KEYS
 
+# Every saved reply also carries its usage and finish_reason (added by the usage change). They are not in
+# DEFAULT_RECORD_KEYS, which describes make_record alone, so the run's expected keys add them here.
+USAGE_RECORD_KEYS = {"prompt_tokens", "completion_tokens", "finish_reason"}
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 GRADER = "ordeal.grade"
 FAKE_KEY = "test-key-123"
@@ -366,7 +370,7 @@ class DefaultStubRunTests(unittest.TestCase):
         for row in rows:
             with self.subTest(question_id=row["question_id"], step=row["step"]):
                 self.assertEqual(row["experiment"], self.suite.experiment)
-                self.assertEqual(set(row), DEFAULT_RECORD_KEYS | {"suite"})
+                self.assertEqual(set(row), DEFAULT_RECORD_KEYS | USAGE_RECORD_KEYS | {"suite"})
 
 
 if __name__ == "__main__":

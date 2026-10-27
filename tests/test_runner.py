@@ -88,6 +88,20 @@ class FakeClient:
         self.closed = True
 
 
+# Like FakeClient, but its replies carry usage counts and a finish_reason, as a real provider's replies do.
+class UsageClient(FakeClient):
+    """Answers with the default reply and fixed usage: 11 prompt tokens, 4 completion tokens, finish_reason "stop"."""
+
+    async def complete_detailed(
+        self, model: str, messages: list[dict[str, str]], temperature: float, max_tokens: int
+    ) -> model_client.Reply:
+        """Return the default reply together with its usage and finish_reason."""
+        text = await self.complete(model, messages, temperature, max_tokens)
+        return model_client.Reply(
+            text=text, headers={}, prompt_tokens=11, completion_tokens=4, finish_reason="stop"
+        )
+
+
 def rate_limit_error(headers: dict[str, str]) -> openai.RateLimitError:
     """Build an openai rate-limit error whose HTTP response carries the given headers. Nothing is sent."""
     request = httpx2.Request("POST", "https://example.invalid/v1/chat/completions")
@@ -273,6 +287,16 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(client.sent), 3)
         self.assertEqual(waits, [1, 2])
         self.assertEqual(len(stats.failures), 1)
+
+    async def test_saved_record_carries_usage_and_finish_reason(self) -> None:
+        """Each saved reply records its prompt tokens, completion tokens and finish_reason, for later analysis."""
+        await self.run_quietly(UsageClient(), [make_question("q1")], make_settings())
+        saved = list(core.load_cache(self.cache_path).values())
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(saved[0]["prompt_tokens"], 11)
+        self.assertEqual(saved[0]["completion_tokens"], 4)
+        self.assertEqual(saved[0]["finish_reason"], "stop")
+        self.assertEqual(saved[0]["reply"], "Answer: B")
 
     async def test_truncated_reply_is_one_failure_with_no_retry_and_nothing_saved(self) -> None:
         """A reply cut off by max_tokens is recorded as one failure, is not retried, and never reaches the cache."""

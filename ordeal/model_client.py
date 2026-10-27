@@ -62,12 +62,14 @@ class Reply:
 
     'headers' are the HTTP headers of the reply, with lower-case names, because the rate-limit headers are
     only sent there. The usage counts come from the reply body and are None when the provider leaves them out.
+    'finish_reason' is why the provider stopped, such as "stop". It is saved with each reply so the record shows it.
     """
 
     text: str
     headers: dict[str, str]
     prompt_tokens: int | None
     completion_tokens: int | None
+    finish_reason: str | None = None
 
 
 class TruncatedReply(Exception):
@@ -111,7 +113,8 @@ class TokenFactoryClient:
         )
         response = raw.parse()
         # Checked before anything else is read, so a cut-off reply is never returned as if it were complete.
-        if reply_finish_reason(response) == FINISH_REASON_LENGTH:
+        finish_reason = reply_finish_reason(response)
+        if finish_reason == FINISH_REASON_LENGTH:
             raise TruncatedReply(f"The reply was cut off at max_tokens={max_tokens}, so it is not a full answer.")
         prompt_tokens, completion_tokens = usage_counts(response)
         return Reply(
@@ -119,6 +122,7 @@ class TokenFactoryClient:
             headers=lower_case_headers(raw.headers),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            finish_reason=finish_reason,
         )
 
     async def close(self) -> None:

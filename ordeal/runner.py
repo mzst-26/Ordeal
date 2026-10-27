@@ -255,19 +255,34 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         unit.repeat,
         step,
         messages,
-        reply,
+        reply.text,
         ctx.settings.config["temperature"],
         suite=ctx.settings.suite,
-        extra=unit.mix_fields,
+        extra=saved_extra_fields(unit, reply),
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     core.append_record(record, ctx.cache_path)
     ctx.cache[key] = record
     ctx.stats.calls_made += 1
-    return reply
+    return reply.text
 
 
-async def call_with_retries(ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str) -> str | None:
+def saved_extra_fields(unit: Unit, reply: model_client.Reply) -> dict[str, Any]:
+    """Return the extra fields saved with a reply: the mixed run's fields, plus the usage and finish_reason.
+
+    The usage and finish_reason let later analysis see how long each answer was and why it stopped. They are
+    not part of the experiment code, so saving them never changes which replies are reused.
+    """
+    extra = dict(unit.mix_fields)
+    extra["prompt_tokens"] = reply.prompt_tokens
+    extra["completion_tokens"] = reply.completion_tokens
+    extra["finish_reason"] = reply.finish_reason
+    return extra
+
+
+async def call_with_retries(
+    ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str
+) -> model_client.Reply | None:
     """Call the model, retrying errors that is_retryable accepts. Returns None after a final failure."""
     attempt = 0
     while True:
@@ -285,8 +300,8 @@ async def call_with_retries(ctx: RunContext, unit: Unit, messages: list[dict[str
             attempt += 1
 
 
-async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> str:
-    """Make one API call, once the pacer says the model has room, and return the reply text.
+async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> model_client.Reply:
+    """Make one API call, once the pacer says the model has room, and return the whole reply.
 
     The pacer goes first, so a model with no room waits without holding one of the global slots that other
     models could use. The pacer slot is always given back in the finally, even when the call fails.
@@ -296,7 +311,7 @@ async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]
     reply = None
     try:
         reply = await complete_in_slot(ctx, model, messages)
-        return reply.text
+        return reply
     except Exception as error:
         park_if_told_to_wait(ctx, model, error)
         raise
