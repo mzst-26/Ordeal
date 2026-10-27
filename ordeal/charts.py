@@ -132,7 +132,22 @@ def draw_fingerprint(rows: list[dict[str, str]], output_path: Path) -> bool:
     return True
 
 
-def save_fingerprint_picture(args: argparse.Namespace, suite: core.Suite) -> None:
+def skip_note(probe_rows: list[dict[str, str]], gauntlet_rows: list[dict[str, str]]) -> str:
+    """Say why the fingerprint picture was not drawn.
+
+    A file with no fingerprint replies gets a note that names the missing family and the saved unit count, so a partial
+    run is visible. The picture is never drawn from another family's numbers in its place.
+    """
+    if grade.probe_family_present(probe_rows, FINGERPRINT_FAMILY):
+        return "Skipped fingerprint picture: no fingerprint flip rates for this condition."
+    units = grade.saved_unit_count(gauntlet_rows)
+    return (
+        "Skipped fingerprint picture: this file has no fingerprint replies, so the chart has nothing to plot. "
+        f"Saved units: {units}. Probes run when their families are ticked on the Batch page."
+    )
+
+
+def save_fingerprint_picture(args: argparse.Namespace, suite: core.Suite, gauntlet_rows: list[dict[str, str]]) -> None:
     """Draw the fingerprint bars from the probes file, or print why the picture was skipped."""
     # read_probe_rows stops with a message when the file or its rows are missing. The line chart must still be drawn.
     try:
@@ -144,7 +159,7 @@ def save_fingerprint_picture(args: argparse.Namespace, suite: core.Suite) -> Non
     if draw_fingerprint(probe_rows, fingerprint_path):
         print(f"Saved {fingerprint_path}")
     else:
-        print("Skipped fingerprint picture: no fingerprint flip rates for this condition.")
+        print(skip_note(probe_rows, gauntlet_rows))
 
 
 def main() -> int:
@@ -156,7 +171,7 @@ def main() -> int:
     output_path = grade.picture_path(args.out_dir, "flip_by_level", args.condition, suite)
     draw_chart(rows, output_path, suite)
     print(f"Saved {output_path}")
-    save_fingerprint_picture(args, suite)
+    save_fingerprint_picture(args, suite, rows)
     return 0
 
 

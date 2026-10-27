@@ -752,6 +752,23 @@ def read_probe_rows(probes_csv: Path, condition: str, suite_name: str = LEGACY_S
     return read_rows_or_stop(probes_csv, condition, suite_name)
 
 
+def probe_family_present(probe_rows: list[dict[str, str]], family: str) -> bool:
+    """True when a probe family was run on at least one saved unit.
+
+    A family that was never run still gets rows, with zero units. So the units count is the test, not whether a row exists.
+    A chart for an absent family has nothing to plot, and its note should say so.
+    """
+    return any(row["family"] == family and int(row["units"]) > 0 for row in probe_rows)
+
+
+def saved_unit_count(gauntlet_rows: list[dict[str, str]]) -> int:
+    """Return how many units the gauntlet rows were built from, summed over the models.
+
+    Each model's row counts its own units, so this is the number of saved units in the whole condition.
+    """
+    return sum(int(row["units"]) for row in gauntlet_rows)
+
+
 def read_cache_by_experiment(path: Path, experiments: set[str]) -> tuple[dict[str, dict], int]:
     """Group the saved replies by experiment code, for the codes given.
 
