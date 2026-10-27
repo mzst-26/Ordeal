@@ -3,6 +3,8 @@
 Each test uses its own temporary folder, so no test touches the real results folder.
 """
 
+import contextlib
+import io
 import json
 import sqlite3
 import tempfile
@@ -136,6 +138,90 @@ class ExportTests(unittest.TestCase):
         lines = out_path.read_text(encoding="utf-8").splitlines()
         self.assertEqual(written, 2)
         self.assertEqual([json.loads(line) for line in lines], [first, second])
+
+
+class ImportTests(unittest.TestCase):
+    """A JSONL cache is copied into the store once, and the copy is checked before it is kept."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+        self.jsonl_path = self.folder / "cache.jsonl"
+
+    def write_jsonl(self, records: list[dict]) -> None:
+        """Write records to the temporary cache.jsonl, one JSON object per line, as the old runner did."""
+        text = "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records)
+        self.jsonl_path.write_text(text, encoding="utf-8")
+
+    def test_existing_jsonl_replies_are_imported_on_first_open(self) -> None:
+        """Opening the store for a cache that has a JSONL file copies every reply into the database."""
+        first = make_reply(question_id="q1")
+        second = make_reply(question_id="q2")
+        self.write_jsonl([first, second])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with store.open_store(self.jsonl_path) as db:
+                self.assertEqual(db.records_for_experiment("exp-a"), [first, second])
+
+    def test_a_repeated_key_in_the_file_imports_as_one_row_with_the_later_line(self) -> None:
+        """Duplicate keys in the old file collapse to one row, and the later line wins, as load_cache did."""
+        self.write_jsonl([make_reply(reply="old"), make_reply(reply="new")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with store.open_store(self.jsonl_path) as db:
+                rows = db.records_for_experiment("exp-a")
+        self.assertEqual([row["reply"] for row in rows], ["new"])
+
+    def test_damaged_line_is_reported_and_the_rest_is_imported(self) -> None:
+        """A line cut off by an old crash is skipped with a message, and the other replies still import."""
+        good = make_reply(question_id="q1")
+        self.jsonl_path.write_text(json.dumps(good) + "\n{\"experiment\": \"exp-a\", cut", encoding="utf-8")
+        report = io.StringIO()
+        with contextlib.redirect_stderr(report):
+            with store.open_store(self.jsonl_path) as db:
+                self.assertEqual(db.records_for_experiment("exp-a"), [good])
+        self.assertIn("Skipping damaged cache line 2", report.getvalue())
+
+    def test_import_happens_only_once_for_a_cache(self) -> None:
+        """Lines added to the JSONL file after the first open are not copied, because the import is one-time."""
+        self.write_jsonl([make_reply(question_id="q1")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with store.open_store(self.jsonl_path):
+                pass
+            self.write_jsonl([make_reply(question_id="q1"), make_reply(question_id="q2")])
+            with store.open_store(self.jsonl_path) as db:
+                self.assertEqual(db.count_rows(), 1)
+
+    def test_a_failed_import_leaves_the_store_empty_and_is_retried_next_time(self) -> None:
+        """A line that cannot be imported stops the whole import, so no half-copied store is kept."""
+        broken = make_reply(question_id="q1")
+        del broken["step"]
+        self.write_jsonl([make_reply(question_id="q2"), broken])
+        with self.assertRaises(KeyError):
+            with contextlib.redirect_stderr(io.StringIO()):
+                store.open_store(self.jsonl_path)
+        self.write_jsonl([make_reply(question_id="q2")])
+        with contextlib.redirect_stderr(io.StringIO()):
+            with store.open_store(self.jsonl_path) as db:
+                self.assertEqual(db.count_rows(), 1)
+
+    def test_check_raises_when_a_key_from_the_file_is_missing_from_the_store(self) -> None:
+        """The check compares the keys read from the file with the keys in the store, and fails on any gap."""
+        with store.ReplyStore(self.folder / "cache.sqlite") as db:
+            missing_key = store.key_values(make_reply(question_id="q9"))
+            with self.assertRaises(store.ImportMismatch):
+                store.verify_import(db, {missing_key})
+
+    def test_check_passes_when_the_store_holds_exactly_the_file_keys(self) -> None:
+        """When the keys match, the check returns without raising."""
+        reply = make_reply(question_id="q1")
+        with store.ReplyStore(self.folder / "cache.sqlite") as db:
+            db.add(reply)
+            store.verify_import(db, {store.key_values(reply)})
+
+    def test_store_without_a_jsonl_file_starts_empty(self) -> None:
+        """A new cache with no JSONL file opens as an empty store and nothing is imported."""
+        with store.open_store(self.jsonl_path) as db:
+            self.assertEqual(db.count_rows(), 0)
 
 
 if __name__ == "__main__":

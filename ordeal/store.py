@@ -11,6 +11,7 @@ export_jsonl writes the same lines that core.load_cache reads.
 
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 # The table holds one row per saved reply. The primary key is the reply's identity, and SQLite builds an
@@ -30,6 +31,19 @@ CREATE TABLE IF NOT EXISTS replies (
 
 # The order of the key columns above. Every query that builds a key uses this order.
 KEY_FIELDS = ("experiment", "condition", "model", "question_id", "repeat", "step")
+
+# A small table of facts about the store itself. It holds one flag: whether the old JSONL file was copied in.
+CREATE_META_SQL = "CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value TEXT NOT NULL)"
+
+# The name of the flag that says the one-time import has already run for this store.
+IMPORT_FLAG = "legacy_jsonl_imported"
+
+
+class ImportMismatch(Exception):
+    """Raised when the store does not hold exactly the replies read from the JSONL file.
+
+    The import is then rolled back, so a half-copied store is never kept.
+    """
 
 
 def store_path_for(cache_path: Path) -> Path:
@@ -63,6 +77,7 @@ class ReplyStore:
         # WAL mode lets a reader (such as grade) look at the file while a run is still writing a reply.
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute(CREATE_REPLIES_SQL)
+        self.connection.execute(CREATE_META_SQL)
 
     def __enter__(self) -> "ReplyStore":
         """Return the store itself, so 'with' can be used."""
@@ -93,6 +108,24 @@ class ReplyStore:
         ).fetchall()
         return [json.loads(row[0]) for row in rows]
 
+    def count_rows(self) -> int:
+        """Return how many replies the store holds, across all experiment codes."""
+        return self.connection.execute("SELECT COUNT(*) FROM replies").fetchone()[0]
+
+    def all_keys(self) -> set[tuple]:
+        """Return the key of every saved reply, as a set of key tuples in the order of KEY_FIELDS."""
+        rows = self.connection.execute("SELECT experiment, condition, model, question_id, repeat, step FROM replies")
+        return set(rows.fetchall())
+
+    def has_meta(self, name: str) -> bool:
+        """Return True when the store has the named flag set."""
+        row = self.connection.execute("SELECT 1 FROM meta WHERE name = ?", (name,)).fetchone()
+        return row is not None
+
+    def set_meta(self, name: str, value: str) -> None:
+        """Set a named flag in the store."""
+        self.connection.execute("INSERT OR REPLACE INTO meta (name, value) VALUES (?, ?)", (name, value))
+
     def count_other_experiments(self, experiment: str) -> int:
         """Return how many saved replies belong to an experiment code other than the one given."""
         row = self.connection.execute("SELECT COUNT(*) FROM replies WHERE experiment != ?", (experiment,)).fetchone()
@@ -108,3 +141,80 @@ class ReplyStore:
             for row in rows:
                 file.write(row[0] + "\n")
         return len(rows)
+
+
+def read_jsonl_records(path: Path) -> list[dict]:
+    """Return the records in an old JSONL cache file, in file order.
+
+    A damaged line (for example one cut off by a crash) is reported and skipped, as core.load_cache always did.
+    """
+    records = []
+    with open(path, encoding="utf-8") as file:
+        for line_number, line in enumerate(file, start=1):
+            if not line.strip():
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                print(f"Skipping damaged cache line {line_number} in {path.name}", file=sys.stderr)
+    return records
+
+
+def verify_import(db: ReplyStore, expected_keys: set[tuple]) -> None:
+    """Check that the store holds exactly the expected keys, and no more or fewer rows.
+
+    This is the safety check for the import. The expected keys come from the JSONL file, and the stored
+    keys come from the database. Any gap or extra row raises ImportMismatch.
+    """
+    stored_keys = db.all_keys()
+    if db.count_rows() != len(expected_keys) or stored_keys != expected_keys:
+        raise ImportMismatch(
+            f"expected {len(expected_keys)} saved replies, the store holds {db.count_rows()}"
+        )
+
+
+def copy_jsonl_into(db: ReplyStore, jsonl_path: Path) -> None:
+    """Copy every reply from an old JSONL file into the store, then check the copy.
+
+    A file that does not exist means there is nothing to copy, so this does nothing.
+    """
+    if not jsonl_path.exists():
+        return
+    records = read_jsonl_records(jsonl_path)
+    for record in records:
+        db.add(record)
+    verify_import(db, {key_values(record) for record in records})
+    print(f"Imported {db.count_rows()} saved replies from {jsonl_path.name} into {db.path.name}.", file=sys.stderr)
+
+
+def import_jsonl_once(db: ReplyStore, jsonl_path: Path) -> None:
+    """Copy the JSONL file into the store the first time only, all in one transaction.
+
+    The flag check and the copy happen inside the same transaction, so two runs that open the store at
+    the same moment cannot both copy the file. If anything fails, the transaction is rolled back and the
+    flag is not set, so the next open tries again.
+    """
+    # BEGIN IMMEDIATE takes the write lock now, so a second opener waits instead of copying the file too.
+    db.connection.execute("BEGIN IMMEDIATE")
+    try:
+        if not db.has_meta(IMPORT_FLAG):
+            copy_jsonl_into(db, jsonl_path)
+            db.set_meta(IMPORT_FLAG, "done")
+        db.connection.execute("COMMIT")
+    except BaseException:
+        db.connection.execute("ROLLBACK")
+        raise
+
+
+def open_store(cache_path: Path) -> ReplyStore:
+    """Open the store that goes with a JSONL cache path, copying the old file in on the first open.
+
+    Callers use this instead of ReplyStore directly, so every opener gets the one-time import.
+    """
+    db = ReplyStore(store_path_for(cache_path))
+    try:
+        import_jsonl_once(db, cache_path)
+    except BaseException:
+        db.close()
+        raise
+    return db
