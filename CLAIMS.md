@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/93-web-save-ui | agent-af0d04c9dea4fcc2d | site/js/runs-api.js, site/js/web-save-panel.js (new), site/js/page-gauntlet.js, site/js/page-batch.js, site/index.html, site/js/react/SiteHeader.jsx, js-tests/web-save.test.js (new) | 2026-10-27 |
