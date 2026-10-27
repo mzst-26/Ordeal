@@ -14,6 +14,8 @@ import * as rules from "./engine/rules.js";
 import * as adaptive from "./engine/adaptive.js";
 import { el } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
+import { mountModelCheck } from "./model-check.js";
+import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
 import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
@@ -55,6 +57,9 @@ const WORKING_LABEL = "Working…";
 const NO_SAVED_RUN_MESSAGE = "No saved reply for this model and question yet.";
 const SAVED_CONDITION_MESSAGE = "Saved runs were recorded with no system prompt. Choose None, or use live mode.";
 const SAVED_SUITE_MESSAGE = "Saved replies exist only for gauntlet_v3 with easy questions. Use live mode here.";
+// Lines for the "not in the list" field under 3. Model (see addTypedModel below).
+const CHECKING_TEXT = "Checking the name on the platform...";
+const NO_PLATFORM_ADD_TEXT = "No platform is chosen, so no model can be added.";
 const NO_KEY_TOAST = "No key was saved, so this run uses the saved reply instead.";
 const LIVE_CANCELLED_TOAST = "Live mode was not started. The page stays in saved mode.";
 const NO_KEY_RESUME_TOAST = "No key was saved, so the run was not resumed. It stays in the saved list.";
@@ -133,6 +138,11 @@ export function mountGauntlet(root) {
   page.dom.questionSet.addEventListener("change", onSuiteChanged);
   page.dom.modelChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
+  mountModelCheck(page.dom.modelCheck, {
+    onCheck: addTypedModel,
+    keyReady: keyForChosenPlatform,
+    checkingText: () => CHECKING_TEXT,
+  });
   page.dom.questionChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.question, "Choose a question", "Search questions", questionCard));
   wireRunsPopup({ button: page.dom.runsButton, dialog: page.dom.runsDialog, done: page.dom.runsDone });
@@ -161,6 +171,7 @@ function findElements(root) {
     suiteSummary: byId(root, VIEW_IDS.gauntlet["suite-summary"]),
     model: byId(root, "model-select"),
     modelChoose: byId(root, "gauntlet-model-choose"),
+    modelCheck: byId(root, "gauntlet-model-check"),
     question: byId(root, "question-select"),
     questionChoose: byId(root, "gauntlet-question-choose"),
     condition: byId(root, VIEW_IDS.gauntlet["condition-select"]),
@@ -412,6 +423,54 @@ function syncChoiceButtons() {
     trigger.textContent = chosen ? chosen.textContent : "Choose";
     trigger.disabled = select.disabled;
   }
+}
+
+/**
+ * Return the platform the visitor chose now, or null when none can be read. It is read each time, as the live page
+ * reads it before a request, so a platform changed in the panel is the one checked.
+ */
+async function chosenPlatformOrNull() {
+  try {
+    return await activePlatform();
+  } catch {
+    return null;
+  }
+}
+
+/** Ask for the key of the chosen platform, the same prompt a run uses. False when no platform can be read. */
+async function keyForChosenPlatform() {
+  const platform = await chosenPlatformOrNull();
+  return platform === null ? false : keyReadyFor(platform);
+}
+
+/**
+ * The add path of the "not in the list" field. It runs the same steps as the batch page's "Add another model name"
+ * (typed-model-check.js). The Gauntlet picks one model, so an accepted name becomes that model, and a run then uses it.
+ */
+async function addTypedModel(text) {
+  const platform = await chosenPlatformOrNull();
+  if (platform === null) {
+    return { message: NO_PLATFORM_ADD_TEXT, added: false };
+  }
+  const result = await checkTypedName(platform, text);
+  if (!result.ok) {
+    return { message: result.message, added: false };
+  }
+  setModelChoice(result.model);
+  return { message: result.message, added: true };
+}
+
+/**
+ * Set the model menu to a name. A name the catalogue does not have is added as one more option, so the menu and its
+ * button show it like any other model. It is not saved, so it lasts for this page visit.
+ */
+function setModelChoice(model) {
+  const known = [...page.dom.model.options].some((option) => option.value === model);
+  if (!known) {
+    page.dom.model.append(el("option", { value: model, text: model }));
+  }
+  page.dom.model.value = model;
+  syncChoiceButtons();
 }
 
 /**
@@ -1168,10 +1227,33 @@ function restorableProblem(config) {
   if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
     return "This saved run used a shuffled order that this site no longer has, so it cannot be resumed.";
   }
-  if (!modelChoices(page.data.config).some((entry) => entry.id === config.model)) {
-    return `The model ${config.model} is not in the list, so this run cannot be resumed.`;
+  return resumeModelProblem(config.model, menuModelValues());
+}
+
+/**
+ * Return true when the desk's model menu has an option with this id. The menu holds the catalogue and any name the
+ * visitor added with "Add a model that is not in the list" this visit. Resume and presets check the menu rather than the
+ * catalogue, so a model the visitor added is treated the same as a catalogue model.
+ */
+export function modelOnDesk(model, menuValues) {
+  return menuValues.includes(model);
+}
+
+/**
+ * Return "" when a saved run's model can be put back on the desk, or the plain line that says how to go on when it
+ * cannot. The line names the way out, so the visitor is not left with a refusal and no next step.
+ */
+export function resumeModelProblem(model, menuValues) {
+  if (modelOnDesk(model, menuValues)) {
+    return "";
   }
-  return "";
+  return `The model ${model} is not in the list. Add the model with Add a model that is not in the list, `
+    + "then press Resume again.";
+}
+
+/** Return the values of the desk's model menu: the catalogue models and any names the visitor added this visit. */
+function menuModelValues() {
+  return [...page.dom.model.options].map((option) => option.value);
 }
 
 /** Put a saved run's suite, model, question and system prompt back on the desk. Returns a problem text or "". */
@@ -1268,7 +1350,7 @@ async function applyPresetSettings(settings) {
   ));
   const notes = [];
   if (settings.model !== undefined) {
-    if (modelChoices(page.data.config).some((entry) => entry.id === settings.model)) {
+    if (modelOnDesk(settings.model, menuModelValues())) {
       page.dom.model.value = settings.model;
     } else {
       notes.push(`The model ${settings.model} is not in the list.`);
