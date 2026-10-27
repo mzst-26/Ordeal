@@ -1,10 +1,11 @@
-"""Tests for the flag rule and the summary in scripts/screen_keys.py.
+"""Tests for scripts/screen_keys.py: the blind key screen, its flag rule and its summary.
 
-These tests use plain letters and counts, so they never touch the network or the question text.
-A question is flagged when a screen answer differs from the key, or when the screen answers disagree
-with each other. The summary counts verified, unchecked and flagged questions.
+None of these tests touch the network. The screen is tested with a fake ask function that records
+the messages it was sent, so we can check that no key-bearing field ever reaches a model.
+The flag and summary tests use plain letters and counts, so they never need question text.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -15,11 +16,34 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 sys.path.insert(0, str(PROJECT_DIR))
 
 import screen_keys  # noqa: E402
+from ordeal import core  # noqa: E402
 
 
 def make_question(question_id="q1", correct="B"):
-    """Return a minimal question with only the fields the flag rule needs."""
-    return {"id": question_id, "correct": correct}
+    """Return a question shaped like questions.json, with text that must never reach a model."""
+    return {
+        "id": question_id,
+        "question": "Which option is right?",
+        "options": {"A": "first", "B": "second", "C": "third", "D": "fourth"},
+        "correct": correct,
+        "pushed_wrong": "C",
+        "trap": "SECRET_TRAP_TEXT",
+        "wrong_path": "SECRET_WRONG_PATH_TEXT",
+    }
+
+
+class BlindViewTests(unittest.TestCase):
+    """The blind view is the only part of a question that a screen model may see."""
+
+    def test_blind_view_keeps_only_question_and_options(self):
+        view = screen_keys.blind_view(make_question())
+        self.assertEqual(set(view), {"question", "options"})
+
+    def test_blind_message_has_no_key_or_trap_text(self):
+        message = core.format_question(screen_keys.blind_view(make_question()))
+        # The fixed example "Answer: B" in the format text is the same for every question, so it is allowed.
+        self.assertNotIn("SECRET", message)
+        self.assertIn("Which option is right?", message)
 
 
 class FlagReasonTests(unittest.TestCase):
@@ -80,6 +104,44 @@ class SummaryTests(unittest.TestCase):
     def test_no_flags_gives_zero_flagged(self):
         checks = [{"id": "q1", "status": "unchecked"}]
         self.assertEqual(screen_keys.summarize_checks(checks, flagged_ids=[])["flagged"], 0)
+
+
+class RunScreenTests(unittest.TestCase):
+    """The screen asks every model the same number of times, with blind messages only."""
+
+    def test_each_model_gets_the_samples_asked_for(self):
+        sent = []
+
+        def fake_ask(model, messages):
+            sent.append((model, messages))
+            return "Answer: B"
+
+        questions = [make_question("q1")]
+        results = screen_keys.run_screen(questions, ["model-a", "model-b"], samples=3, ask=fake_ask)
+        self.assertEqual(len(sent), 6)
+        self.assertEqual([sample["letter"] for sample in results["q1"]["model-a"]], ["B", "B", "B"])
+
+    def test_no_message_carries_key_or_trap_fields(self):
+        sent = []
+
+        def fake_ask(model, messages):
+            sent.append(messages)
+            return "Answer: A"
+
+        screen_keys.run_screen([make_question("q1")], ["model-a"], samples=1, ask=fake_ask)
+        text = json.dumps(sent)
+        self.assertNotIn("SECRET", text)
+        self.assertNotIn('"pushed_wrong"', text)
+        self.assertNotIn('"correct"', text)
+
+    def test_a_failed_call_is_recorded_not_raised(self):
+        def failing_ask(model, messages):
+            raise RuntimeError("the server said no")
+
+        results = screen_keys.run_screen([make_question("q1")], ["model-a"], samples=1, ask=failing_ask)
+        sample = results["q1"]["model-a"][0]
+        self.assertIsNone(sample["letter"])
+        self.assertEqual(sample["error"], "RuntimeError")
 
 
 if __name__ == "__main__":
