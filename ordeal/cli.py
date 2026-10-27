@@ -7,16 +7,19 @@ prints plain messages. A person can use it without writing any code.
 """
 
 import argparse
+import csv
 import getpass
 import hashlib
+import json
 import re
 import sys
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 
 import openai
 
-from ordeal import core, grade, keys, model_client, providers, runner
+from ordeal import core, difficulty, grade, keys, model_client, providers, runner
 
 # How many model ids the models command prints before it asks for a --search.
 MAX_MODELS_SHOWN = 50
@@ -32,6 +35,10 @@ RESULTS_FOLDER_NAME = "results"
 # The summary tables of a command-line run go under docs/, so they can be read in the repository. The raw
 # saved replies stay in results/, because they are large and git-ignored.
 SUMMARY_FOLDER_PARTS = ("docs", "cli-results")
+# The file that says where the summary tables came from. It holds no key and no path to the .env file.
+SOURCE_FILE_NAME = "source.json"
+COMMAND_LINE_SOURCE = "command line"
+SUMMARY_FILE_NAMES = [grade.RESULTS_FILE_NAME, grade.PROBES_FILE_NAME, difficulty.BY_DIFFICULTY_FILE_NAME]
 
 
 def route_key(platform: providers.Platform) -> str:
@@ -180,6 +187,42 @@ def summary_folder(suite_name: str, condition: str) -> Path:
     return Path.cwd().joinpath(*SUMMARY_FOLDER_PARTS, suite_name, condition)
 
 
+def count_models(results_path: Path, suite_name: str, condition: str) -> int:
+    """Return how many models have a row in results.csv for this suite and condition. A missing file counts as none.
+
+    Only rows for this suite and condition are counted, because a folder given with --out-dir may hold other runs.
+    """
+    if not results_path.exists():
+        return 0
+    with results_path.open(newline="", encoding="utf-8") as file:
+        models = {
+            row["model"]
+            for row in csv.DictReader(file)
+            if row["suite"] == suite_name and row["condition"] == condition
+        }
+    return len(models)
+
+
+def write_source_file(out_dir: Path, suite: core.Suite, condition: str) -> None:
+    """Write source.json beside the summary tables, so anyone can see how they were made.
+
+    It records the command line as the source, the suite, the condition, the time and the counts. It is
+    written next to the tables, not inside results/, so the summary folder explains itself on its own.
+    """
+    record = {
+        "source": COMMAND_LINE_SOURCE,
+        "suite": suite.name,
+        "condition": condition,
+        # The time includes the offset from UTC, so a reader in another country knows when the run was.
+        "written_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "models": count_models(out_dir / grade.RESULTS_FILE_NAME, suite.name, condition),
+        "questions": len(suite.questions),
+        "files": SUMMARY_FILE_NAMES,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / SOURCE_FILE_NAME).write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     """Run the Ordeal experiment on one model, then print its table.
 
@@ -193,10 +236,11 @@ def cmd_test(args: argparse.Namespace) -> int:
     code = runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route})
     # Grade whatever was saved, even after a failed call, so the person can see the partial table.
     if code in (0, 1):
-        # The suite and condition are the ones grade.py uses when no option names them, so the folder matches the tables.
+        # The suite and condition are the ones grade.py uses when no option names them, so the folder matches.
         suite = core.load_chosen_suite()
         out_dir = args.out_dir or summary_folder(suite.name, core.NO_SYSTEM_PROMPT)
-        grade.main(["--cache", str(cache), "--out-dir", str(out_dir)])
+        if grade.main(["--cache", str(cache), "--out-dir", str(out_dir)]) == 0:
+            write_source_file(out_dir, suite, core.NO_SYSTEM_PROMPT)
     return code
 
 
