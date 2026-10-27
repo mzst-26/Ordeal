@@ -40,8 +40,6 @@ DEFAULT_QUESTIONS = "easy"
 # goes with. These are the same two the site offers (site/js/suites.js), and the pairing is fixed by the project
 # decision, so the command line refuses the other two combinations.
 SUITE_CHOICES = ("gauntlet_v3+easy", "gauntlet_v4+hard")
-# The suite a command runs when --suite is not given. It is the suite the site starts on.
-DEFAULT_SUITE = "gauntlet_v3+easy"
 RESULTS_DIR = PROJECT_DIR / "results"
 # One JSON record per line; every saved model reply goes here (see make_record and append_record).
 CACHE_PATH = RESULTS_DIR / "cache.jsonl"
@@ -306,33 +304,53 @@ def add_suite_argument(parser):
 
     The option takes one of SUITE_CHOICES and has no default here. None means the command was not given a
     suite. The --shuffle-mix check needs that to tell "not given" from "given", and load_chosen_suite turns
-    None into DEFAULT_SUITE.
+    None into the suite that config.json names. The help text does not name a suite, so it stays right when
+    config.json changes.
     """
     parser.add_argument(
         "--suite",
         choices=SUITE_CHOICES,
         default=None,
-        help=f"the pushback set and question set together: {', '.join(SUITE_CHOICES)} (default: {DEFAULT_SUITE})",
+        help="the pushback set and question set together: " + ", ".join(SUITE_CHOICES)
+        + " (default: the ladder and questions keys in ordeal/data/config.json)",
     )
 
 
-def load_chosen_suite(name=None):
-    """Return the suite for a --suite name, such as 'gauntlet_v4+hard'. None means DEFAULT_SUITE.
+def default_suite_name():
+    """Return the default suite name, from the ladder and questions keys of config.json.
 
-    A name outside SUITE_CHOICES raises ValueError. The command line refuses those names already, so this
-    check is for code that passes a name in directly.
+    config.json is the one source of the default. A missing key falls back to DEFAULT_LADDER or
+    DEFAULT_QUESTIONS, as load_suite does. The name is not checked here; load_chosen_suite does that.
     """
-    chosen = DEFAULT_SUITE if name is None else name
-    if chosen not in SUITE_CHOICES:
-        raise ValueError(f"Unknown suite '{chosen}'. Offered suites: {', '.join(SUITE_CHOICES)}.")
+    config = load_config()
+    return f"{config.get('ladder', DEFAULT_LADDER)}+{config.get('questions', DEFAULT_QUESTIONS)}"
+
+
+def load_chosen_suite(name=None):
+    """Return the suite for a --suite name, such as 'gauntlet_v4+hard'. None means the config.json default.
+
+    Any name outside SUITE_CHOICES is refused with ValueError, so an unoffered pairing never runs. A bad
+    pair in config.json is refused the same way, and the message says it came from config.json.
+    """
+    if name is None:
+        chosen = default_suite_name()
+        if chosen not in SUITE_CHOICES:
+            raise ValueError(
+                f"config.json names the suite '{chosen}', which is not offered. "
+                f"Offered suites: {', '.join(SUITE_CHOICES)}."
+            )
+    else:
+        chosen = name
+        if chosen not in SUITE_CHOICES:
+            raise ValueError(f"Unknown suite '{chosen}'. Offered suites: {', '.join(SUITE_CHOICES)}.")
     ladder, questions = chosen.split("+")
     return load_suite(ladder=ladder, questions=questions)
 
 
 @lru_cache(maxsize=None)
 def default_suite():
-    """Return the suite that suite-less calls use (config.json, else gauntlet_v3 + easy). Read once per run."""
-    return load_suite()
+    """Return the suite that suite-less calls use: the config.json default, as the commands use. Read once per run."""
+    return load_chosen_suite()
 
 
 def current_experiment(suite=None):

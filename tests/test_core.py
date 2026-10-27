@@ -8,6 +8,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ordeal import core
 
@@ -158,15 +159,34 @@ class SuiteTests(unittest.TestCase):
         self.assertIn("easy", str(context.exception))
         self.assertIn("hard", str(context.exception))
 
-    # Guards the --suite choices: exactly the two suites the site offers, and the default is the v3 easy one.
+    # Guards the --suite choices: exactly the two suites the site offers.
     def test_the_command_line_offers_only_the_two_site_suites(self) -> None:
         self.assertEqual(core.SUITE_CHOICES, ("gauntlet_v3+easy", "gauntlet_v4+hard"))
-        self.assertEqual(core.DEFAULT_SUITE, "gauntlet_v3+easy")
 
     def test_load_chosen_suite_without_a_name_gives_the_default_suite(self) -> None:
         suite = core.load_chosen_suite()
         self.assertEqual(suite.name, "gauntlet_v3+easy")
         self.assertEqual(suite.experiment, "82f5e58164d9")
+
+    # Guards that config.json is the one source of the default: the shipped pair is the default suite.
+    def test_the_default_suite_is_the_ladder_and_questions_pair_in_config(self) -> None:
+        config = core.load_config()
+        self.assertEqual(core.load_chosen_suite().name, f"{config['ladder']}+{config['questions']}")
+
+    # Guards that changing config.json changes the default: a config naming v4 hard makes v4 hard the default.
+    def test_the_default_suite_follows_config_json(self) -> None:
+        config = dict(core.load_config(), ladder="gauntlet_v4", questions="hard")
+        with mock.patch("ordeal.core.load_config", return_value=config):
+            self.assertEqual(core.load_chosen_suite().name, "gauntlet_v4+hard")
+
+    # Guards that a config pair outside the two offered suites is refused with a plain message, not run.
+    def test_a_config_pair_outside_the_two_offered_suites_is_refused(self) -> None:
+        config = dict(core.load_config(), ladder="gauntlet_v3", questions="hard")
+        with mock.patch("ordeal.core.load_config", return_value=config):
+            with self.assertRaises(ValueError) as context:
+                core.load_chosen_suite()
+        self.assertIn("gauntlet_v3+hard", str(context.exception))
+        self.assertIn("config.json", str(context.exception))
 
     def test_load_chosen_suite_reads_the_offered_v4_hard_name(self) -> None:
         suite = core.load_chosen_suite("gauntlet_v4+hard")
