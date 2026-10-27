@@ -143,6 +143,60 @@ class Failure:
 
 
 @dataclass
+class HealthCounts:
+    """What one model's new calls looked like in this run. The health guard reads these to decide on a pause.
+
+    'calls' counts every call that ended, whether it gave a reply or failed for good. 'graded_replies' counts
+    the replies at graded steps (see is_graded_step), and 'unparsed_replies' the graded ones with no 'Answer: X'.
+    """
+
+    calls: int = 0
+    failures: int = 0
+    graded_replies: int = 0
+    unparsed_replies: int = 0
+
+
+def health_problem(counts: HealthCounts, config: dict[str, Any]) -> str | None:
+    """Return why the model should be paused, or None while it is still healthy.
+
+    Nothing is judged before health_min_calls calls, because a few bad calls say little about a model.
+    After that, a rate above its limit pauses the model. A rate exactly at the limit is not above it.
+    """
+    if counts.calls == 0 or counts.calls < config["health_min_calls"]:
+        return None
+    failure_rate = counts.failures / counts.calls
+    if failure_rate > config["health_max_failure_rate"]:
+        return (
+            f"{counts.failures} of {counts.calls} calls failed ({failure_rate:.0%}), "
+            f"above the limit of {config['health_max_failure_rate']:.0%}"
+        )
+    # With no graded reply yet there is no unparsed rate to judge, so it counts as zero.
+    unparsed_rate = counts.unparsed_replies / counts.graded_replies if counts.graded_replies else 0.0
+    if unparsed_rate > config["health_max_unparsed_rate"]:
+        return (
+            f"{counts.unparsed_replies} of {counts.graded_replies} graded replies had no 'Answer: X' line "
+            f"({unparsed_rate:.0%}), above the limit of {config['health_max_unparsed_rate']:.0%}"
+        )
+    return None
+
+
+def model_is_unhealthy(counts: HealthCounts, config: dict[str, Any]) -> bool:
+    """True when the model should be paused: enough calls, and a failure or unparsed rate above its limit."""
+    return health_problem(counts, config) is not None
+
+
+def is_graded_step(step: str) -> bool:
+    """True for the graded steps: the baseline, the pressure levels, the confession and the correction.
+
+    This is the rule grade.graded_steps applies to a suite. It is written by name here because a mixed run has
+    two suites, and each suite names its pressure levels level_1, level_2 and so on (see core.pushback_steps).
+    The baseline is level_0, so the prefix covers it too. Setup and probe steps are left out, as in grade.py,
+    because a yes/no setup never has an 'Answer: X' line.
+    """
+    return step.startswith("level_") or step == core.CONFESSION_STEP or step in core.CORRECTION_STEPS
+
+
+@dataclass
 class RunStats:
     """The counts shown in the summary."""
 
@@ -151,6 +205,11 @@ class RunStats:
     chains_skipped: int = 0
     failures: list[Failure] = field(default_factory=list)
     stopped_by_budget: bool = False
+    # The health counts of each model, and the reason each paused model was paused. Both last for this run only.
+    health: dict[str, HealthCounts] = field(default_factory=dict)
+    paused: dict[str, str] = field(default_factory=dict)
+    # Calls not sent because their model was paused. They are not failures, because they were never sent.
+    calls_skipped: int = 0
 
 
 @dataclass
@@ -297,7 +356,8 @@ async def run_unit(ctx: RunContext, unit: Unit) -> None:
 async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str) -> str | None:
     """Return the saved reply for this step, or call the model and save the new reply.
 
-    Returns None if the call failed for good. The failure is then recorded in the stats.
+    Returns None if the call failed for good, which is then recorded in the stats. It also returns None when the
+    model is paused, and that call is counted as skipped instead.
     """
     # The key uses the saved label, so a rerun finds replies saved earlier under the same label.
     key = step_key(ctx.settings.condition, unit, step)
@@ -328,6 +388,7 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
     core.append_record(record, ctx.cache_path)
     ctx.cache[key] = record
     ctx.stats.calls_made += 1
+    count_health(ctx, unit, step, reply.text)
     return reply.text
 
 
@@ -347,9 +408,13 @@ def saved_extra_fields(unit: Unit, reply: model_client.Reply) -> dict[str, Any]:
 async def call_with_retries(
     ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str
 ) -> model_client.Reply | None:
-    """Call the model, retrying errors that is_retryable accepts. Returns None after a final failure."""
+    """Call the model, retrying errors that is_retryable accepts. Returns None after a final failure or when paused."""
     attempt = 0
     while True:
+        # Checked before every attempt, so a paused model gets no retry either. The unit is skipped, not failed.
+        if unit.model in ctx.stats.paused:
+            ctx.stats.calls_skipped += 1
+            return None
         try:
             return await call_model(ctx, unit.model, messages)
         except BudgetExhausted:
@@ -437,12 +502,47 @@ def finish_admitted_call(
 
 
 def record_failure(ctx: RunContext, unit: Unit, step: str, message: str) -> None:
-    """Keep a record of a failed call and print one line about it to stderr. The key is never printed."""
+    """Keep a record of a failed call, count it for the health guard, and print one line about it to stderr.
+
+    The key is never printed.
+    """
     question_id = unit.question["id"]
     ctx.stats.failures.append(
         Failure(model=unit.model, question_id=question_id, repeat=unit.repeat, step=step, message=message)
     )
     print(f"Failed: {unit.model} {question_id} repeat {unit.repeat} {step}: {message}", file=sys.stderr)
+    count_health(ctx, unit, step, None)
+
+
+def count_health(ctx: RunContext, unit: Unit, step: str, reply_text: str | None) -> None:
+    """Count one call that has ended for its model, then pause the model if its counts are now unhealthy.
+
+    'reply_text' is None when the call failed for good. Only graded replies count toward the unparsed rate,
+    so a setup reply with no letter cannot pause a healthy model.
+    """
+    counts = ctx.stats.health.setdefault(unit.model, HealthCounts())
+    counts.calls += 1
+    if reply_text is None:
+        counts.failures += 1
+    elif is_graded_step(step):
+        counts.graded_replies += 1
+        if core.parse_answer(reply_text) is None:
+            counts.unparsed_replies += 1
+    pause_if_unhealthy(ctx, unit.model)
+
+
+def pause_if_unhealthy(ctx: RunContext, model: str) -> None:
+    """Pause the model for the rest of this run when its counts say it is unhealthy, and print one line saying why.
+
+    A model is paused once, so the line is printed once. The other models are not touched.
+    """
+    if model in ctx.stats.paused:
+        return
+    reason = health_problem(ctx.stats.health[model], ctx.settings.config)
+    if reason is None:
+        return
+    ctx.stats.paused[model] = reason
+    print(f"Paused {model}: {reason}. Its remaining calls are skipped; other models keep running.", file=sys.stderr)
 
 
 async def run_all(
