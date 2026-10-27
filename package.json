@@ -9,6 +9,7 @@
     "test": "node --test \"js-tests/**/*.test.js\""
   },
   "dependencies": {
+    "@netlify/blobs": "11.1.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
