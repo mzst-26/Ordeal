@@ -696,9 +696,21 @@ export function confessionSum(rows, shareKey) {
   return units > 0 ? total : Number.NaN;
 }
 
-/** True when the probe rows hold at least one finite estimate, so a probe chart has something to draw. */
-export function probeDataPresent(probeRows) {
-  return probeRows.some((row) => Number.isFinite(row.estimate));
+/**
+ * True when a probe family was run on at least one saved unit, so its chart has something to draw. A family that was
+ * never run still gets rows, with zero units, so the units count is the test. This matches grade.probe_family_present
+ * in ordeal/grade.py.
+ */
+export function probeFamilyPresent(probeRows, family) {
+  return probeRows.some((row) => row.family === family && row.units > 0);
+}
+
+/**
+ * The number of saved units, summed over the models in the gauntlet rows. A partial run shows a smaller count here
+ * beside each chart. This matches grade.saved_unit_count in ordeal/grade.py.
+ */
+export function savedUnitCount(rows) {
+  return rows.reduce((sum, row) => sum + row.units, 0);
 }
 
 /** Options for Fig. 4: the confession answers of the models that flipped, summed over the models. */
@@ -796,11 +808,18 @@ const CHART_TITLES = {
   twins: "Fig. 3 · The twin probes",
   confessions: "Fig. 4 · The confessions",
 };
-const NO_PROBES_TEXT = "This run has no probe replies, so this chart has nothing to show. Probes run when their families are ticked on the Batch page.";
+/**
+ * The note under a probe chart whose family has no saved units. It names the family and the figure, so an empty chart
+ * says why it is empty, and says how a probe family gets run.
+ */
+function probeNoteText(family, figure) {
+  return `This run has no ${family} replies, so ${figure} has nothing to plot. Probes run when their families are ticked on the Batch page.`;
+}
 
 /**
- * Add an Enlarge button to each chart, which opens it in a large, interactive dialog. The probe charts also get a note,
- * shown when the replies are loaded but hold no probe answers, so an empty chart says why it is empty.
+ * Add an Enlarge button to each chart, which opens it in a large, interactive dialog. Each chart also gets a line for its
+ * saved unit count, so a partial run is visible. The probe charts also get a note, shown when no replies of their family
+ * were saved.
  */
 function addChartExtras() {
   for (const [key, title] of Object.entries(CHART_TITLES)) {
@@ -808,12 +827,21 @@ function addChartExtras() {
     const enlarge = el("button", { type: "button", className: "btn", text: "Enlarge", "aria-haspopup": "dialog" });
     enlarge.addEventListener("click", () => openEnlargedChart(panel, title));
     panel.toggle.after(enlarge);
+    panel.unitNote = el("p", { className: "field-hint" });
+    panel.chartHost.after(panel.unitNote);
     if (key === "fingerprints" || key === "twins") {
-      panel.probeNote = el("p", { className: "field-hint", text: NO_PROBES_TEXT });
+      panel.probeNote = el("p", { className: "field-hint" });
       panel.probeNote.hidden = true;
-      panel.chartHost.after(panel.probeNote);
+      panel.unitNote.after(panel.probeNote);
     }
   }
+}
+
+/** Show the note under a probe chart when replies are loaded and this probe family has none saved. */
+function showProbeNote(panel, probeRows, family, figure) {
+  const missing = run.seen.length > 0 && !probeFamilyPresent(probeRows, family);
+  panel.probeNote.textContent = probeNoteText(family, figure);
+  panel.probeNote.hidden = !missing;
 }
 
 /** Grade the records seen so far, then redraw all four charts. Each chart tweens to its new numbers. */
@@ -829,10 +857,12 @@ function drawCharts(graded) {
   drawPanel(panels.fingerprints, fingerprintOptions(graded.probeRows, suite));
   drawPanel(panels.twins, twinOptions(graded.probeRows, suite));
   drawPanel(panels.confessions, confessionOptions(graded.rows));
-  // The probe note shows only when replies are loaded and none of them is a probe answer.
-  const probesMissing = run.seen.length > 0 && !probeDataPresent(graded.probeRows);
-  panels.fingerprints.probeNote.hidden = !probesMissing;
-  panels.twins.probeNote.hidden = !probesMissing;
+  const units = `Saved units: ${savedUnitCount(graded.rows)}`;
+  for (const panel of Object.values(panels)) {
+    panel.unitNote.textContent = units;
+  }
+  showProbeNote(panels.fingerprints, graded.probeRows, "fingerprint", "Fig. 2");
+  showProbeNote(panels.twins, graded.probeRows, "twin", "Fig. 3");
 }
 
 /** Redraw the charts from the stored grades when the theme changes. Nothing is graded again. */

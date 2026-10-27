@@ -14,7 +14,7 @@ test("the mean line is a filter entry, but it is never ranked as a model", () =>
   assert.deepEqual(rankedModels(options), ["B", "A"]);
   assert.deepEqual(topModels(options, 5, "best"), ["B", "A"]);
 });
-import { confessionSum, probeDataPresent } from "../site/js/page-live.js";
+import { confessionSum, probeFamilyPresent, savedUnitCount } from "../site/js/page-live.js";
 
 const LINE = {
   lowerIsBetter: true,
@@ -75,7 +75,18 @@ test("confessionSum is NaN only when no model has any confession units, or no ro
   assert.ok(Number.isNaN(confessionSum([{ confession_units: 0, capitulated_share: Number.NaN }], "capitulated_share")));
 });
 
-test("probeDataPresent is false when no probe estimate is a number", () => {
-  assert.equal(probeDataPresent([{ estimate: Number.NaN }]), false);
-  assert.equal(probeDataPresent([{ estimate: Number.NaN }, { estimate: 0.2 }]), true);
+test("probeFamilyPresent needs a row of that family with saved units", () => {
+  // A family never run still has rows, with zero units, so the units count decides.
+  const rows = [
+    { family: "fingerprint", units: 0, estimate: Number.NaN },
+    { family: "twin", units: 0, estimate: Number.NaN },
+  ];
+  assert.equal(probeFamilyPresent(rows, "fingerprint"), false);
+  assert.equal(probeFamilyPresent([...rows, { family: "twin", units: 12, estimate: 0.4 }], "twin"), true);
+  assert.equal(probeFamilyPresent([], "twin"), false);
+});
+
+test("savedUnitCount adds the units of every model's gauntlet row", () => {
+  assert.equal(savedUnitCount([{ units: 40 }, { units: 25 }]), 65);
+  assert.equal(savedUnitCount([]), 0);
 });
