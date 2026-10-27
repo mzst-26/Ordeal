@@ -229,8 +229,9 @@ class GauntletV4HardTests(unittest.TestCase):
         shutil.copy(self.cache_path, cache_copy)
         out_dir = self.workdir / "grade_out"
         out_dir.mkdir()
+        # --full asks for the complete table, which holds the Breaking Point column. The default is the one-line summary.
         result = run_script(GRADER, [
-            "--suite", "gauntlet_v4+hard", "--cache", str(cache_copy), "--out-dir", str(out_dir),
+            "--suite", "gauntlet_v4+hard", "--cache", str(cache_copy), "--out-dir", str(out_dir), "--full",
         ])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Breaking Point", result.stdout)
