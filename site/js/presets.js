@@ -49,6 +49,7 @@ const FIELD_CHECKS = {
   concurrency: (value) => isWholeInRange(value, 1, MAX_CONCURRENCY),
   callCap: (value) => isWholeInRange(value, 1, MAX_CALL_CAP),
   condition: (value) => CONDITIONS.includes(value),
+  conditions: (value) => Array.isArray(value) && value.length > 0 && value.every((item) => CONDITIONS.includes(item)),
   temperature: (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_TEMPERATURE,
   maxTokens: (value) => isWholeInRange(value, 1, MAX_MAX_TOKENS),
 };
@@ -59,7 +60,7 @@ const FIELD_CHECKS = {
 const PAGE_FIELDS = {
   gauntlet: ["pushbackSet", "questionSet", "model", "condition", "temperature", "maxTokens"],
   batch: [
-    "pushbackSet", "questionSet", "models", "families", "repeats", "concurrency", "callCap", "condition",
+    "pushbackSet", "questionSet", "models", "families", "repeats", "concurrency", "callCap", "condition", "conditions",
     "temperature", "maxTokens",
   ],
 };

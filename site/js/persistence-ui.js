@@ -232,10 +232,59 @@ function countText(row, unitWord) {
  * can be resumed), Export (a JSON download) and Delete (after a confirmation). The options are adapter, kind, queue
  * (the page's serial queue for run writes), unitWord ("units" or "steps"), onResume(run), onChanged() and emptyText
  * (the line shown when there are no runs; null shows nothing, for a page whose count line already says so).
+ * The optional selection is { onView(runs), onContinue(runs) }. It adds a tick box to each row, and two buttons that
+ * act on the ticked runs together. Without it the list is the same as before.
  * Returns { root, refresh }. refresh() resolves to the number of runs it drew.
  */
-export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChanged, emptyText = NO_SAVED_TEXT }) {
+export function buildRunsList({
+  adapter, kind, queue, unitWord, onResume, onChanged, emptyText = NO_SAVED_TEXT, selection = null,
+}) {
   const host = el("div", { className: "run-list-host" });
+  // The ids of the ticked rows. They are kept across redraws, and a run that was deleted is dropped from them.
+  const picked = new Set();
+  let rowsNow = [];
+  const viewButton = button("View selected");
+  const continueButton = button("Continue selected");
+  viewButton.addEventListener("click", () => runsPicked(selection?.onView));
+  continueButton.addEventListener("click", () => runsPicked(selection?.onContinue));
+  const actionRow = el("div", { className: "button-row run-actions" }, [viewButton, continueButton]);
+
+  /** Enable the two buttons only when at least one run is ticked. */
+  function updateActions() {
+    viewButton.disabled = picked.size === 0;
+    continueButton.disabled = picked.size === 0;
+  }
+
+  /** Load the ticked runs from storage, in list order, and hand them to the page's handler. */
+  async function runsPicked(handler) {
+    const runs = [];
+    for (const row of rowsNow) {
+      if (picked.has(row.id)) {
+        const run = await getRun(adapter, row.id);
+        if (run !== null) {
+          runs.push(run);
+        }
+      }
+    }
+    if (handler) {
+      await handler(runs);
+    }
+  }
+
+  /** Build the tick box of one row. It is set from the picked ids, so a redraw keeps the ticks. */
+  function pickBox(row) {
+    const box = el("input", { className: "check-input", type: "checkbox", checked: picked.has(row.id) });
+    box.setAttribute("aria-label", `Select ${row.label}`);
+    box.addEventListener("change", () => {
+      if (box.checked) {
+        picked.add(row.id);
+      } else {
+        picked.delete(row.id);
+      }
+      updateActions();
+    });
+    return el("label", { className: "check run-pick" }, [box]);
+  }
 
   /** Build one row of the list. */
   function rowItem(row) {
@@ -252,7 +301,9 @@ export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChan
     const remove = button("Delete", "btn btn-danger");
     remove.setAttribute("aria-label", `Delete ${row.label}`);
     remove.addEventListener("click", () => removeRun(row.id, row.label, `Delete ${row.label}?`));
+    const pick = selection === null ? null : pickBox(row);
     return el("li", { className: "run-item" }, [
+      pick,
       el("div", { className: "run-main" }, [
         el("p", { className: "run-label", text: row.label }),
         el("p", {
@@ -283,6 +334,13 @@ export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChan
   /** Draw the list again from storage, and return how many runs it drew. */
   async function refresh() {
     const rows = await savedRunRows(adapter, kind);
+    rowsNow = rows;
+    for (const id of [...picked]) {
+      if (!rows.some((row) => row.id === id)) {
+        picked.delete(id);
+      }
+    }
+    updateActions();
     host.replaceChildren(...listItems(rows));
     return rows.length;
   }
@@ -290,7 +348,8 @@ export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChan
   /** Return what the list shows: its rows, or the empty line when there are none and the caller wants one. */
   function listItems(rows) {
     if (rows.length > 0) {
-      return [el("ol", { className: "run-list" }, rows.map(rowItem))];
+      const list = el("ol", { className: "run-list" }, rows.map(rowItem));
+      return selection === null ? [list] : [actionRow, list];
     }
     return emptyText === null ? [] : [el("p", { className: "field-hint", text: emptyText })];
   }
