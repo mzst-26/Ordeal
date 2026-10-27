@@ -283,7 +283,7 @@ export function buildRunsList({
       }
       updateActions();
     });
-    return el("label", { className: "check run-pick" }, [box]);
+    return el("label", { className: "check run-pick" }, [box, el("span", { className: "check-box" })]);
   }
 
   /** Build one row of the list. */
