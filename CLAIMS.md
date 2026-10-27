@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/runs-list-summary | Claude (this session) | site/runs.html, site/js/page-runs.js, site/js/full-run-summary.js (new), js-tests/full-run-summary.test.js (new) | 2026-10-27 |
