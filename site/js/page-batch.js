@@ -147,6 +147,7 @@ const IDS = {
   runsDialog: "batch-runs-dialog",
   runsDone: "batch-runs-done",
   fullRunFile: "batch-full-run-file",
+  fullRunStatus: "batch-full-run-status",
   unfinishedCount: "batch-unfinished-count",
   savedCount: "batch-saved-count",
   fixedSettings: "fixed-settings",
@@ -440,10 +441,10 @@ async function loadFullRunFile(input) {
   input.value = "";
   if (!file) return;
   if (page.storage === null || page.data === null) {
-    setStatus("Saved runs are not available in this window, so the full run cannot be loaded.");
+    showFullRunStatus("Saved runs are not available in this window, so the full run cannot be loaded.");
     return;
   }
-  setStatus(`Reading ${file.name}. A large file can take a minute.`);
+  showFullRunStatus(`Reading ${file.name}. A large file can take a minute.`);
   try {
     const byCondition = await readRepliesByCondition(file);
     const settings = {
@@ -456,10 +457,19 @@ async function loadFullRunFile(input) {
     await refreshRuns();
     const savedText = saved.length > 0 ? `Saved: ${saved.join(", ")}.` : "Nothing new was saved.";
     const skippedText = skipped.length > 0 ? ` Not saved: ${skipped.join("; ")}.` : "";
-    setStatus(savedText + skippedText);
+    showFullRunStatus(savedText + skippedText);
   } catch (error) {
-    setStatus(errorText(error));
+    showFullRunStatus(`The file could not be loaded: ${errorText(error)} Check that it is the cache.jsonl file.`);
   }
+}
+
+/**
+ * Say what the full-run upload is doing. The text goes in the Runs popup, under the file box, because the page's own
+ * status line sits behind the open popup and would not be seen. It also goes to the page's status line.
+ */
+function showFullRunStatus(text) {
+  page.dom.fullRunStatus.textContent = text;
+  setStatus(text);
 }
 
 /**
