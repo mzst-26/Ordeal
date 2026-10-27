@@ -13,10 +13,11 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from ordeal import cli, grade, keys, model_client, providers, runner
+from ordeal import cli, core, grade, keys, model_client, providers, runner
 from tests.fake_clock import isolated_run
 
 FAKE_KEY = "test-key-123"
@@ -198,6 +199,10 @@ class TestCommandTests(CliTestCase):
         grade_patch = mock.patch.object(grade, "main", return_value=0)
         self.grade_main = grade_patch.start()
         self.addCleanup(grade_patch.stop)
+        # The grader is faked, so no tables exist to describe. This also keeps source.json out of the real docs/ folder.
+        source_patch = mock.patch.object(cli, "write_source_file")
+        source_patch.start()
+        self.addCleanup(source_patch.stop)
 
     def test_cache_file_is_named_after_platform_and_model(self) -> None:
         """Two models never share a cache file, and the file name starts with the platform and model."""
@@ -229,6 +234,101 @@ class TestCommandTests(CliTestCase):
         attach.assert_not_called()
         routes = self.runner_main.call_args.kwargs["prebuilt_routes"]
         self.assertEqual(routes["ollama/llama3.1:8b"].api_key, providers.LOCAL_KEY_PLACEHOLDER)
+
+
+class SummaryFolderTests(CliTestCase):
+    """The summary tables of a command-line run go under docs/cli-results, and the raw replies stay in results/.
+
+    The test runs inside a temporary folder, so nothing is written into the real docs/ folder.
+    """
+
+    def setUp(self) -> None:
+        """Give the groq platform a key, stop the runner and grader, and move into a temporary folder."""
+        super().setUp()
+        env_patch = mock.patch.dict(os.environ, {"GROQ_API_KEY": FAKE_KEY})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
+        runner_patch = mock.patch.object(runner, "main", return_value=0)
+        self.runner_main = runner_patch.start()
+        self.addCleanup(runner_patch.stop)
+        grade_patch = mock.patch.object(grade, "main", return_value=0)
+        self.grade_main = grade_patch.start()
+        self.addCleanup(grade_patch.stop)
+        previous_folder = os.getcwd()
+        work_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(work_dir.cleanup)
+        os.chdir(work_dir.name)
+        self.addCleanup(os.chdir, previous_folder)
+        self.work_dir = Path(work_dir.name).resolve()
+
+    def test_summaries_default_to_docs_cli_results_by_suite_and_condition(self) -> None:
+        """The three summary tables go to docs/cli-results/<suite>/<condition>/ by default."""
+        with self.fake_models(GROQ_MODELS):
+            code, _, _ = self.run_cli(["test", "groq", "org/alpha-7b"])
+        self.assertEqual(code, 0)
+        grade_argv = self.grade_main.call_args.args[0]
+        out_dir = Path(grade_argv[grade_argv.index("--out-dir") + 1])
+        suite = core.load_chosen_suite()
+        self.assertEqual(out_dir, self.work_dir / "docs" / "cli-results" / suite.name / core.NO_SYSTEM_PROMPT)
+
+    def test_raw_replies_stay_in_results(self) -> None:
+        """The cache file is still written under results/, not under docs/."""
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b"])
+        cache = Path(self.runner_main.call_args.args[0][self.runner_main.call_args.args[0].index("--cache") + 1])
+        self.assertEqual(cache.parent, self.work_dir / "results")
+
+    def test_out_dir_option_chooses_another_folder(self) -> None:
+        """--out-dir sends the summary tables to the folder given, and is not passed on to the runner."""
+        chosen = self.work_dir / "my-tables"
+        with self.fake_models(GROQ_MODELS):
+            code, _, _ = self.run_cli(["test", "groq", "org/alpha-7b", "--out-dir", str(chosen)])
+        self.assertEqual(code, 0)
+        grade_argv = self.grade_main.call_args.args[0]
+        self.assertEqual(grade_argv[grade_argv.index("--out-dir") + 1], str(chosen))
+        self.assertNotIn("--out-dir", self.runner_main.call_args.args[0])
+
+    def test_source_file_says_where_the_tables_came_from(self) -> None:
+        """source.json names the command line, the suite, the condition, the time, and the files written beside it."""
+        chosen = self.work_dir / "tables"
+        chosen.mkdir()
+        write_results_csv(chosen / grade.RESULTS_FILE_NAME, ["org/alpha-7b", "org/beta-large", "org/beta-large"])
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b", "--out-dir", str(chosen)])
+        record = json.loads((chosen / cli.SOURCE_FILE_NAME).read_text(encoding="utf-8"))
+        suite = core.load_chosen_suite()
+        self.assertEqual(record["source"], "command line")
+        self.assertEqual(record["suite"], suite.name)
+        self.assertEqual(record["condition"], core.NO_SYSTEM_PROMPT)
+        self.assertEqual(record["models"], 2)
+        self.assertEqual(record["questions"], len(suite.questions))
+        self.assertEqual(record["files"], ["results.csv", "probes.csv", "by_difficulty.csv"])
+        # The time is a full date and time, so it can be read back as one.
+        datetime.fromisoformat(record["written_at"])
+
+    def test_source_file_holds_no_key_and_no_env_path(self) -> None:
+        """Nothing in source.json looks like a key or points at the .env file."""
+        chosen = self.work_dir / "tables"
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b", "--out-dir", str(chosen)])
+        text = (chosen / cli.SOURCE_FILE_NAME).read_text(encoding="utf-8")
+        self.assertNotIn(FAKE_KEY, text)
+        self.assertNotIn(".env", text)
+
+    def test_no_source_file_when_grading_found_nothing(self) -> None:
+        """When the grader finds no saved replies, it writes no tables, so no source.json either."""
+        chosen = self.work_dir / "tables"
+        self.grade_main.return_value = 1
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b", "--out-dir", str(chosen)])
+        self.assertFalse((chosen / cli.SOURCE_FILE_NAME).exists())
+
+
+def write_results_csv(path: Path, models: list[str]) -> None:
+    """Write a small results.csv with one row per model, using the same first two columns as the real file."""
+    lines = ["suite,condition,model"]
+    lines += [f"{core.load_chosen_suite().name},{core.NO_SYSTEM_PROMPT},{model}" for model in models]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 class RunnerHookTests(CliTestCase):
