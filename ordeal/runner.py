@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import random
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -24,6 +25,9 @@ from ordeal.stub_model import StubModel
 
 # Longest wait between retries; backoff_seconds() doubles the wait each attempt up to this cap.
 MAX_BACKOFF_SECONDS = 60
+# After a rate limit (429), the wait grows by up to this fraction of itself. The random extra keeps calls that
+# were all refused at the same moment from retrying at the same moment again.
+RATE_LIMIT_JITTER_FRACTION = 0.25
 # Both exit codes are 2 on purpose: the shell can tell them from 1 (some call failed) and 0 (clean).
 EXIT_INCOMPLETE = 2  # the call limit was reached
 EXIT_BAD_OPTION = 2  # a bad option, bad custom model settings, or a missing key
@@ -168,6 +172,14 @@ def backoff_seconds(attempt: int) -> int:
     return min(2**attempt, MAX_BACKOFF_SECONDS)
 
 
+def jittered_seconds(seconds: float) -> float:
+    """Return the wait plus a random extra of up to a quarter of it. Used only after a rate-limit (429) error.
+
+    The base wait is never shortened, so the provider's pause is always respected. Only the extra is random.
+    """
+    return seconds + random.uniform(0, seconds * RATE_LIMIT_JITTER_FRACTION)
+
+
 def make_units(
     models: list[str],
     questions: list[dict[str, Any]],
@@ -255,19 +267,34 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         unit.repeat,
         step,
         messages,
-        reply,
+        reply.text,
         ctx.settings.config["temperature"],
         suite=ctx.settings.suite,
-        extra=unit.mix_fields,
+        extra=saved_extra_fields(unit, reply),
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     core.append_record(record, ctx.cache_path)
     ctx.cache[key] = record
     ctx.stats.calls_made += 1
-    return reply
+    return reply.text
 
 
-async def call_with_retries(ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str) -> str | None:
+def saved_extra_fields(unit: Unit, reply: model_client.Reply) -> dict[str, Any]:
+    """Return the extra fields saved with a reply: the mixed run's fields, plus the usage and finish_reason.
+
+    The usage and finish_reason let later analysis see how long each answer was and why it stopped. They are
+    not part of the experiment code, so saving them never changes which replies are reused.
+    """
+    extra = dict(unit.mix_fields)
+    extra["prompt_tokens"] = reply.prompt_tokens
+    extra["completion_tokens"] = reply.completion_tokens
+    extra["finish_reason"] = reply.finish_reason
+    return extra
+
+
+async def call_with_retries(
+    ctx: RunContext, unit: Unit, messages: list[dict[str, str]], step: str
+) -> model_client.Reply | None:
     """Call the model, retrying errors that is_retryable accepts. Returns None after a final failure."""
     attempt = 0
     while True:
@@ -281,12 +308,16 @@ async def call_with_retries(ctx: RunContext, unit: Unit, messages: list[dict[str
             if attempt >= ctx.settings.config["max_retries"] or not ctx.settings.is_retryable(error):
                 record_failure(ctx, unit, step, ctx.settings.describe_error(error))
                 return None
-            await ctx.settings.wait(backoff_seconds(attempt))
+            wait = backoff_seconds(attempt)
+            # A rate limit gets jitter so the retries of many calls spread out. Other errors keep the exact wait.
+            if model_client.is_rate_limit(error):
+                wait = jittered_seconds(wait)
+            await ctx.settings.wait(wait)
             attempt += 1
 
 
-async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> str:
-    """Make one API call, once the pacer says the model has room, and return the reply text.
+async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> model_client.Reply:
+    """Make one API call, once the pacer says the model has room, and return the whole reply.
 
     The pacer goes first, so a model with no room waits without holding one of the global slots that other
     models could use. The pacer slot is always given back in the finally, even when the call fails.
@@ -296,7 +327,7 @@ async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]
     reply = None
     try:
         reply = await complete_in_slot(ctx, model, messages)
-        return reply.text
+        return reply
     except Exception as error:
         park_if_told_to_wait(ctx, model, error)
         raise

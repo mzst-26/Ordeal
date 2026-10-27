@@ -126,9 +126,11 @@ class _Handler(BaseHTTPRequestHandler):
 class MockOpenAIServer:
     """A local OpenAI-compatible chat endpoint for tests. Use it as a context manager."""
 
-    def __init__(self, responder=None, api_key=DEFAULT_KEY, reply_headers=None, error_headers=None):
+    def __init__(self, responder=None, api_key=DEFAULT_KEY, reply_headers=None, error_headers=None, finish_reason="stop"):
         self.responder = responder or default_responder
         self.api_key = api_key
+        # The finish_reason sent with every successful reply. "stop" is a full answer; "length" means max_tokens cut it off.
+        self.finish_reason = finish_reason
         # Extra headers sent with every successful reply, e.g. rate-limit headers. Empty by default.
         self.reply_headers = dict(reply_headers or {})
         # Extra headers sent with every injected failure, e.g. retry-after on a 429. Empty by default.
@@ -218,7 +220,7 @@ class MockOpenAIServer:
                 {
                     "index": 0,
                     "message": {"role": "assistant", "content": text},
-                    "finish_reason": "stop",
+                    "finish_reason": self.finish_reason,
                 }
             ],
             "usage": {
