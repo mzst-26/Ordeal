@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/78-shared-scheduler | agent-a6eeb7af777e8bcd5 | ordeal/runner.py (run_all, main, new scheduling code), tests/test_shared_scheduler.py, tests/test_full_scale_stub.py | 2026-10-27 |

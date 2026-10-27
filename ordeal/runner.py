@@ -1,7 +1,8 @@
 """Run the sycophancy experiment and save every reply to the cache.
 
-For each model, question and repeat, the runner asks the question, then runs the flows
+For each model, condition, question and repeat, the runner asks the question, then runs the flows
 flows.py that apply. Every reply is saved, so a rerun only makes the calls that are missing.
+One run can cover several conditions and models; their units share one queue, served round-robin.
 """
 
 # Lets "int | None" annotations load on Python 3.9, which the system python3 is.
@@ -11,7 +12,7 @@ import argparse
 import asyncio
 import sys
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -201,6 +202,52 @@ def make_units(
     return units
 
 
+def interleave(groups: list[list[Any]]) -> list[Any]:
+    """Return the items of several lists in turn: the first item of each list, then the second of each, and so on.
+
+    A list that runs out is skipped, so the others keep their turns. This is round-robin. One model with a long
+    list cannot push the other models to the back of the queue, because every model gets a turn in each round.
+    """
+    merged = []
+    for position in range(max((len(group) for group in groups), default=0)):
+        for group in groups:
+            if position < len(group):
+                merged.append(group[position])
+    return merged
+
+
+def settings_for_condition(settings: RunSettings, condition: str) -> RunSettings:
+    """Return the settings for one system-prompt condition. Each condition in a run gets its own copy.
+
+    The settings given to run_all already hold the prompt of settings.condition, so that condition keeps them.
+    Any other condition takes its prompt from config.json, the same place main() reads the prompt of one condition.
+    """
+    if condition == settings.condition:
+        return settings
+    return replace(settings, condition=condition, system_prompt=core.system_prompt_for(condition, settings.config))
+
+
+def make_run_queue(
+    contexts: list[RunContext],
+    models: list[str],
+    questions: list[dict[str, Any]],
+    repeats: int,
+    labels: dict[str, str],
+    mix_fields_by_question: dict[str, dict[str, Any]] | None,
+) -> list[tuple[RunContext, Unit]]:
+    """Return every unit of every model and condition, in the order the run should start them.
+
+    The units of one model are grouped together: each condition, then each question and repeat. The groups are
+    then interleaved, so the models take turns. asyncio.Semaphore hands out its slots first come, first served,
+    so the order of this queue is the order in which the models get to make calls.
+    """
+    groups = []
+    for model in models:
+        units = make_units([model], questions, repeats, labels, mix_fields_by_question)
+        groups.append([(context, unit) for context in contexts for unit in units])
+    return interleave(groups)
+
+
 def step_key(condition: str, unit: Unit, step: str) -> tuple[Any, ...]:
     """Return the cache key of one step of one unit, built from the saved model name."""
     return core.make_key(condition, unit.label, unit.question["id"], unit.repeat, step)
@@ -373,16 +420,18 @@ async def run_all(
     max_calls: int | None = None,
     mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
     pacer: limiter.Pacer | None = None,
+    conditions: list[str] | None = None,
 ) -> RunStats:
     """Run every unit, with at most config["concurrency"] API calls at once in total, paced to each model's limits.
     Then close the client.
 
+    'conditions' names the system prompts to run together in this one schedule. None means only settings.condition.
     Saved replies are read from 'cache', and new ones are appended to 'cache_path'.
     With 'max_calls', the run makes no more API attempts than that and then stops.
     'mix_fields_by_question' is passed on to make_units for a mixed run.
     'pacer' decides when each model may be called. A new one, reading the shipped limits, is made when none is given.
     """
-    ctx = RunContext(
+    shared = RunContext(
         client=client,
         cache=cache,
         cache_path=cache_path,
@@ -392,18 +441,21 @@ async def run_all(
         stats=RunStats(),
         budget=CallBudget(max_calls),
     )
-    units = make_units(models, questions, repeats, settings.labels, mix_fields_by_question)
+    condition_names = conditions if conditions is not None else [settings.condition]
+    # Every condition shares the cache, the slots, the pacer, the stats and the budget. Only its settings differ.
+    contexts = [replace(shared, settings=settings_for_condition(settings, name)) for name in condition_names]
+    queue = make_run_queue(contexts, models, questions, repeats, settings.labels, mix_fields_by_question)
     # All units start at once; the semaphore in call_model is what limits how many API calls run together.
-    tasks = [asyncio.create_task(run_unit(ctx, unit)) for unit in units]
+    tasks = [asyncio.create_task(run_unit(context, unit)) for context, unit in queue]
     try:
         # Units finish in any order, so this counts completions, not unit numbers.
         for finished_count, finished in enumerate(asyncio.as_completed(tasks), start=1):
             await finished
-            print(f"Finished {finished_count} of {len(units)} units")
+            print(f"Finished {finished_count} of {len(queue)} units")
     finally:
         # Close the client even if a unit raised, so connections are not left open.
         await client.close()
-    return ctx.stats
+    return shared.stats
 
 
 @dataclass
@@ -475,11 +527,36 @@ def family_text(families: frozenset[str]) -> str:
     return ", ".join(sorted(families))
 
 
+def plan_model_calls_for_conditions(
+    model: str,
+    questions: list[dict[str, Any]],
+    repeats: int,
+    cache: dict[tuple[Any, ...], dict[str, Any]],
+    conditions: list[str],
+    families: frozenset[str],
+    ladder: dict[str, Any] | None,
+    probe_spec: dict[str, Any] | None,
+    labels: dict[str, str] | None = None,
+    mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
+    pushback_plans: dict[str, PushbackPlan] | None = None,
+) -> CallPlan:
+    """Add up plan_model_calls over every condition of the run, since each condition has its own saved replies."""
+    total = CallPlan()
+    for condition in conditions:
+        plan = plan_model_calls(
+            model, questions, repeats, cache, condition, families, ladder, probe_spec, labels,
+            mix_fields_by_question, pushback_plans,
+        )
+        total.saved += plan.saved
+        total.at_most_new += plan.at_most_new
+    return total
+
+
 def print_dry_run(
     models: list[str],
     questions: list[dict[str, Any]],
     repeats: int,
-    condition: str,
+    conditions: list[str],
     cache: dict[tuple[Any, ...], dict[str, Any]],
     families: frozenset[str],
     ladder: dict[str, Any] | None,
@@ -495,8 +572,8 @@ def print_dry_run(
     print(f"Ladder: {ladder['name']}" if pushback_plans is None else f"Ladder: {', '.join(pushback_plans)}")
     print(f"Families: {family_text(families)}")
     for model in models:
-        plan = plan_model_calls(
-            model, questions, repeats, cache, condition, families, ladder, probe_spec, labels,
+        plan = plan_model_calls_for_conditions(
+            model, questions, repeats, cache, conditions, families, ladder, probe_spec, labels,
             mix_fields_by_question, pushback_plans,
         )
         total_new += plan.at_most_new
@@ -522,9 +599,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the sycophancy experiment. Saved replies are reused on rerun.")
     parser.add_argument(
         "--condition",
+        dest="conditions",
+        nargs="+",
         choices=core.CONDITIONS,
-        default=core.NO_SYSTEM_PROMPT,
-        help="which system prompt to use (default: %(default)s)",
+        default=[core.NO_SYSTEM_PROMPT],
+        help="which system prompt or prompts to use. Several can be given, and they run in one schedule, "
+        "sharing the same slots and limits (default: none)",
     )
     parser.add_argument(
         "--models",
@@ -601,6 +681,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--base-url needs --cache, so test replies never go into the real cache.")
     if args.shuffle_mix is not None and args.suite is not None:
         parser.error("--shuffle-mix cannot be combined with --suite: a mixed run sets both itself.")
+    # A condition named twice would make every one of its units run twice and save each reply twice.
+    if len(set(args.conditions)) != len(args.conditions):
+        parser.error("--condition names each condition once.")
     return args
 
 
@@ -643,7 +726,7 @@ def print_plan(
     repeats: int,
     cache_path: Path,
 ) -> None:
-    """Print what this run will do before any call is made."""
+    """Print what this run will do before any call is made. 'condition' is the names of the conditions, joined."""
     print(f"Ladder: {ladder_name}")
     print(f"Experiment version: {experiment}")
     print(f"Condition: {condition}")
@@ -735,14 +818,14 @@ def plan_mixed_run(seed: int, limit: int | None) -> RunPlan:
 
 def count_finished_questions(
     cache: dict[tuple[Any, ...], dict[str, Any]],
-    condition: str,
+    conditions: list[str],
     models: list[str],
     repeats: int,
     questions: list[dict[str, Any]],
     labels: dict[str, str],
     mix_fields_by_question: dict[str, dict[str, Any]],
 ) -> int:
-    """Count the questions whose first answer is saved for every model and every repeat.
+    """Count the questions whose first answer is saved for every model, repeat and condition.
 
     This is the 'completed' number in the mixed run record. It is read from the saved replies, so a run
     that stopped early shows fewer than it planned.
@@ -750,7 +833,7 @@ def count_finished_questions(
     finished = 0
     for question in questions:
         units = make_units(models, [question], repeats, labels, mix_fields_by_question)
-        if all(step_key(condition, unit, core.BASELINE_STEP) in cache for unit in units):
+        if all(step_key(condition, unit, core.BASELINE_STEP) in cache for condition in conditions for unit in units):
             finished += 1
     return finished
 
@@ -801,7 +884,7 @@ def main(
 
     if args.dry_run:
         print_dry_run(
-            models, plan.questions, args.repeats, args.condition, cache, args.probes, plan.ladder, plan.probe_spec,
+            models, plan.questions, args.repeats, args.conditions, cache, args.probes, plan.ladder, plan.probe_spec,
             labels, plan.mix_fields_by_question, plan.pushback_plans,
         )
         return 0
@@ -815,9 +898,10 @@ def main(
     except RuntimeError as error:
         print(error, file=sys.stderr)
         return EXIT_BAD_OPTION
+    # The first condition is the template; run_all gives every other condition its own copy of these settings.
     settings = RunSettings(
-        condition=args.condition,
-        system_prompt=core.system_prompt_for(args.condition, config),
+        condition=args.conditions[0],
+        system_prompt=core.system_prompt_for(args.conditions[0], config),
         config=config,
         ladder=plan.ladder,
         probe_spec=plan.probe_spec,
@@ -835,8 +919,8 @@ def main(
     else:
         ladder_name = plan.ladder["name"]
     print_plan(
-        ladder_name, plan.experiment, args.condition, models, args.probes, len(plan.questions), args.repeats,
-        cache_path,
+        ladder_name, plan.experiment, ", ".join(args.conditions), models, args.probes, len(plan.questions),
+        args.repeats, cache_path,
     )
     # A mixed run's record is written before the first call, so a stopped run still shows what was planned.
     record_path = core.mixed_runs_path(cache_path)
@@ -849,13 +933,13 @@ def main(
     stats = asyncio.run(
         run_all(
             client, cache, cache_path, plan.questions, models, args.repeats, settings, args.max_calls,
-            plan.mix_fields_by_question, pacer=pacer,
+            plan.mix_fields_by_question, pacer=pacer, conditions=args.conditions,
         )
     )
     limiter.write_snapshot(pacer, core.RESULTS_DIR / "rate_limits.json")
     if run_record is not None:
         run_record["completed"] = count_finished_questions(
-            cache, args.condition, models, args.repeats, plan.questions, labels, plan.mix_fields_by_question,
+            cache, args.conditions, models, args.repeats, plan.questions, labels, plan.mix_fields_by_question,
         )
         run_record["status"] = "stopped" if stats.stopped_by_budget else "finished"
         run_record["finished"] = core.utc_timestamp()
