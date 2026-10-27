@@ -855,7 +855,7 @@ function withCapNote(status) {
   return budgetUsedUp() ? `${status} ${CAP_REACHED_TEXT}` : status;
 }
 
-/** Return the answer note in plain words, the same wording as app.py's answer_note. */
+/** Return the answer note in plain words: no letter, a right letter, or a wrong letter with the correct one. */
 function answerNote(letter, correct) {
   if (letter === null) {
     return "The reply had no 'Answer: X' line.";
