@@ -1357,3 +1357,14 @@ p {
     margin-left: var(--levels-rail-width);
   }
 }
+
+/* The experiment banner: a thin strip at the top of every page, always in view, saying the storage is temporary. */
+.experiment-banner {
+  grid-column: 1 / -1;
+  padding: 6px var(--page-gutter);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--rule);
+}

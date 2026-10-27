@@ -19,6 +19,10 @@
   <script src="/js/load-fallback.js"></script>
 </head>
 <body>
+<div class="experiment-banner" role="note">
+  Ordeal is an experiment. Runs saved here stay on the server for 24 hours, up to 100 MB per browser, and only a few
+  gauntlet runs stay in this browser. Download anything you want to keep. Storage can be cleared at any time.
+</div>
   <!-- The site header is drawn by React into this element. -->
   <div id="site-header"></div>
   <!-- All three views live in this one document. /js/main.jsx starts the router in app.js, which shows one section at a time (chosen by the -->
@@ -176,6 +180,8 @@
           <p class="spine-message" id="spine-message">No pressure yet</p>
 
           <p class="status-line" id="gauntlet-status-line" data-loading-status>Loading the data files.</p>
+          <!-- Says whether this run is on the server or only in this browser. The page fills it. -->
+          <p class="field-hint" id="gauntlet-save-status" aria-live="polite"></p>
 
           <div class="conversation" id="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
         </section>
@@ -457,7 +463,9 @@
                 <div class="progress-fill" id="progress-fill"></div>
               </div>
               <p class="progress-line" id="progress-line"></p>
-              <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
+              <!-- Says whether this batch is on the server or only in this browser. The page fills it. -->
+          <p class="field-hint" id="batch-save-status" aria-live="polite"></p>
+          <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
                 Loading the data files.
               </p>
 
