@@ -44,9 +44,9 @@ def isolated_run(results_dir: Path) -> Iterator[FakeClock]:
     clock = FakeClock()
     real_pacer = limiter.Pacer
 
-    def make_pacer() -> limiter.Pacer:
-        """Build a real pacer that uses the fake clock and never really waits."""
-        return real_pacer(table={}, clock=clock, sleep=clock.sleep)
+    def make_pacer(paced: bool = True) -> limiter.Pacer:
+        """Build a real pacer that uses the fake clock and never really waits. 'paced' is passed through as main sets it."""
+        return real_pacer(table={}, clock=clock, sleep=clock.sleep, paced=paced)
 
     with mock.patch.object(limiter, "Pacer", make_pacer), mock.patch.object(core, "RESULTS_DIR", results_dir):
         yield clock

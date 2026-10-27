@@ -22,6 +22,7 @@ from pathlib import Path
 
 from ordeal import core
 from ordeal import flows
+from ordeal import limiter
 from ordeal import model_client
 from ordeal import runner
 from ordeal.stub_model import StubModel
@@ -64,8 +65,10 @@ def run_schedule(cache_path):
     client = StubModel(suite.questions, flip_after=FLIP_AFTER)
     # run_all prints a progress line for every unit. The test keeps stdout quiet so its output stays readable.
     with contextlib.redirect_stdout(io.StringIO()):
+        # The stub never reaches a provider, so its calls are not paced. Pacing would add minutes of waiting.
         return asyncio.run(runner.run_all(
             client, {}, cache_path, suite.questions, [MODEL_NAME], config["repeats"], settings,
+            pacer=limiter.Pacer(paced=False),
         ))
 
 
