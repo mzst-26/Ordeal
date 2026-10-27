@@ -175,7 +175,7 @@ const IDS = {
   familyList: "family-list",
   familyCount: VIEW_IDS.batch["family-count"],
   conditionList: "batch-condition-list",
-  conditionNote: "batch-condition-note",
+  conditionCount: "batch-condition-count",
   repeats: "repeats-input",
   concurrency: "concurrency-input",
   cap: VIEW_IDS.batch["cap-input"],
@@ -542,7 +542,6 @@ function setupControls(config) {
   // A custom name is checked against every built-in name before it is accepted, so no two models share a name.
   page.customModels = checkedCustomModels(config, modelChoices(config).map((entry) => entry.id));
   fillConditionList(config.system_prompts);
-  refreshConditionNote();
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
@@ -782,25 +781,24 @@ function fillConditionList(systemPrompts) {
   page.dom.conditionList.replaceChildren(...ordered.map(conditionItem));
 }
 
-/** Build one tick box for a condition. Its value is the condition's name in the config, which the runs use. */
+/**
+ * Build one row for a condition: its tick box, and a "What it does" disclosure that is closed at first, so the list
+ * stays short. The tick box's value is the condition's name in the config, which the runs use.
+ */
 function conditionItem(key) {
-  return el("label", { className: "check" }, [
-    el("input", { className: "check-input", type: "checkbox", value: key, checked: true }),
-    el("span", { className: "check-box" }),
-    el("span", { className: "check-text", text: CONDITION_LABELS[key] ?? key }),
+  return el("div", { className: "condition-row" }, [
+    el("label", { className: "check" }, [
+      el("input", { className: "check-input", type: "checkbox", value: key, checked: true }),
+      el("span", { className: "check-box" }),
+      el("span", { className: "check-text", text: CONDITION_LABELS[key] ?? key }),
+    ]),
+    el("details", { className: "condition-what" }, [
+      el("summary", { text: "What it does" }),
+      el("p", { className: "field-hint", text: conditionDescriptionText(key) }),
+    ]),
   ]);
 }
 
-/**
- * Write the description of each ticked condition under the list. It runs after any change to the list, and after a
- * saved setup is restored. Setting a checkbox in code does not fire a change event, so those places call it themselves.
- */
-function refreshConditionNote() {
-  const conditions = checkedValues(page.dom.conditionList);
-  page.dom.conditionNote.textContent = conditions
-    .map((key) => `${CONDITION_LABELS[key] ?? key}. ${conditionDescriptionText(key)}`)
-    .join(" ");
-}
 /** Replace the options of a select with the given value and label pairs. */
 function fillOptions(select, choices) {
   select.replaceChildren(...choices.map((choice) => el("option", { value: choice.value, text: choice.label })));
@@ -1375,7 +1373,6 @@ function onSelectionChanged() {
   if (page.dom === null) {
     return;
   }
-  refreshConditionNote();
   const choices = readChoices();
   const plan = planFor(choices);
   // Until the user types a cap, keep the cap box in step with the plan.
@@ -1400,6 +1397,7 @@ function updateCountLines() {
   updateSelectionCount(page.dom.modelCount, selectedModelIds().length, page.modelEntries.length, "models");
   updateGroupCount(page.dom.questionCount, page.dom.questionList, "questions");
   updateGroupCount(page.dom.familyCount, page.dom.familyList, "families");
+  updateGroupCount(page.dom.conditionCount, page.dom.conditionList, "conditions");
 }
 
 /** Write a group's count line, such as "3 of 29 models selected", from its tick boxes. */
@@ -1877,7 +1875,6 @@ function restoreRunsChoices(runs) {
   tickOnly(dom.familyList, unionInOrder(configs.map((config) => config.families)));
   tickOnly(dom.conditionList, unionInOrder(configs.map((config) => [config.condition])));
   dom.repeats.value = String(Math.max(...configs.map((config) => config.repeats)));
-  refreshConditionNote();
 }
 
 /** Resume a saved batch from the notices or the list. The form is set back from the run, its saved units are reused. */
@@ -1979,7 +1976,6 @@ function restoreChoices(config) {
   dom.cap.value = String(config.callCap);
   page.capTouched = true;
   tickOnly(dom.conditionList, [config.condition]);
-  refreshConditionNote();
 }
 
 /** Tick exactly the boxes whose values are in the list, and untick the rest. Does not refresh the plan. */
@@ -2662,7 +2658,6 @@ async function applyPresetSettings(settings) {
   const conditions = settings.conditions ?? (settings.condition === undefined ? undefined : [settings.condition]);
   if (conditions !== undefined) {
     tickOnly(dom.conditionList, conditions);
-    refreshConditionNote();
   }
   notes.push(batchFixedSettingsNote(settings));
   onSelectionChanged();

@@ -365,10 +365,11 @@
             <legend class="panel-title"><span class="section-number">4.</span> Conditions and limits</legend>
             <fieldset class="field">
               <legend class="field-label">System prompt conditions</legend>
-              <!-- One tick box per condition, all ticked at first. Each ticked condition is its own saved run. The page fills it. -->
-              <div class="check-list" id="batch-condition-list" role="group" aria-label="System prompt conditions"></div>
-              <!-- Says what each ticked condition does to the prompt. The page fills it when the ticks change. -->
-              <p class="field-hint" id="batch-condition-note" aria-live="polite"></p>
+              <!-- One tick box per condition, all ticked at first. Each ticked condition is its own saved run. The page fills it.
+                   Each row opens to show what the condition does. -->
+              <div class="check-list condition-list" id="batch-condition-list" role="group" aria-label="System prompt conditions"></div>
+              <!-- Counts the ticked conditions. The page fills it when the ticks change. -->
+              <p class="field-hint" id="batch-condition-count" aria-live="polite"></p>
             </fieldset>
             <div class="field-grid">
               <div class="field">
