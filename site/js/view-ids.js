@@ -18,8 +18,7 @@ export const VIEW_IDS = {
     "storage-note": "gauntlet-storage-note",
   },
   batch: {
-    "pushback-select": "batch-pushback-select",
-    "question-set-select": "batch-question-set-select",
+    "suite-select": "batch-suite-select",
     "suite-summary": "batch-suite-summary",
     "condition-select": "batch-condition-select",
     "start-button": "batch-start-button",

@@ -14,7 +14,7 @@ import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/
 import { activePlatform } from "./platform-choice.js";
 import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
-import { setRunLocked, shuffleControlsState } from "./run-lock.js";
+import { setRunLocked, suiteChoiceLocked } from "./run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
   withAddedModel, withoutAddedModel, addedRows, addOutcomeText, entryNote,
@@ -40,8 +40,8 @@ import { idsForAction, numberedQuestionLines, shortQuestionText } from "./questi
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import {
-  createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
-  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, fixedChoice, setMenuChoices,
+  createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
+  choiceOfSuite, choiceValueOfSuite, fixedChoice, setsOfChoice, suiteChoiceMenu,
 } from "./suites.js";
 import {
   applyMixedOrder, buildMixedSuite, countsSentence, mixCounts, mixedOrderPath, MIXED_NAME, orderRows,
@@ -132,10 +132,8 @@ const IDS = {
   kpiQuestions: "batch-kpi-questions",
   kpiFamilies: "batch-kpi-families",
   kpiSteps: "batch-kpi-steps",
-  shuffleToggle: "batch-shuffle-toggle",
   shuffleNote: "batch-shuffle-note",
-  pushbackSelect: VIEW_IDS.batch["pushback-select"],
-  questionSetSelect: VIEW_IDS.batch["question-set-select"],
+  suiteSelect: VIEW_IDS.batch["suite-select"],
   suiteSummary: VIEW_IDS.batch["suite-summary"],
   presetHost: VIEW_IDS.batch["preset-panel"],
   resumeNotices: VIEW_IDS.batch["resume-notices"],
@@ -280,10 +278,8 @@ function wireControls() {
   dom.setupForm.addEventListener("submit", (event) => event.preventDefault());
   dom.setupForm.addEventListener("change", onFormEdited);
   dom.setupForm.addEventListener("input", onFormEdited);
-  dom.pushbackSelect.addEventListener("change", onSuiteChanged);
-  dom.questionSetSelect.addEventListener("change", onSuiteChanged);
+  dom.suiteSelect.addEventListener("change", onSuiteChanged);
   dom.condition.addEventListener("change", refreshConditionNote);
-  dom.shuffleToggle.addEventListener("change", onShuffleToggled);
   dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
@@ -341,7 +337,7 @@ async function loadData() {
     fillSuiteSelects();
     setupControls(config);
     await loadModelChoices();
-    await selectSuite(fixedChoice(DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET));
+    await selectSuite(setsOfChoice(DEFAULT_CHOICE));
     showPageStatus("Tick what to run. Nothing runs until you press Start.");
     onSelectionChanged();
   } catch (error) {
@@ -475,10 +471,9 @@ function modelChoices(config) {
   return config.models.map((id) => ({ id, kind: "" }));
 }
 
-/** Fill the pushback set and question set menus with the names this site has. */
+/** Fill the suite menu with its three choices: Gauntlet v4 with hard questions, Gauntlet v3 with easy, and Shuffle. */
 function fillSuiteSelects() {
-  fillOptions(page.dom.pushbackSelect, setMenuChoices(pushbackSetNames()));
-  fillOptions(page.dom.questionSetSelect, setMenuChoices(questionSetNames()));
+  fillOptions(page.dom.suiteSelect, suiteChoiceMenu());
 }
 
 /**
@@ -493,8 +488,9 @@ function setupControls(config) {
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
-  // A reload can keep a checked box from the last visit. Shuffle always starts off, so a page never opens mixed by accident.
-  page.dom.shuffleToggle.checked = false;
+  // A reload can keep the choice from the last visit. The page always opens on the default suite, so it never opens
+  // on Shuffle by accident.
+  page.dom.suiteSelect.value = DEFAULT_CHOICE;
 }
 
 /** Load the saved model lists, then draw the model rows for the platform the visitor chose. Never throws. */
@@ -750,8 +746,6 @@ async function selectSuite(choice) {
   if (request !== page.suiteRequest) {
     return false;
   }
-  page.dom.pushbackSelect.value = choice.pushbackSet;
-  page.dom.questionSetSelect.value = choice.questionSet;
   putOnForm(suite);
   return true;
 }
@@ -779,30 +773,26 @@ async function selectMixedSuite() {
 function putOnForm(suite) {
   page.suite = suite;
   page.dom.suiteSummary.textContent = suite.mixed ? MIXED_SUMMARY : suiteSummary(suite);
+  // The suite menu shows the choice this suite stands for: Shuffle for the mixed suite, otherwise its fixed choice.
+  page.dom.suiteSelect.value = choiceValueOfSuite(suite);
   page.cache = cacheFor(suite);
   page.questionsById = new Map(suite.questions.map((question) => [question.id, question]));
   rebuildQuestionList(suite);
   fillTierFilter(suite.questions);
 }
 
-/** Return true while the Shuffle tick box is on. */
+/** Return true while the suite menu shows Shuffle. */
 function shuffleOn() {
-  return page.dom.shuffleToggle.checked;
-}
-
-/** Return the two set names the dropdowns show. With Shuffle on they still say the last fixed choice. */
-function formChoice() {
-  return fixedChoice(page.dom.pushbackSelect.value, page.dom.questionSetSelect.value);
+  return page.dom.suiteSelect.value === SHUFFLE_CHOICE;
 }
 
 /**
- * The tick box was changed. Turning it on puts the mixed suite on the form. Turning it off goes back to the fixed
- * choice shown in the dropdowns. A change while a run is busy is refused, and the box goes back to its old state.
+ * The suite menu was changed. Shuffle puts the mixed suite on the form, and a fixed choice puts its suite on the form.
+ * A change while a run is busy is refused, and the menu goes back to the suite on the form.
  */
-async function onShuffleToggled() {
-  const box = page.dom.shuffleToggle;
+async function onSuiteChanged() {
   if (isRunning() || page.confirming) {
-    box.checked = !box.checked;
+    page.dom.suiteSelect.value = choiceValueOfSuite(page.suite);
     setStatus(MIXED_BUSY_TEXT);
     return;
   }
@@ -813,7 +803,7 @@ async function onShuffleToggled() {
     if (shuffleOn()) {
       await selectMixedSuite();
     } else {
-      await selectSuite(formChoice());
+      await selectSuite(setsOfChoice(page.dom.suiteSelect.value));
     }
     showPageStatus("Tick what to run. Nothing runs until you press Start.");
   } catch (error) {
@@ -850,19 +840,6 @@ function mixedCountsLine(choices) {
   }
   const ticked = choices.questions.map((id) => ({ questionSet: page.suite.questionSetOf(id) }));
   return `${countsSentence(mixCounts(ticked))}. `;
-}
-
-/** Choose a new suite from the two menus, then refresh the plan. */
-async function onSuiteChanged() {
-  const choice = formChoice();
-  try {
-    if (await selectSuite(choice)) {
-      showPageStatus("Tick what to run. Nothing runs until you press Start.");
-    }
-  } catch (error) {
-    showPageStatus(errorText(error));
-  }
-  onSelectionChanged();
 }
 
 /** Redraw the question tick boxes for a suite, keeping the ticks of questions the suite still has. */
@@ -1277,8 +1254,7 @@ function unitCount(choices) {
 
 /** Return true for a suite menu. Those have their own handlers, so the form handler leaves them alone. */
 function isSuiteControl(target) {
-  const controls = [page.dom.pushbackSelect, page.dom.questionSetSelect, page.dom.shuffleToggle];
-  return controls.includes(target);
+  return target === page.dom.suiteSelect;
 }
 
 /** Handle a change in the setup form, then refresh the plan. */
@@ -1439,11 +1415,8 @@ function updateControls() {
   dom.stop.disabled = page.phase !== "running";
   dom.pause.textContent = page.runner !== null && page.runner.isPaused() ? "Resume" : "Pause";
   setSelectionLocked(running || page.confirming);
-  // The Shuffle tick box and its two dropdowns follow the run lock too (see run-lock.js).
-  const shuffle = shuffleControlsState({ busy: running || page.confirming, shuffleOn: shuffleOn() });
-  dom.shuffleToggle.disabled = shuffle.toggleDisabled;
-  dom.pushbackSelect.disabled = shuffle.setsDisabled;
-  dom.questionSetSelect.disabled = shuffle.setsDisabled;
+  // The suite menu follows the run lock too (see run-lock.js).
+  dom.suiteSelect.disabled = suiteChoiceLocked({ busy: running || page.confirming });
   // The platform section reads this flag and refuses a platform change while it is on.
   setRunLocked(running || page.confirming);
 }
@@ -1724,7 +1697,6 @@ async function enterMixedFromRun(config) {
     await selectMixedSuite();
     const slots = applyMixedOrder(config.order ?? [], page.suite.easyQuestions, page.suite.hardQuestions);
     page.mixed = { seed: config.seed, slots };
-    page.dom.shuffleToggle.checked = true;
     page.dom.shuffleNote.textContent = `Seed ${config.seed} for this run, from its saved order.`;
     return true;
   } catch (error) {
@@ -2390,7 +2362,8 @@ function readPresetSettings() {
   const choices = readChoices();
   const { config } = page.data;
   return {
-    ...formChoice(),
+    // With Shuffle on the sets are not one pair, so the preset holds none and applying it leaves the sets as they are.
+    ...(shuffleOn() ? {} : choiceOfSuite(page.suite)),
     models: choices.models,
     families: [...choices.families],
     repeats: choices.repeats,
@@ -2405,7 +2378,7 @@ function readPresetSettings() {
 /** Set the form from a preset. Returns the sentences to add to the status: what was skipped, and why. */
 async function applyPresetSettings(settings) {
   const dom = page.dom;
-  const current = formChoice();
+  const current = choiceOfSuite(page.suite);
   // With Shuffle on, a preset does not change the sets: a mixed run always uses both sets.
   if (!shuffleOn()) {
     await selectSuite(fixedChoice(

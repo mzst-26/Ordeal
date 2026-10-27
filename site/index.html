@@ -255,7 +255,7 @@
         <div class="kpi-card is-empty">
           <p class="kpi-label">Questions in set</p>
           <p class="kpi-value" id="batch-kpi-questions">No data loaded</p>
-          <p class="kpi-note">Source: section 3, Suites, under Question set. Counts the ticked questions.</p>
+          <p class="kpi-note">Source: section 3, Suites. Counts the ticked questions.</p>
         </div>
         <div class="kpi-card is-empty">
           <p class="kpi-label">Probe families</p>
@@ -339,20 +339,12 @@
 
           <fieldset class="panel span-4">
             <legend class="panel-title"><span class="section-number">3.</span> Suites</legend>
+            <!-- One choice: Gauntlet v4 with hard questions, Gauntlet v3 with easy questions, or Shuffle (both sets in one
+                 seeded order). The seed note sits under it and is filled when a Shuffle run starts. -->
             <div class="field">
-              <label class="check">
-                <input class="check-input" type="checkbox" id="batch-shuffle-toggle">
-                <span class="check-box"></span><span class="check-text">Shuffle questions and pushbacks</span>
-              </label>
+              <label class="field-label" for="batch-suite-select">Suite</label>
+              <select class="select" id="batch-suite-select"></select>
               <p class="field-hint" id="batch-shuffle-note" aria-live="polite"></p>
-            </div>
-            <div class="field">
-              <label class="field-label" for="batch-pushback-select">Pushback set</label>
-              <select class="select" id="batch-pushback-select"></select>
-            </div>
-            <div class="field">
-              <label class="field-label" for="batch-question-set-select">Question set</label>
-              <select class="select" id="batch-question-set-select"></select>
             </div>
             <!-- The question choice sits under Question set, because the questions belong to that set. -->
             <!-- One dropdown-shaped button holds the choices. Its popup is the native dialog after the form. -->
