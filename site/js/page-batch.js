@@ -28,6 +28,10 @@ import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
+import { saveRun } from "./runs-api.js";
+import { batchSummary } from "./run-summary.js";
+import { pageVisitorId } from "./visitor-id.js";
+import { SAVING_TEXT, SAVED_TEXT } from "./save-to-runs.js";
 import { MEASURES, heatmapMatrix, normalise, rankModels } from "./analytics.js";
 import { renderResultsFigures } from "./batch-figures.js";
 import { mountFingerprintFigure } from "./fingerprint-figure.js";
@@ -198,6 +202,8 @@ const IDS = {
   figure: "fingerprint-figure",
   exportReplies: "export-replies",
   exportBatchLog: "export-batch-log",
+  saveServer: "batch-save-server",
+  saveStatus: "batch-save-status",
 };
 
 // Everything the page needs at any moment. Controls are read from the page; this object holds the rest.
@@ -241,6 +247,7 @@ const page = {
   queue: createSerialQueue(), // run writes, one at a time
   runId: null,                // the saved run of the batch on screen, or null
   resumeRunId: null,          // the saved run the next Start continues, or null
+  saveSummary: null,          // the summary Save to my runs would send for the results on screen, or null
   unitSteps: new Map(),       // the step records of each unit still running, by unit key
   mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
@@ -307,6 +314,7 @@ function wireControls() {
   wireRunsPopup({ button: dom.runsButton, dialog: dom.runsDialog, done: dom.runsDone });
   dom.exportReplies.addEventListener("click", exportRepliesJson);
   dom.exportBatchLog.addEventListener("click", exportBatchLog);
+  dom.saveServer.addEventListener("click", saveBatchSummary);
 }
 
 /**
@@ -1423,6 +1431,7 @@ function costSentence(newCalls, choices) {
 function updateControls() {
   const dom = page.dom;
   const running = isRunning();
+  refreshSaveButton();
   dom.start.disabled = running || page.confirming || findProblem(readChoices()) !== null;
   dom.pause.disabled = page.phase !== "running";
   dom.stop.disabled = page.phase !== "running";
@@ -2072,6 +2081,8 @@ function probeRowsFor(choices, records) {
 
 /** Grade the replies for the ticked choices, then draw the tables, the chart and the probe table. */
 function drawResults() {
+  // Nothing can be saved until these results are drawn again, so the summary starts empty on every redraw.
+  page.saveSummary = null;
   if (page.data === null || page.suite === null) {
     return;
   }
@@ -2086,7 +2097,9 @@ function drawResults() {
   const probeRows = probeRowsFor(choices, records);
   renderGauntletTables(choices.models, gauntletRows);
   const figureMeasures = resultMeasures(page.suite.levelCount);
-  renderResultsFigures(document.getElementById("results-figures"), analyticsRows(choices.models, gauntletRows, figureMeasures), figureMeasures);
+  const figureRows = analyticsRows(choices.models, gauntletRows, figureMeasures);
+  renderResultsFigures(document.getElementById("results-figures"), figureRows, figureMeasures);
+  page.saveSummary = buildSaveSummary(choices, records, figureRows, figureMeasures);
   drawFingerprint(choices.models, probeRows);
   setResultsMessage(choices, records);
   updateExportButtons();
@@ -2318,6 +2331,49 @@ function figureModel(model) {
 function updateExportButtons() {
   page.dom.exportReplies.disabled = page.newRecords.length === 0;
   page.dom.exportBatchLog.disabled = page.log === null || page.log.entries().length === 0;
+  refreshSaveButton();
+}
+
+/**
+ * Enable Save to my runs only after the batch has ended (finished or stopped) and there is a summary to send.
+ * A batch that is still running cannot be saved yet.
+ */
+function refreshSaveButton() {
+  const ended = page.phase === "finished" || page.phase === "stopped";
+  page.dom.saveServer.disabled = !ended || page.saveSummary === null;
+}
+
+/**
+ * Build the summary the server keeps for this batch: the totals, the measures and each ticked model's numbers. The
+ * replies stay in this browser. The label and the save time are added here, so the runs page can show them.
+ */
+function buildSaveSummary(choices, records, rows, measures) {
+  return batchSummary({
+    label: batchLabel(choices),
+    createdAt: Date.now(),
+    totals: { models: choices.models.length, questions: choices.questions.length, replies: records.length },
+    measures,
+    models: rows,
+  });
+}
+
+/**
+ * Send the batch summary to the server under this visitor. The button is locked while the send runs. After a
+ * successful save the summary is cleared, so the same results are not sent twice until they are drawn again.
+ */
+async function saveBatchSummary() {
+  const summary = page.saveSummary;
+  if (summary === null) return;
+  page.dom.saveServer.disabled = true;
+  page.dom.saveStatus.textContent = SAVING_TEXT;
+  try {
+    await saveRun(pageVisitorId(), "batch", summary);
+    page.saveSummary = null;
+    page.dom.saveStatus.textContent = SAVED_TEXT;
+  } catch (error) {
+    page.dom.saveStatus.textContent = error.message;
+  }
+  refreshSaveButton();
 }
 
 /** Download the operation log of the batch run as JSON Lines. It has no key and no reply text. */
