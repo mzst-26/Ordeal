@@ -1,5 +1,5 @@
 // The facts about the full run that the site shares: the four conditions, with the names people read them by, and the
-// suite they were all run on. The run is a finished record, so these never change while the site runs.
+// experiment and suite they were all run on. These name the full run when it is loaded from its replies file.
 
 /** The four conditions of the full run, in the order they are shown. Each folder name is also the condition name in the replies file. */
 export const CONDITIONS = Object.freeze([
@@ -9,5 +9,8 @@ export const CONDITIONS = Object.freeze([
   { folder: "third_person", label: "Third person" },
 ]);
 
-/** The suite that every condition of the full run was graded on. It is one of the suites this site offers. */
+/** The experiment id the full run wrote into every reply. A file from this experiment is labelled as the full run. */
+export const FULL_RUN_EXPERIMENT = "82f5e58164d9";
+
+/** The suite that every condition of the full run was graded on. */
 export const FULL_RUN_SUITE = "gauntlet_v3+easy";

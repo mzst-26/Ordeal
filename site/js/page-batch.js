@@ -54,8 +54,7 @@ import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices, downloadText,
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
 } from "./persistence-ui.js";
-import { readRepliesByCondition, importFullRuns } from "./full-run-upload.js";
-import { FULL_RUN_SUITE } from "./full-run-summary.js";
+import { readReplyGroups, importReplyGroups } from "./full-run-upload.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",
@@ -446,14 +445,13 @@ async function loadFullRunFile(input) {
   }
   showFullRunStatus(`Reading ${file.name}. A large file can take a minute.`);
   try {
-    const byCondition = await readRepliesByCondition(file);
-    const settings = {
-      ...setsOfChoice(FULL_RUN_SUITE),
+    const groups = await readReplyGroups(file);
+    const common = {
       callCap: MAX_BATCH_CALLS,
       temperature: page.data.config.temperature,
       maxTokens: page.data.config.max_tokens,
     };
-    const { saved, skipped } = await importFullRuns(page.storage.adapter, byCondition, settings);
+    const { saved, skipped } = await importReplyGroups(page.storage.adapter, groups, common);
     await refreshRuns();
     const savedText = saved.length > 0 ? `Saved: ${saved.join(", ")}.` : "Nothing new was saved.";
     const skippedText = skipped.length > 0 ? ` Not saved: ${skipped.join("; ")}.` : "";
