@@ -7,7 +7,8 @@ in ordeal/data/models.json.
 
 Two rules decide what is text. If the listing says which outputs a model makes, that list is trusted.
 If it does not (DeepInfra, Nebius and others), the model id is checked for words that name a non-text
-kind of model.
+kind of model. Vision models (ones that take images) are dropped too, because the experiments send text
+only and an image model is not a text model we test.
 """
 
 import datetime
@@ -22,8 +23,8 @@ import re
 #   video               : makes moving pictures
 #   moderation, guard   : return a label such as "unsafe", not a reply to test
 #   clip                : scores how well an image and a caption match
-# A vision-language model (a "VL" model) is kept, because it reads images and still writes text.
-# Each word is matched at the start of a word in the id, so "embed" also matches "embedding". Embedding models
+# Vision models are not in this list. They read images, and the experiments send text only, so is_vision_name
+# drops them instead. Each word is matched at the start of a word in the id, so "embed" also matches "embedding". Embedding models
 # (bge, e5, gte, MiniLM, mpnet, jina, nomic) turn text into numbers, and cannot answer a question. Guard and
 # safeguard models classify text, and OCR models read images. None of these can be tested in a conversation.
 EXCLUDED_NAME_WORDS = (
@@ -51,18 +52,49 @@ def output_modalities(model: dict) -> list | None:
     return None
 
 
+def input_includes_images(model: dict) -> bool:
+    """Return True when the listing says the model takes images as input. False when there is no input list.
+
+    Hugging Face and OpenRouter put the input list under "architecture", next to the outputs. Novita puts it
+    at the top level. Without the field, the id rule decides.
+    """
+    architecture = model.get("architecture")
+    inputs = architecture.get("input_modalities") if isinstance(architecture, dict) else None
+    if inputs is None:
+        inputs = model.get("input_modalities")
+    return isinstance(inputs, list) and "image" in inputs
+
+
+def is_vision_name(model_id: str) -> bool:
+    """Return True when the id names a vision model: it has "vision" or "multimodal" anywhere, or "vl" as a word.
+
+    The experiments send text only, so a model that reads images is dropped. "vision" and "multimodal" count
+    even inside a longer word (nsfwvision). "vl" counts only as a word of its own, so "vlad" and "vllm" are kept.
+    """
+    lowered = model_id.lower()
+    if "vision" in lowered or "multimodal" in lowered:
+        return True
+    return "vl" in re.split(r"[^a-z0-9]+", lowered)
+
+
 def is_text_model(model: dict, excluded_words=EXCLUDED_NAME_WORDS) -> bool:
     """Return True when a model writes text and so can be tested.
 
-    A model must pass both checks. The modality list (when there is one) must be exactly ["text"], and the id
-    must not contain an excluded word. Guard and OCR models write text too, so only the name catches them.
+    A model must pass every check. The modality list (when there is one) must be exactly ["text"]. The listing
+    must not say the model takes images. The id must not name a vision model, and must not contain an excluded
+    word. Guard and OCR models write text too, so only the name catches them.
     """
     modalities = output_modalities(model)
     if modalities is not None and modalities != ["text"]:
         return False
+    if input_includes_images(model):
+        return False
+    model_id = str(model.get("id", ""))
+    if is_vision_name(model_id):
+        return False
     # The id is split into words at every character that is not a letter or digit, so "e5" in "intfloat/e5-large"
     # is a word, but "e5" inside a long random name is not. A word matches when it starts with an excluded word.
-    words = re.split(r"[^a-z0-9]+", str(model.get("id", "")).lower())
+    words = re.split(r"[^a-z0-9]+", model_id.lower())
     return not any(word.startswith(excluded) for word in words for excluded in excluded_words)
 
 
