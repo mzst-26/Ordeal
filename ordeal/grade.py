@@ -807,6 +807,26 @@ def format_interval(value: float, low: float, high: float) -> str:
     return f"{value:.3f} [{low:.3f}, {high:.3f}]"
 
 
+def share_text(value: float) -> str:
+    """Return a share with three decimals, or 'not enough data yet' when it is nan."""
+    if is_missing(value):
+        return NOT_ENOUGH_DATA
+    return f"{value:.3f}"
+
+
+def interval_cell(value: float, low: float, high: float) -> str:
+    """Return a value with its 95 percent interval, or 'not enough data yet' in place of each nan part.
+
+    An estimate can be known while its interval is not, for example when there is one unit. So the value
+    and the interval are checked apart, and the value is still shown when only the interval is missing.
+    """
+    if is_missing(value):
+        return NOT_ENOUGH_DATA
+    if is_missing(low) or is_missing(high):
+        return f"{value:.3f} [95% interval: {NOT_ENOUGH_DATA}]"
+    return format_interval(value, low, high)
+
+
 def format_line(cells: list[str], widths: list[int]) -> str:
     """Join cells into one aligned line. The first cell is left-aligned and the rest are right-aligned."""
     padded = [cells[0].ljust(widths[0])]
@@ -832,35 +852,43 @@ def print_gauntlet_table(rows: list[dict], suite: core.Suite) -> None:
     for row in rows:
         cells = [
             core.short_model_name(row["model"]),
-            format_interval(row[top_level], row[f"{top_level}_low"], row[f"{top_level}_high"]),
-            format_interval(row["mean_spine_score"], row["mean_spine_score_low"], row["mean_spine_score_high"]),
-            f"{row['final_correct_share']:.3f}",
-            f"{row['capitulated_share']:.3f}",
-            f"{row['converted_share']:.3f}",
-            f"{row['acceptance_mean']:.3f}",
-            format_interval(
+            interval_cell(row[top_level], row[f"{top_level}_low"], row[f"{top_level}_high"]),
+            interval_cell(row["mean_spine_score"], row["mean_spine_score_low"], row["mean_spine_score_high"]),
+            share_text(row["final_correct_share"]),
+            share_text(row["capitulated_share"]),
+            share_text(row["converted_share"]),
+            share_text(row["acceptance_mean"]),
+            interval_cell(
                 row["test_retest_agreement"], row["test_retest_agreement_low"], row["test_retest_agreement_high"]
             ),
         ]
         print(format_line(cells, GAUNTLET_TABLE_WIDTHS))
 
 
-def print_probe_table(rows: list[dict]) -> None:
-    """Print the probe rows, one block per model, with each estimate and its interval."""
+def print_probe_table(rows: list[dict], full: bool = False) -> None:
+    """Print the probe rows, one block per model, with each estimate and its interval.
+
+    By default a row with no estimate is left out, and one line says how many were left out, because such
+    rows are most of the table after a small run. With full=True every row is printed.
+    """
     headings = ["Family", "Probe", "Dose", "Measure", "Estimate [95% CI]"]
-    for model in dict.fromkeys(row["model"] for row in rows):
+    shown = rows if full else [row for row in rows if not is_missing(row["estimate"])]
+    for model in dict.fromkeys(row["model"] for row in shown):
         print(f"\n{core.short_model_name(model)}")
         print(format_line(headings, PROBE_TABLE_WIDTHS))
-        for row in rows:
+        for row in shown:
             if row["model"] == model:
                 cells = [
                     row["family"],
                     row["probe"],
                     str(row["dose"]),
                     row["measure"],
-                    format_interval(row["estimate"], row["low"], row["high"]),
+                    interval_cell(row["estimate"], row["low"], row["high"]),
                 ]
                 print(format_line(cells, PROBE_TABLE_WIDTHS))
+    hidden = len(rows) - len(shown)
+    if hidden:
+        print(f"\n{hidden} probe row(s) with no data yet are hidden. Use --full to see them.")
 
 
 # The level whose flip rate the summary headlines. Level 5 exists in every suite, so every model is compared on the same level.
@@ -947,6 +975,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="print the complete tables, with every row, instead of the one-line summary",
+    )
     parser.add_argument(
         "--shuffle-mix",
         type=int,
@@ -1063,7 +1096,7 @@ def grade_mixed(args: argparse.Namespace, config: dict) -> int:
     print(f"Mixed results for seed {args.shuffle_mix}, condition '{args.condition}' written to {results_path}")
     print(f"Probe results written to {probes_path}")
     print(f"Counts by run written to {by_run_path}")
-    print_probe_table(probe_rows)
+    print_probe_table(probe_rows, full=args.full)
     return 0
 
 
@@ -1106,8 +1139,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Results for suite '{suite.name}', condition '{args.condition}' written to {results_path}")
     print(f"Probe results written to {probes_path}")
     print(f"Difficulty results written to {difficulty_path}")
-    print_summary(gauntlet_rows, suite)
-    print_probe_table(probe_rows)
+    if args.full:
+        print_gauntlet_table(gauntlet_rows, suite)
+    else:
+        print_summary(gauntlet_rows, suite)
+    print_probe_table(probe_rows, full=args.full)
     return 0
 
 

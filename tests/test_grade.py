@@ -696,6 +696,103 @@ class SummaryTests(unittest.TestCase):
         self.assertTrue(lines[2].startswith("Model-Two: "), lines[2])
 
 
+def save_v4_hard_replies(cache_path: Path, letter_for: str) -> None:
+    """Save a reply for every step of the first v4 hard question, all giving the letter chosen by letter_for.
+
+    letter_for is 'correct' or 'pushed_wrong', which decides whether the first answer is right.
+    """
+    question = V4_HARD.questions[0]
+    for step in ["level_0", *V4_STEPS]:
+        record = core.make_record(
+            CONDITION, MODEL_ONE, question, 0, step, [], f"Answer: {question[letter_for]}", 0.7, suite=V4_HARD
+        )
+        core.append_record(record, cache_path)
+
+
+# Group: the --full switch. The default output hides probe rows with no data; --full prints every table, and a
+# missing number reads 'not enough data yet' instead of nan.
+class FullOutputTests(unittest.TestCase):
+    """The default output is short. --full prints the complete tables with the same missing-number words."""
+
+    def probe_row(self, probe: str, estimate: float, low: float, high: float) -> dict:
+        """Build one probe row with the fields that the probe table prints."""
+        return {
+            "model": MODEL_ONE, "family": "fingerprint", "probe": probe, "dose": "",
+            "measure": "flip_rate", "estimate": estimate, "low": low, "high": high,
+        }
+
+    def printed(self, function, *args, **kwargs) -> str:
+        """Run a printing function and return what it printed."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            function(*args, **kwargs)
+        return buffer.getvalue()
+
+    def test_full_flag_is_off_by_default_and_on_when_given(self) -> None:
+        """The grader reads --full as a switch: absent means the short output, present means the complete tables."""
+        self.assertFalse(grade.parse_args([]).full)
+        self.assertTrue(grade.parse_args(["--full"]).full)
+
+    def test_default_probe_table_hides_rows_with_no_data_and_says_how_many(self) -> None:
+        """A probe row with no estimate is not printed, and one line says how many rows were hidden."""
+        rows = [
+            self.probe_row("with_data", 0.5, 0.4, 0.6),
+            self.probe_row("without_data", math.nan, math.nan, math.nan),
+        ]
+        output = self.printed(grade.print_probe_table, rows)
+        self.assertIn("0.500 [0.400, 0.600]", output)
+        self.assertNotIn("without_data", output)
+        self.assertIn("1 probe row(s) with no data yet are hidden. Use --full to see them.", output)
+        self.assertNotIn("nan", output)
+
+    def test_full_probe_table_prints_every_row_and_says_not_enough_data_yet(self) -> None:
+        """With full=True the row with no data is printed, and its cell reads 'not enough data yet'."""
+        rows = [self.probe_row("without_data", math.nan, math.nan, math.nan)]
+        output = self.printed(grade.print_probe_table, rows, full=True)
+        self.assertIn("without_data", output)
+        self.assertIn("not enough data yet", output)
+        self.assertNotIn("nan", output)
+
+    def test_estimate_without_interval_shows_the_estimate_and_says_the_interval_is_missing(self) -> None:
+        """A probe can have an estimate but no interval, such as the effective dose. The estimate still shows."""
+        rows = [self.probe_row("dose_probe", 0.25, math.nan, math.nan)]
+        output = self.printed(grade.print_probe_table, rows)
+        self.assertIn("0.250 [95% interval: not enough data yet]", output)
+        self.assertNotIn("nan", output)
+
+    def test_full_gauntlet_table_has_no_nan_when_a_model_has_no_right_first_answers(self) -> None:
+        """Every cell of the complete gauntlet table is a number or 'not enough data yet', never nan."""
+        records = full_unit(MODEL_ONE, "q1", 0, "A", *("A",) * 10)
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        output = self.printed(grade.print_gauntlet_table, rows, grade.legacy_suite())
+        self.assertNotIn("nan", output)
+        self.assertIn("not enough data yet", output)
+
+    def test_main_default_prints_the_summary_and_full_prints_the_tables(self) -> None:
+        """The same run prints one summary line by default, and the complete tables with --full."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            save_v4_hard_replies(cache_path, "correct")
+            base_argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(Path(folder) / "out")]
+            default_output = self.printed(grade.main, base_argv)
+            full_output = self.printed(grade.main, [*base_argv, "--full"])
+        self.assertIn("Summary for suite", default_output)
+        self.assertNotIn("Breaking Point [95% CI]", default_output)
+        self.assertIn("Breaking Point [95% CI]", full_output)
+        self.assertNotIn("Summary for suite", full_output)
+
+    def test_main_output_has_no_nan_in_either_mode_when_no_first_answer_was_right(self) -> None:
+        """With every first answer wrong, both the short and the complete output avoid nan."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            save_v4_hard_replies(cache_path, "pushed_wrong")
+            base_argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(Path(folder) / "out")]
+            default_output = self.printed(grade.main, base_argv)
+            full_output = self.printed(grade.main, [*base_argv, "--full"])
+        self.assertNotIn("nan", default_output)
+        self.assertNotIn("nan", full_output)
+
+
 # The columns of the three saved files. The grading and the charts read them, so they must never change.
 PROBE_HEADER = [
     "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",
@@ -714,12 +811,7 @@ class SavedColumnsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             cache_path = Path(folder) / "cache.jsonl"
             out_dir = Path(folder) / "out"
-            question = V4_HARD.questions[0]
-            for step in ["level_0", *V4_STEPS]:
-                record = core.make_record(
-                    CONDITION, MODEL_ONE, question, 0, step, [], f"Answer: {question['correct']}", 0.7, suite=V4_HARD
-                )
-                core.append_record(record, cache_path)
+            save_v4_hard_replies(cache_path, "correct")
             argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(out_dir)]
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(grade.main(argv), 0)

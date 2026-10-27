@@ -29,6 +29,8 @@ CHECK_REPLY_SHOWN = 80
 # Length of the digest added to a cache file name. It keeps two model names that differ only in punctuation apart.
 CACHE_DIGEST_LENGTH = 8
 RESULTS_FOLDER_NAME = "results"
+# The option that asks the grader for the complete tables. It is taken out of the runner options.
+FULL_FLAG = "--full"
 
 
 def route_key(platform: providers.Platform) -> str:
@@ -170,19 +172,24 @@ def results_folder() -> Path:
 
 
 def cmd_test(args: argparse.Namespace) -> int:
-    """Run the Ordeal experiment on one model, then print its table.
+    """Run the Ordeal experiment on one model, then print its summary (or its full tables with --full).
 
-    Options after the model name (such as --limit or --probes) go to the runner unchanged. The cache
-    file is named after the platform and model, so each model's replies are kept apart.
+    Options after the model name (such as --limit or --probes) go to the runner unchanged, except --full,
+    which only the grader understands. The cache file is named after the platform and model, so each
+    model's replies are kept apart.
     """
     platform = providers.get_platform(args.platform)
     route = resolve_route(platform, args.model, args.base_url)
     cache = results_folder() / cache_file_name(platform.id, route.api_model)
+    runner_options = [option for option in args.extras if option != FULL_FLAG]
     # Our --cache comes first, so a --cache written by hand after it still wins, as the runner's own rule says.
-    code = runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route})
+    code = runner.main(["--cache", str(cache), *runner_options], prebuilt_routes={route.name: route})
     # Grade whatever was saved, even after a failed call, so the person can see the partial table.
     if code in (0, 1):
-        grade.main(["--cache", str(cache), "--out-dir", str(results_folder())])
+        grade_options = ["--cache", str(cache), "--out-dir", str(results_folder())]
+        if FULL_FLAG in args.extras:
+            grade_options.append(FULL_FLAG)
+        grade.main(grade_options)
     return code
 
 
@@ -226,7 +233,8 @@ def build_parser() -> argparse.ArgumentParser:
     test = commands.add_parser(
         "test",
         help="run the Ordeal test on a model",
-        epilog="Other options, such as --limit, --probes or --max-calls, are passed to the runner.",
+        epilog="Other options, such as --limit, --probes or --max-calls, are passed to the runner. "
+        "Add --full to print the complete tables instead of the one-line summary.",
     )
     test.add_argument("platform", help="platform id")
     test.add_argument("model", help="model id, such as org/name, or a link to its page")

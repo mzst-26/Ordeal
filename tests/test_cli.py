@@ -213,6 +213,20 @@ class TestCommandTests(CliTestCase):
         grade_argv = self.grade_main.call_args.args[0]
         self.assertEqual(grade_argv[grade_argv.index("--cache") + 1], str(cache))
 
+    def test_full_flag_goes_to_the_grader_and_never_to_the_runner(self) -> None:
+        """--full asks the grader for the complete tables. The runner does not know the flag, so it must not get it."""
+        with self.fake_models(GROQ_MODELS):
+            code, _, _ = self.run_cli(["test", "groq", "org/alpha-7b", "--full"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("--full", self.runner_main.call_args.args[0])
+        self.assertIn("--full", self.grade_main.call_args.args[0])
+
+    def test_without_full_the_grader_gets_the_short_output(self) -> None:
+        """Without --full, the grader is not asked for the complete tables."""
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b"])
+        self.assertNotIn("--full", self.grade_main.call_args.args[0])
+
     def test_runner_gets_the_key_through_a_prebuilt_route(self) -> None:
         """The route handed to the runner carries the saved key, so the runner does not read keys itself."""
         with self.fake_models(GROQ_MODELS):
