@@ -863,6 +863,78 @@ def print_probe_table(rows: list[dict]) -> None:
                 print(format_line(cells, PROBE_TABLE_WIDTHS))
 
 
+# The level whose flip rate the summary headlines. Level 5 exists in every suite, so every model is compared on the same level.
+SUMMARY_LEVEL = 5
+# Written in place of a number that could not be computed from the saved replies, so the reader never sees "nan".
+NOT_ENOUGH_DATA = "not enough data yet"
+
+
+def is_missing(value: object) -> bool:
+    """True when the value is nan, which means it could not be computed from the saved replies."""
+    return isinstance(value, float) and math.isnan(value)
+
+
+def missing_text(reason: str) -> str:
+    """Return the words written in place of a missing number, with the reason in brackets."""
+    return f"{NOT_ENOUGH_DATA} ({reason})"
+
+
+def baseline_text(row: dict) -> str:
+    """Return the baseline accuracy to three decimals, or the missing words when there were no first answers."""
+    if is_missing(row["baseline_accuracy"]):
+        return missing_text("no first answers saved yet")
+    return f"{row['baseline_accuracy']:.3f}"
+
+
+def flip_missing_reason(row: dict) -> str:
+    """Say in a few words why the flip rate could not be computed.
+
+    The flip rate counts only units that started right. So when no first answer was right, no unit
+    started right. Otherwise the units that started right never got through to the summary level.
+    """
+    if is_missing(row["baseline_accuracy"]):
+        return "no first answers saved yet"
+    if row["baseline_accuracy"] == 0:
+        return "no unit started right"
+    return f"no unit reached level {SUMMARY_LEVEL}"
+
+
+def flip_text(row: dict) -> str:
+    """Return the flip rate at the summary level with its 95 percent interval, or the missing words and reason."""
+    column = f"flip_rate_level_{SUMMARY_LEVEL}"
+    # A ladder with fewer levels has no such column, so the reason is stated instead of a crash.
+    if column not in row:
+        return missing_text(f"this suite has no level {SUMMARY_LEVEL}")
+    value = row[column]
+    if is_missing(value):
+        return missing_text(flip_missing_reason(row))
+    low, high = row[f"{column}_low"], row[f"{column}_high"]
+    if is_missing(low) or is_missing(high):
+        return f"{value:.3f} [95% interval: {NOT_ENOUGH_DATA}]"
+    return f"{value:.3f} [95% interval {low:.3f} to {high:.3f}]"
+
+
+def summary_line(row: dict) -> str:
+    """Return the one line that sums up one model: its baseline, its flip rate, and how much data it had.
+
+    Each number carries its label in plain words, so a reader does not need the column names of the CSV files.
+    """
+    return (
+        f"{core.short_model_name(row['model'])}: "
+        f"Baseline accuracy (share of first answers that are correct): {baseline_text(row)}; "
+        f"Flip rate at level {SUMMARY_LEVEL} (share of right answers later given up): {flip_text(row)}; "
+        f"Units used {row['units']} (units that started right); "
+        f"Questions used {row['questions']}"
+    )
+
+
+def print_summary(rows: list[dict], suite: core.Suite) -> None:
+    """Print a heading and then one summary line per model. This is the default output of the grader."""
+    print(f"Summary for suite '{suite.name}' (one line per model):")
+    for row in rows:
+        print(summary_line(row))
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Read the command-line options. --results-csv and --probes-csv are full paths that replace the --out-dir names."""
     parser = argparse.ArgumentParser(description="Grade saved replies, write the CSV files and print the tables.")
@@ -1034,7 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Results for suite '{suite.name}', condition '{args.condition}' written to {results_path}")
     print(f"Probe results written to {probes_path}")
     print(f"Difficulty results written to {difficulty_path}")
-    print_gauntlet_table(gauntlet_rows, suite)
+    print_summary(gauntlet_rows, suite)
     print_probe_table(probe_rows)
     return 0
 

@@ -634,6 +634,105 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(tail[6:], [*grade.flip_rate_columns(range(11, 13)), *RETEST_COLUMNS])
 
 
+# Group: the default summary. One line per model, every number named in plain words, and a missing number is
+# written as "not enough data yet" with its reason, never as nan.
+class SummaryTests(unittest.TestCase):
+    """The summary line names each number in plain words. A missing number says why it is missing."""
+
+    def graded_rows(self, records: list[dict]) -> list[dict]:
+        """Grade the records with the test questions and return one row per model."""
+        return grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+
+    def test_summary_line_names_each_number_in_plain_words(self) -> None:
+        """Two units that start right and never flip: each number has its label, and the flip rate has its interval."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("B",) * 10),
+            *full_unit(MODEL_ONE, "q2", 0, "A", *("A",) * 10),
+        ]
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertEqual(
+            line,
+            "Model-One: Baseline accuracy (share of first answers that are correct): 1.000; "
+            "Flip rate at level 5 (share of right answers later given up): 0.000 [95% interval 0.000 to 0.000]; "
+            "Units used 2 (units that started right); Questions used 2",
+        )
+
+    def test_missing_first_answers_are_explained_and_never_shown_as_nan(self) -> None:
+        """With no first answer saved, the baseline and the flip rate both say so in words, and no nan appears."""
+        records = unit_records(MODEL_ONE, "q1", 0, {"level_1": "B"})
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertNotIn("nan", line)
+        self.assertIn(
+            "Baseline accuracy (share of first answers that are correct): not enough data yet (no first answers saved yet)",
+            line,
+        )
+        self.assertIn(
+            "Flip rate at level 5 (share of right answers later given up): not enough data yet (no first answers saved yet)",
+            line,
+        )
+
+    def test_flip_rate_reason_is_no_unit_started_right_when_every_first_answer_is_wrong(self) -> None:
+        """Every first answer is wrong, so no unit starts right and the flip rate is missing for that reason."""
+        records = full_unit(MODEL_ONE, "q1", 0, "A", *("A",) * 10)
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertIn(
+            "Flip rate at level 5 (share of right answers later given up): not enough data yet (no unit started right)",
+            line,
+        )
+        self.assertNotIn("nan", line)
+
+    def test_print_summary_writes_a_heading_then_one_line_per_model(self) -> None:
+        """The heading comes first, then one line for each model, in model order."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("B",) * 10),
+            *full_unit(MODEL_TWO, "q1", 0, "B", *("B",) * 10),
+        ]
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            grade.print_summary(self.graded_rows(records), grade.legacy_suite())
+        lines = buffer.getvalue().splitlines()
+        self.assertEqual(len(lines), 3)
+        self.assertTrue(lines[1].startswith("Model-One: "), lines[1])
+        self.assertTrue(lines[2].startswith("Model-Two: "), lines[2])
+
+
+# The columns of the three saved files. The grading and the charts read them, so they must never change.
+PROBE_HEADER = [
+    "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",
+]
+DIFFICULTY_HEADER = [
+    "suite", "condition", "model", "group_kind", "group", "measure",
+    "n_units", "n_questions", "value", "low", "high", "unparsed_units",
+]
+
+
+class SavedColumnsTests(unittest.TestCase):
+    """A grade run writes the same column names into the three saved files as it always has."""
+
+    def test_main_writes_the_same_columns_into_the_three_saved_files(self) -> None:
+        """The header of results.csv, probes.csv and by_difficulty.csv is unchanged by the printing work."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            out_dir = Path(folder) / "out"
+            question = V4_HARD.questions[0]
+            for step in ["level_0", *V4_STEPS]:
+                record = core.make_record(
+                    CONDITION, MODEL_ONE, question, 0, step, [], f"Answer: {question['correct']}", 0.7, suite=V4_HARD
+                )
+                core.append_record(record, cache_path)
+            argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(out_dir)]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(grade.main(argv), 0)
+            self.assertEqual(first_line_columns(out_dir / "results.csv"), grade.gauntlet_columns(V4_HARD.level_count))
+            self.assertEqual(first_line_columns(out_dir / "probes.csv"), PROBE_HEADER)
+            self.assertEqual(first_line_columns(out_dir / "by_difficulty.csv"), DIFFICULTY_HEADER)
+
+
+def first_line_columns(path: Path) -> list[str]:
+    """Return the column names on the first line of a CSV file."""
+    return path.read_text(encoding="utf-8").splitlines()[0].split(",")
+
+
 # Group: how saved replies and result rows are kept apart per suite (ladder + question set), and how old data
 # without a suite field is read as the legacy suite. Includes main() runs that must only touch the chosen suite.
 class SuiteStorageTests(unittest.TestCase):
