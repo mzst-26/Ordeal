@@ -55,6 +55,7 @@ import {
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
 } from "./persistence-ui.js";
 import { readReplyGroups, importReplyGroups } from "./full-run-upload.js";
+import { SAVED_RUNS_CHANGED } from "./saved-runs.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",
@@ -486,6 +487,8 @@ async function refreshRuns() {
       unfinishedLine: page.dom.unfinishedCount,
       savedLine: page.dom.savedCount,
     }, unfinished, saved);
+    // Tell the other pages the Saved list has changed, so the Live page's run list is the same as this one.
+    window.dispatchEvent(new Event(SAVED_RUNS_CHANGED));
   } catch {
     showPageStatus("The saved runs could not be read. The page still works.");
   }

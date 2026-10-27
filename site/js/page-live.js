@@ -14,9 +14,10 @@ import { createBatchRunner } from "./engine/runner.js";
 import { ALL_FAMILIES } from "./engine/flows.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { openPageStorage } from "./persistence-ui.js";
-import { createRun, saveResult, setStatus as setRunStatus, getRun, listRuns } from "./store/run-store.js";
+import { createRun, saveResult, setStatus as setRunStatus, getRun } from "./store/run-store.js";
 import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache, isRunDocument,
+  savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED,
 } from "./saved-runs.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice } from "./suites.js";
@@ -1278,26 +1279,29 @@ async function showLatestLiveRun() {
 const SAMPLE_RUN_VALUE = "sample";
 
 /**
- * Return the saved runs that can be replayed on this suite: each was made on it and has at least one saved reply. A run
- * from another suite, or with no replies, would replay nothing, so it is left out of the choice.
+ * Return why a saved run cannot be replayed on this suite, or "" when it can. The Run to replay list is the Saved list of
+ * the Batch page, so every run is listed. A run that cannot be replayed says why when it is chosen.
  */
-export function replayableRuns(runs, suite) {
-  return runs.filter((saved) => isRunDocument(saved) && runMatchesSuite(saved, suite) && recordsFromRun(saved).length > 0
-    && Array.isArray(saved.config.models) && saved.config.models.length > 0);
+export function replayProblem(saved, suite) {
+  if (!isRunDocument(saved)) return "That saved item is not a run, so it cannot be replayed.";
+  if (recordsFromRun(saved).length === 0) return `${saved.label} has no saved replies, so there is nothing to replay.`;
+  if (!runMatchesSuite(saved, suite)) {
+    return `${saved.label} was made on another suite, so it cannot be replayed on ${suite.name}. Choose the sample run or a run on ${suite.name}.`;
+  }
+  return "";
 }
 
 /**
- * Fill the run choice with the sample run and every saved run that can be replayed. The choice keeps its value when the
- * list is filled again. It is filled again each time the choice gets the focus, so a run saved after the page opened
- * is listed too.
+ * Fill the run choice with the sample run and every run in the Saved list of the Batch page. Both pages read the same
+ * saved runs, so the two lists match. The choice keeps its value when the list is filled again.
  */
 async function fillRunChoices() {
   if (storage === null) return;
   const previous = dom.runSelect.value;
-  const saved = replayableRuns(await listRuns(storage.adapter).catch(() => []), data.savedView.suite);
+  const rows = await savedRunRows(storage.adapter, KIND_BATCH).catch(() => []);
   const options = [
     el("option", { value: SAMPLE_RUN_VALUE, text: "Sample run (bundled with the site)" }),
-    ...saved.map((item) => el("option", { value: item.id, text: `${item.label}, saved ${runDateText(item)}` })),
+    ...rows.map((row) => el("option", { value: row.id, text: `${row.label}, saved ${runDateText({ createdAt: row.createdAt })}` })),
   ];
   dom.runSelect.replaceChildren(...options);
   const stillListed = options.some((option) => option.getAttribute("value") === previous);
@@ -1323,6 +1327,11 @@ async function chooseReplayRun(value) {
   const saved = await getRun(storage.adapter, value).catch(() => null);
   if (saved === null) {
     setStatus("That saved run could not be read.");
+    return;
+  }
+  const problem = replayProblem(saved, data.savedView.suite);
+  if (problem !== "") {
+    setStatus(problem);
     return;
   }
   const records = recordsFromRun(saved).map((record) => ({ ...record, condition: CONDITION }));
@@ -1550,6 +1559,8 @@ function wireControls() {
     refreshPlanNote();
   });
   dom.runSelect.addEventListener("focus", fillRunChoices);
+  // The Batch page announces each change to its Saved list, so this list follows it while the Live page is open.
+  window.addEventListener(SAVED_RUNS_CHANGED, fillRunChoices);
   dom.runSelect.addEventListener("change", () => chooseReplayRun(dom.runSelect.value));
   dom.playButton.addEventListener("click", togglePlay);
   dom.restartButton.addEventListener("click", restartReplay);

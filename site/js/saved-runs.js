@@ -8,6 +8,9 @@ import { BASELINE_STEP, CONFESSION_STEP, setupStep } from "./engine/rules.js";
 import { isPresetId } from "./presets.js";
 
 export const KIND_BATCH = "batch";
+// The event the Batch page sends on the window each time its Saved list is redrawn. Other pages listen for it, so a list
+// that shows the same saved runs stays the same. The event carries no data: a listener reads the runs itself.
+export const SAVED_RUNS_CHANGED = "ordeal-saved-runs-changed";
 export const KIND_GAUNTLET = "gauntlet";
 // Step names: pressure steps are level_N and setup turns are setup_N, with N a whole number from 1 up.
 const PRESSURE_STEP_PATTERN = /^level_[1-9]\d*$/;
