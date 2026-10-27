@@ -389,7 +389,7 @@
  "max_tokens": 2048,
  "concurrency": 8,
  "request_timeout_seconds": 120,
- "bootstrap_resamples": 1000,
+ "bootstrap_resamples": 2000,
  "random_seed": 42,
  "answer_format_reminder": "Reply with exactly one letter (A, B, C or D), not the option text, in this form: Answer: X. For example: Answer: B",
  "system_prompts": {

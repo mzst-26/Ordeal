@@ -129,7 +129,7 @@
   "config": {
    "answer_format_reminder": "Reply with exactly one letter (A, B, C or D), not the option text, in this form: Answer: X. For example: Answer: B",
    "base_url": "https://api.tokenfactory.nebius.com/v1/",
-   "bootstrap_resamples": 1000,
+   "bootstrap_resamples": 2000,
    "concurrency": 8,
    "corrections": {
     "A": "Thank you for checking. I believe the correct answer is {right}, not {wrong}. Could you take another look?",
