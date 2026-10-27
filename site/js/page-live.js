@@ -1,6 +1,7 @@
 // Page III, The Theatre. It replays the saved run, or runs a small batch with the visitor's own key,
 // and shows both on the same lanes, event ticker and charts. Text is always set with textContent.
-// The live run uses the pushback set and question set the visitor picked. The replay uses the saved run's suite.
+// The live run uses the suite the visitor picked on the Suite select (one pushback set with one question set). The replay
+// uses the saved run's suite.
 
 import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
@@ -18,7 +19,7 @@ import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache,
 } from "./saved-runs.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
-import { choiceOfSuite } from "./suites.js";
+import { choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice } from "./suites.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
 import {
   BASELINE_STEP,
@@ -1080,9 +1081,10 @@ function setLiveControls(running) {
   dom.stopButton.disabled = !running;
   dom.questionInput.disabled = running;
   dom.capInput.disabled = running;
-  for (const input of [...dom.modeInputs, ...dom.ladderInputs, ...dom.questionSetInputs]) {
+  for (const input of dom.modeInputs) {
     input.disabled = running;
   }
+  dom.suiteSelect.disabled = running;
 }
 
 /** Handle the end of a live run: set the controls back and show the status. */
@@ -1331,14 +1333,19 @@ function stopLive() {
   }
 }
 
-/** Tick the radio buttons that match a suite's pushback set and question set. */
-function setChoiceInputs(view) {
-  for (const input of dom.ladderInputs) {
-    input.checked = input.value === view.suite.ladderName;
-  }
-  for (const input of dom.questionSetInputs) {
-    input.checked = input.value === view.suite.questionSet;
-  }
+/**
+ * Fill the Suite select with the two fixed choices. Shuffle is left out: the live run asks one ladder with one
+ * question set at a time, so it cannot run the mixed order that Shuffle uses.
+ */
+function fillSuiteChoices() {
+  dom.suiteSelect.replaceChildren(
+    ...fixedChoiceMenu().map((choice) => el("option", { value: choice.value, text: choice.label })),
+  );
+}
+
+/** Show the suite in use on the Suite select, so the choice on screen always matches the suite the page runs. */
+function setChoiceInput(view) {
+  dom.suiteSelect.value = choiceValueOfSuite(view.suite);
 }
 
 /** The line under the live choices: the suite in use, its level count and the size of its question set. */
@@ -1354,18 +1361,17 @@ function showSuite() {
   resetTheatre();
 }
 
-/** Load the pushback set and question set the visitor picked. A set that fails to load keeps the last one. */
+/** Load the suite the visitor picked on the Suite select. A suite that fails to load keeps the last one. */
 async function onSuiteChoice() {
-  const ladderName = checkedValue(dom.ladderInputs);
-  const questionSet = checkedValue(dom.questionSetInputs);
+  const sets = setsOfChoice(dom.suiteSelect.value);
   choiceRequest += 1;
   const request = choiceRequest;
-  setStatus(`Loading ${ladderName}+${questionSet}.`);
+  setStatus(`Loading ${sets.pushbackSet}+${sets.questionSet}.`);
   let view;
   try {
-    view = await getSuite(ladderName, questionSet);
+    view = await getSuite(sets.pushbackSet, sets.questionSet);
   } catch (error) {
-    setChoiceInputs(liveView);
+    setChoiceInput(liveView);
     setStatus("The chosen set could not be loaded. The last set is still in use.");
     showToast(error.message, { tone: "error" });
     return;
@@ -1391,7 +1397,7 @@ function onModeChange(mode) {
     resetReplay();
   } else {
     dom.playButton.textContent = "Play";
-    setStatus("Choose the pushback set, the question set and the call cap, then press Start.");
+    setStatus("Choose the suite and the call cap, then press Start.");
     refreshPlanNote();
   }
 }
@@ -1418,8 +1424,7 @@ function byId(root, id) {
 /** Look up every element the page needs, inside the view's root. */
 function bindDom(root) {
   dom.modeInputs = [...root.querySelectorAll('input[name="mode"]')];
-  dom.ladderInputs = [...root.querySelectorAll('input[name="pushback-set"]')];
-  dom.questionSetInputs = [...root.querySelectorAll('input[name="question-set"]')];
+  dom.suiteSelect = byId(root, VIEW_IDS.live["suite-select"]);
   dom.replayPanel = byId(root, "replay-panel");
   dom.livePanel = byId(root, "live-panel");
   dom.speedInput = byId(root, "speed-input");
@@ -1459,9 +1464,7 @@ function wireControls() {
       if (input.checked) onModeChange(input.value);
     });
   }
-  for (const input of [...dom.ladderInputs, ...dom.questionSetInputs]) {
-    input.addEventListener("change", onSuiteChoice);
-  }
+  dom.suiteSelect.addEventListener("change", onSuiteChoice);
   dom.speedInput.addEventListener("input", () => {
     dom.speedOutput.textContent = `${dom.speedInput.value}x`;
   });
@@ -1494,7 +1497,8 @@ function buildPage() {
   replay.totals = replayTotals(data.records, replay.items);
   dom.questionInput.value = String(DEFAULT_QUESTION_COUNT);
   dom.modelList.textContent = data.models.map(shortName).join(", ");
-  setChoiceInputs(liveView);
+  fillSuiteChoices();
+  setChoiceInput(liveView);
   wireControls();
   watchThemeChanges(redrawShownCharts);
   onModeChange(currentMode());

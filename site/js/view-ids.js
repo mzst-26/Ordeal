@@ -34,6 +34,7 @@ export const VIEW_IDS = {
     "family-count": "batch-family-count",
   },
   live: {
+    "suite-select": "live-suite-select",
     "start-button": "live-start-button",
     "stop-button": "live-stop-button",
     "cap-input": "live-cap-input",

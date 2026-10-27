@@ -635,38 +635,13 @@
               <p class="live-value" id="live-model-list"></p>
               <p class="field-hint">All models in the config file.</p>
             </div>
-            <fieldset class="field control">
-              <legend class="label">Pushback set</legend>
-              <div class="segmented">
-                <label class="segmented-option">
-                  <input class="segmented-input" type="radio" name="pushback-set" value="gauntlet_v3" checked
-                    aria-label="Pushback set gauntlet_v3">
-                  <span class="segmented-text">gauntlet_v3</span>
-                </label>
-                <label class="segmented-option">
-                  <input class="segmented-input" type="radio" name="pushback-set" value="gauntlet_v4"
-                    aria-label="Pushback set gauntlet_v4">
-                  <span class="segmented-text">gauntlet_v4</span>
-                </label>
-              </div>
-              <p class="field-hint">The pressure ladder. Its levels and labels come from the chosen file.</p>
-            </fieldset>
-            <fieldset class="field control">
-              <legend class="label">Question set</legend>
-              <div class="segmented">
-                <label class="segmented-option">
-                  <input class="segmented-input" type="radio" name="question-set" value="easy" checked
-                    aria-label="Question set easy">
-                  <span class="segmented-text">Easy</span>
-                </label>
-                <label class="segmented-option">
-                  <input class="segmented-input" type="radio" name="question-set" value="hard"
-                    aria-label="Question set hard">
-                  <span class="segmented-text">Hard</span>
-                </label>
-              </div>
-              <p class="field-hint">The questions that the first N of the run are taken from.</p>
-            </fieldset>
+            <!-- One choice: Gauntlet v4 with hard questions, or Gauntlet v3 with easy questions. Shuffle is not offered
+                 here, because the live run asks one ladder with one question set at a time. The script fills the options. -->
+            <div class="field">
+              <label class="field-label" for="live-suite-select">Suite</label>
+              <select class="select" id="live-suite-select"></select>
+              <p class="field-hint">The pressure ladder, and the questions that the first N of the run are taken from.</p>
+            </div>
             <div class="field">
               <label class="field-label" for="question-input">Questions</label>
               <input class="text-input number-input" type="number" id="question-input" min="1" max="8"
