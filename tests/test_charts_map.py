@@ -126,6 +126,27 @@ class FingerprintChartTests(SpineFileTestCase):
         self.assertFalse(charts.draw_fingerprint(rows, output_path))
         self.assertFalse(output_path.exists())
 
+    def test_skip_note_names_the_missing_family_and_the_saved_units(self):
+        # A family that was never run still has rows, with zero units, so the note must read the units, not the rows.
+        empty_probe = make_probe_row(MODEL_ONE, "bare", math.nan, family="fingerprint", measure="flip_rate")
+        empty_probe["units"] = 0
+        probe_rows = self.write_probe_rows([empty_probe])
+        gauntlet_row = make_gauntlet_row(MODEL_ONE, 0.4, 9.0)
+        gauntlet_row["units"] = 40
+        gauntlet_rows = self.write_gauntlet_rows([gauntlet_row])
+        note = charts.skip_note(probe_rows, gauntlet_rows)
+        self.assertIn("no fingerprint replies", note)
+        self.assertIn("Saved units: 40", note)
+
+    def test_skip_note_keeps_the_short_message_when_the_family_is_present(self):
+        # The family has saved units (make_probe_row sets ten), so the short message is the right one.
+        probe_rows = self.write_probe_rows([make_probe_row(MODEL_ONE, "bare", 0.3)])
+        gauntlet_rows = self.write_gauntlet_rows([make_gauntlet_row(MODEL_ONE, 0.4, 9.0)])
+        self.assertEqual(
+            charts.skip_note(probe_rows, gauntlet_rows),
+            "Skipped fingerprint picture: no fingerprint flip rates for this condition.",
+        )
+
 
 # Guards the firm-versus-open map: models with a missing (NaN) top-level flip rate are left off the map,
 # are sorted last on the leaderboard, and labels are placed on the side that faces the middle of the plot.
