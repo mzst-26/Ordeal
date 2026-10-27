@@ -5,6 +5,7 @@ Everything here is offline. The listings below copy the shape each platform real
 and the other platforms have no modality field at all). No test makes a network call.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -16,6 +17,10 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import refresh_catalog  # noqa: E402  (needs scripts/ on sys.path first)
+
+# The two saved copies of the model lists: the one the Python code reads, and the one the site reads.
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+SAVED_LIST_PATHS = (PROJECT_DIR / "ordeal" / "data" / "models.json", PROJECT_DIR / "site" / "data" / "models.json")
 
 
 def huggingface_model(model_id, modalities):
@@ -76,10 +81,6 @@ class NameRuleTests(unittest.TestCase):
     def test_embedding_model_is_dropped(self):
         self.assertFalse(catalog.is_text_model({"id": "Qwen/Qwen3-Embedding-8B"}))
 
-    def test_vision_language_model_is_kept(self):
-        # "VL" models read images and write text, so they are a test target. Only the word list drops things.
-        self.assertTrue(catalog.is_text_model({"id": "openbmb/MiniCPM-V-4_5"}))
-
     def test_plain_chat_model_is_kept(self):
         self.assertTrue(catalog.is_text_model({"id": "openai/gpt-oss-120b"}))
 
@@ -92,6 +93,52 @@ class NameRuleTests(unittest.TestCase):
 
     def test_custom_word_list_is_used_when_given(self):
         self.assertFalse(catalog.is_text_model({"id": "org/special"}, excluded_words=("special",)))
+
+
+class VisionNameRuleTests(unittest.TestCase):
+    """Vision models are dropped, because the experiments send text only and a model that reads images is not a test target."""
+
+    def test_vision_word_drops_a_model(self):
+        for model_id in ("CohereLabs/aya-vision-32b", "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp", "GitMylo/nsfwvision-v5_qwen3.5-9b-sft"):
+            self.assertFalse(catalog.is_text_model({"id": model_id}), model_id)
+
+    def test_vl_word_drops_a_model(self):
+        for model_id in ("Qwen/Qwen2.5-VL-7B-Instruct", "org/qwen-vl", "org/model_vl_chat"):
+            self.assertFalse(catalog.is_text_model({"id": model_id}), model_id)
+
+    def test_multimodal_word_drops_a_model(self):
+        self.assertFalse(catalog.is_text_model({"id": "org/gemma-3-4B-multimodal-ft"}))
+
+    def test_vl_inside_a_longer_word_is_not_a_vl_token(self):
+        # "vl" only counts as its own word, so names such as "vlad" and "vllm" are kept.
+        for model_id in ("org/vlad-7b-chat", "org/vllm-chat-7b"):
+            self.assertTrue(catalog.is_text_model({"id": model_id}), model_id)
+
+    def test_image_input_in_the_listing_drops_a_model(self):
+        model = {"id": "org/chat", "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]}}
+        self.assertFalse(catalog.is_text_model(model))
+
+    def test_image_input_at_the_top_level_drops_a_model(self):
+        model = {"id": "novita/chat", "input_modalities": ["text", "image"], "output_modalities": ["text"]}
+        self.assertFalse(catalog.is_text_model(model))
+
+    def test_text_only_input_is_kept(self):
+        model = {"id": "org/chat", "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]}}
+        self.assertTrue(catalog.is_text_model(model))
+
+
+class StoredCatalogueTests(unittest.TestCase):
+    """The saved lists that ship with the project never hold a vision model."""
+
+    def test_no_saved_list_holds_a_vision_model(self):
+        offenders = []
+        for path in SAVED_LIST_PATHS:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            for platform_id, platform in saved["platforms"].items():
+                for model_id in platform["models"]:
+                    if catalog.is_vision_name(model_id):
+                        offenders.append(f"{path.relative_to(PROJECT_DIR)} {platform_id}: {model_id}")
+        self.assertEqual(offenders, [])
 
 
 class CatalogueIdsTests(unittest.TestCase):
