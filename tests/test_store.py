@@ -326,5 +326,55 @@ class MessageDedupeTests(unittest.TestCase):
         self.assertEqual([json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()], [reply])
 
 
+class RepairTests(unittest.TestCase):
+    """The repair copies replies that are in the store but missing from the JSONL file.
+
+    A kill between the store write and the JSONL append leaves a reply in the store only. The repair makes the
+    file complete again, so a resumed run and grade see the same replies.
+    """
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+        self.cache_path = self.folder / "cache.jsonl"
+
+    def count_lines_for_key(self, reply: dict) -> int:
+        """Count the JSONL lines that hold the same key as the given reply."""
+        lines = self.cache_path.read_text(encoding="utf-8").splitlines()
+        return sum(1 for line in lines if store.key_values(json.loads(line)) == store.key_values(reply))
+
+    def test_reply_only_in_the_store_gets_one_jsonl_line_and_a_second_repair_adds_nothing(self) -> None:
+        """A reply saved only to the store is appended once; running the repair again changes nothing."""
+        reply = make_reply(question_id="q1")
+        with store.open_store(self.cache_path) as db:
+            db.add(reply)
+        self.assertFalse(self.cache_path.exists())
+        with contextlib.redirect_stderr(io.StringIO()):
+            added = store.repair_jsonl_from_store(self.cache_path)
+            self.assertEqual(added, 1)
+            self.assertEqual(self.count_lines_for_key(reply), 1)
+            self.assertEqual(store.repair_jsonl_from_store(self.cache_path), 0)
+        self.assertEqual(self.count_lines_for_key(reply), 1)
+
+    def test_repaired_line_starts_on_a_new_line_after_a_cut_off_line(self) -> None:
+        """A file that ends in a cut-off line with no newline gets the missing reply on its own line, not glued to it."""
+        reply = make_reply(question_id="q1")
+        cut_off = make_reply(question_id="q2")
+        with store.open_store(self.cache_path) as db:
+            db.add(reply)
+            db.add(cut_off)
+        self.cache_path.write_text(json.dumps(cut_off)[:20], encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()):
+            store.repair_jsonl_from_store(self.cache_path)
+        good_keys = []
+        for line in self.cache_path.read_text(encoding="utf-8").splitlines():
+            try:
+                good_keys.append(store.key_values(json.loads(line)))
+            except json.JSONDecodeError:
+                pass
+        self.assertEqual(sorted(good_keys), sorted([store.key_values(reply), store.key_values(cut_off)]))
+
+
 if __name__ == "__main__":
     unittest.main()
