@@ -4,6 +4,8 @@ An answer key is the letter we say is correct for a question. A judge that sees 
 with it, so the screen is built to answer blind: a model sees only the question and its options, never
 the key. The AI is only a flag. It says "a person should look at this one". A human makes the decision,
 and only two blind human answers that agree can mark a key as verified (see ordeal/data/key_checks.json).
+This script never sets "verified" and never writes key_checks.json or questions.json. A person records
+each check by hand, and the script only reads the file to count the statuses.
 
 A maintainer runs this script by hand. Without --run it spends nothing: it reads the saved screen
 results and prints the flags and the summary. With --run it asks the screen models once, saves the

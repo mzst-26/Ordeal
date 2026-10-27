@@ -18,6 +18,9 @@ sys.path.insert(0, str(PROJECT_DIR))
 import screen_keys  # noqa: E402
 from ordeal import core  # noqa: E402
 
+QUESTIONS_PATH = PROJECT_DIR / "ordeal" / "data" / "questions.json"
+KEY_CHECKS_PATH = PROJECT_DIR / "ordeal" / "data" / "key_checks.json"
+
 
 def make_question(question_id="q1", correct="B"):
     """Return a question shaped like questions.json, with text that must never reach a model."""
@@ -142,6 +145,27 @@ class RunScreenTests(unittest.TestCase):
         sample = results["q1"]["model-a"][0]
         self.assertIsNone(sample["letter"])
         self.assertEqual(sample["error"], "RuntimeError")
+
+
+class KeyChecksFileTests(unittest.TestCase):
+    """The key_checks.json template has one unchecked entry per question, and questions.json is untouched."""
+
+    def test_one_entry_per_question_with_the_fields(self):
+        questions = json.loads(QUESTIONS_PATH.read_text(encoding="utf-8"))
+        checks = json.loads(KEY_CHECKS_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(entry["id"] for entry in checks), sorted(question["id"] for question in questions))
+        for entry in checks:
+            self.assertEqual(set(entry), {"id", "checked_by", "checked_on", "source", "status"})
+            self.assertIsNone(entry["checked_by"])
+            self.assertIsNone(entry["checked_on"])
+            self.assertIsNone(entry["source"])
+            self.assertEqual(entry["status"], "unchecked")
+
+    def test_questions_file_has_no_key_check_fields(self):
+        questions = json.loads(QUESTIONS_PATH.read_text(encoding="utf-8"))
+        for question in questions:
+            self.assertNotIn("status", question)
+            self.assertNotIn("checked_by", question)
 
 
 if __name__ == "__main__":
