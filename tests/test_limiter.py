@@ -283,10 +283,18 @@ class RateTableTests(unittest.TestCase):
         self.assertEqual(table["google/gemma-3-27b-it"]["requests_per_minute"], 600)
         self.assertEqual(table["google/gemma-3-27b-it"]["tokens_per_minute"], 400000)
 
+    def test_shipped_table_has_no_embedding_or_vision_models(self) -> None:
+        """Embedding and vision models are left out, because the chat test cannot check them and the runs do not use them."""
+        # These name parts mark an embedding model or a vision model in the provider's model names.
+        excluded_parts = ("embedding", "minicpm-v", "-vl")
+        table = limiter.load_rate_table()
+        kept = [model for model in table if any(part in model.lower() for part in excluded_parts)]
+        self.assertEqual(kept, [])
+
     def test_every_shipped_entry_has_positive_limits(self) -> None:
         """Each entry has both limits as positive whole numbers, so none can divide by zero."""
         table = limiter.load_rate_table()
-        self.assertGreaterEqual(len(table), 30)
+        self.assertGreaterEqual(len(table), 27)
         for model, limits in table.items():
             with self.subTest(model=model):
                 self.assertGreater(limits["requests_per_minute"], 0)
