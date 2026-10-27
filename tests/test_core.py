@@ -1,5 +1,6 @@
 """Tests for core.py: the experiment version, loading the v3 specs, placeholders, scoring and the cache."""
 
+import argparse
 import contextlib
 import copy
 import io
@@ -156,6 +157,42 @@ class SuiteTests(unittest.TestCase):
             core.load_suite(questions="medium")
         self.assertIn("easy", str(context.exception))
         self.assertIn("hard", str(context.exception))
+
+    # Guards the --suite choices: exactly the two suites the site offers, and the default is the v3 easy one.
+    def test_the_command_line_offers_only_the_two_site_suites(self) -> None:
+        self.assertEqual(core.SUITE_CHOICES, ("gauntlet_v3+easy", "gauntlet_v4+hard"))
+        self.assertEqual(core.DEFAULT_SUITE, "gauntlet_v3+easy")
+
+    def test_load_chosen_suite_without_a_name_gives_the_default_suite(self) -> None:
+        suite = core.load_chosen_suite()
+        self.assertEqual(suite.name, "gauntlet_v3+easy")
+        self.assertEqual(suite.experiment, "82f5e58164d9")
+
+    def test_load_chosen_suite_reads_the_offered_v4_hard_name(self) -> None:
+        suite = core.load_chosen_suite("gauntlet_v4+hard")
+        self.assertEqual((suite.ladder_name, suite.question_set), ("gauntlet_v4", "hard"))
+        self.assertEqual(suite.experiment, core.load_suite("gauntlet_v4", "hard").experiment)
+
+    # Guards that the two pairings the site does not offer are refused, even though load_suite can build them.
+    def test_load_chosen_suite_refuses_the_two_pairings_not_offered(self) -> None:
+        for name in ("gauntlet_v3+hard", "gauntlet_v4+easy"):
+            with self.subTest(name=name):
+                with self.assertRaises(ValueError) as context:
+                    core.load_chosen_suite(name)
+                self.assertIn(name, str(context.exception))
+
+    # Guards the command-line option: --suite takes only the offered names, and the old two flags are gone.
+    def test_add_suite_argument_accepts_only_the_offered_names(self) -> None:
+        parser = argparse.ArgumentParser()
+        core.add_suite_argument(parser)
+        self.assertIsNone(parser.parse_args([]).suite)
+        self.assertEqual(parser.parse_args(["--suite", "gauntlet_v4+hard"]).suite, "gauntlet_v4+hard")
+        for argv in (["--suite", "gauntlet_v3+hard"], ["--suite", "gauntlet_v4+easy"],
+                     ["--ladder", "gauntlet_v4"], ["--questions", "hard"]):
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as context:
+                    parser.parse_args(argv)
+                self.assertEqual(context.exception.code, 2)
 
     def test_current_experiment_of_a_suite_is_that_suites_code(self) -> None:
         suite = core.load_suite("gauntlet_v4", "hard")

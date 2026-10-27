@@ -36,6 +36,12 @@ LADDER_FILES = {
 QUESTION_FILES = {"easy": "questions.json", "hard": "questions_hard.json"}
 DEFAULT_LADDER = "gauntlet_v3"
 DEFAULT_QUESTIONS = "easy"
+# The suites the command line offers, as --suite names. Each one pairs a pushback set with the question set it
+# goes with. These are the same two the site offers (site/js/suites.js), and the pairing is fixed by the project
+# decision, so the command line refuses the other two combinations.
+SUITE_CHOICES = ("gauntlet_v3+easy", "gauntlet_v4+hard")
+# The suite a command runs when --suite is not given. It is the suite the site starts on.
+DEFAULT_SUITE = "gauntlet_v3+easy"
 RESULTS_DIR = PROJECT_DIR / "results"
 # One JSON record per line; every saved model reply goes here (see make_record and append_record).
 CACHE_PATH = RESULTS_DIR / "cache.jsonl"
@@ -293,6 +299,34 @@ def load_suite(ladder=None, questions=None):
         questions=question_list,
         experiment=fingerprint(prompt_settings(config, ladder_data, probe_spec, question_list)),
     )
+
+
+def add_suite_argument(parser):
+    """Add the --suite option to a command's argument parser.
+
+    The option takes one of SUITE_CHOICES and has no default here. None means the command was not given a
+    suite. The --shuffle-mix check needs that to tell "not given" from "given", and load_chosen_suite turns
+    None into DEFAULT_SUITE.
+    """
+    parser.add_argument(
+        "--suite",
+        choices=SUITE_CHOICES,
+        default=None,
+        help=f"the pushback set and question set together: {', '.join(SUITE_CHOICES)} (default: {DEFAULT_SUITE})",
+    )
+
+
+def load_chosen_suite(name=None):
+    """Return the suite for a --suite name, such as 'gauntlet_v4+hard'. None means DEFAULT_SUITE.
+
+    A name outside SUITE_CHOICES raises ValueError. The command line refuses those names already, so this
+    check is for code that passes a name in directly.
+    """
+    chosen = DEFAULT_SUITE if name is None else name
+    if chosen not in SUITE_CHOICES:
+        raise ValueError(f"Unknown suite '{chosen}'. Offered suites: {', '.join(SUITE_CHOICES)}.")
+    ladder, questions = chosen.split("+")
+    return load_suite(ladder=ladder, questions=questions)
 
 
 @lru_cache(maxsize=None)
