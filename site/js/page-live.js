@@ -20,7 +20,9 @@ import {
   savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED,
 } from "./saved-runs.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
-import { choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice } from "./suites.js";
+import {
+  choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice, isPushbackSet, isQuestionSet, retiredPairText,
+} from "./suites.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
 import {
   BASELINE_STEP,
@@ -31,6 +33,7 @@ import {
   parseAnswer,
 } from "./engine/rules.js";
 import { barErrorChart, donutChart, lineBandChart, scatterQuadrant } from "./charts/index.js";
+import { openEnlargedChart } from "./chart-popup.js";
 import {
   barTable, destroyChart, drawPanel, makeChartPanel, seriesColour, seriesSlot, seriesStyle, isRepeatSeries,
   watchThemeChanges,
@@ -78,6 +81,8 @@ const SAVED_SUITE_NAME = `${DEFAULT_LADDER}+${DEFAULT_QUESTION_SET}`;
 let data = null;
 // The models the page shows and runs. They start as the config's models, and a chosen run replaces them with its own.
 let activeModels = [];
+// The suite view the replay plays: the chosen run's own suite, or null for the sample run's suite.
+let replayView = null;
 // The suite view behind the live choice: the pushback set and question set the visitor picked.
 let liveView = null;
 // Counts the choice requests, so a slow load that finishes late is ignored.
@@ -179,9 +184,12 @@ async function loadData() {
   };
 }
 
-/** Return the suite view on screen: the saved run's suite in replay, the chosen suite in live. */
+/**
+ * Return the suite view on screen: the chosen run's suite in replay (the sample run's suite until a run is chosen), and
+ * the chosen suite in live. Every run of any suite the site offers is replayed on its own suite.
+ */
 function activeView() {
-  return currentMode() === "live" ? liveView : data.savedView;
+  return currentMode() === "live" ? liveView : (replayView ?? data.savedView);
 }
 
 /** Return the suite name of a saved record. Records from before suites have no suite field. */
@@ -575,6 +583,8 @@ function levelOptions(rows, suite) {
   const levels = Array.from({ length: suite.levelCount }, (_, index) => index + 1);
   return {
     title: chartTitle("Cumulative flip rate by level", suite),
+    // A lower flip rate is a better model, so the enlarged chart's Best and Worst filters rank by it.
+    lowerIsBetter: true,
     xLabels: levels.map(String),
     xAxisTitle: "Pressure level",
     yAxisTitle: "Flip rate",
@@ -602,6 +612,7 @@ function fingerprintOptions(probeRows, suite) {
   };
   return {
     title: chartTitle("Fingerprint probes: flip rate", suite),
+    lowerIsBetter: true,
     groups: probeIds.map(probeLabel),
     xAxisTitle: "Probe",
     yAxisTitle: "Flip rate",
@@ -639,13 +650,19 @@ function twinOptions(probeRows, suite) {
   };
 }
 
-/** Sum of share times confession_units, as whole counts. A missing share or no rows gives NaN (no data). */
-function confessionSum(rows, shareKey) {
-  if (rows.length === 0) {
-    return Number.NaN;
-  }
+/**
+ * Sum of share times confession_units, as whole counts. A model with no confession units has no share, and adds nothing,
+ * so one model like that does not make the whole chart "no data". The total is NaN only when no model has any confession
+ * units, or a share that should exist is missing.
+ */
+export function confessionSum(rows, shareKey) {
   let total = 0;
+  let units = 0;
   for (const row of rows) {
+    if (!(row.confession_units > 0)) {
+      continue;
+    }
+    units += row.confession_units;
     // Shares are fractions of confession_units, so multiplying back and rounding recovers a whole count.
     const count = Math.round(row[shareKey] * row.confession_units);
     if (!Number.isFinite(count)) {
@@ -653,7 +670,12 @@ function confessionSum(rows, shareKey) {
     }
     total += count;
   }
-  return total;
+  return units > 0 ? total : Number.NaN;
+}
+
+/** True when the probe rows hold at least one finite estimate, so a probe chart has something to draw. */
+export function probeDataPresent(probeRows) {
+  return probeRows.some((row) => Number.isFinite(row.estimate));
 }
 
 /** Options for Fig. 4: the confession answers of the models that flipped, summed over the models. */
@@ -740,7 +762,35 @@ function createCharts() {
       describeConfessionTable,
     ),
   };
+  addChartExtras();
   refreshCharts();
+}
+
+// The name of each chart in the enlarged view's title.
+const CHART_TITLES = {
+  levels: "Fig. 1 · The level curve",
+  fingerprints: "Fig. 2 · Fingerprint probes",
+  twins: "Fig. 3 · The twin probes",
+  confessions: "Fig. 4 · The confessions",
+};
+const NO_PROBES_TEXT = "This run has no probe replies, so this chart has nothing to show. Probes run when their families are ticked on the Batch page.";
+
+/**
+ * Add an Enlarge button to each chart, which opens it in a large, interactive dialog. The probe charts also get a note,
+ * shown when the replies are loaded but hold no probe answers, so an empty chart says why it is empty.
+ */
+function addChartExtras() {
+  for (const [key, title] of Object.entries(CHART_TITLES)) {
+    const panel = panels[key];
+    const enlarge = el("button", { type: "button", className: "btn", text: "Enlarge", "aria-haspopup": "dialog" });
+    enlarge.addEventListener("click", () => openEnlargedChart(panel, title));
+    panel.toggle.after(enlarge);
+    if (key === "fingerprints" || key === "twins") {
+      panel.probeNote = el("p", { className: "field-hint", text: NO_PROBES_TEXT });
+      panel.probeNote.hidden = true;
+      panel.chartHost.after(panel.probeNote);
+    }
+  }
 }
 
 /** Grade the records seen so far, then redraw all four charts. Each chart tweens to its new numbers. */
@@ -756,6 +806,10 @@ function drawCharts(graded) {
   drawPanel(panels.fingerprints, fingerprintOptions(graded.probeRows, suite));
   drawPanel(panels.twins, twinOptions(graded.probeRows, suite));
   drawPanel(panels.confessions, confessionOptions(graded.rows));
+  // The probe note shows only when replies are loaded and none of them is a probe answer.
+  const probesMissing = run.seen.length > 0 && !probeDataPresent(graded.probeRows);
+  panels.fingerprints.probeNote.hidden = !probesMissing;
+  panels.twins.probeNote.hidden = !probesMissing;
 }
 
 /** Redraw the charts from the stored grades when the theme changes. Nothing is graded again. */
@@ -1279,15 +1333,19 @@ async function showLatestLiveRun() {
 const SAMPLE_RUN_VALUE = "sample";
 
 /**
- * Return why a saved run cannot be replayed on this suite, or "" when it can. The Run to replay list is the Saved list of
- * the Batch page, so every run is listed. A run that cannot be replayed says why when it is chosen.
+ * Return why a saved run cannot be replayed, or "" when it can. A run replays on its own suite, whichever suite that is,
+ * so the check is only that the run is a run, has saved replies, and names a suite the site offers. The Run to replay
+ * list is the Saved list of the Batch page, so every run is listed, and a run that cannot be replayed says why.
  */
-export function replayProblem(saved, suite) {
+export function replayProblem(saved) {
   if (!isRunDocument(saved)) return "That saved item is not a run, so it cannot be replayed.";
   if (recordsFromRun(saved).length === 0) return `${saved.label} has no saved replies, so there is nothing to replay.`;
-  if (!runMatchesSuite(saved, suite)) {
-    return `${saved.label} was made on another suite, so it cannot be replayed on ${suite.name}. Choose the sample run or a run on ${suite.name}.`;
+  const { pushbackSet, questionSet } = saved.config;
+  if (!isPushbackSet(pushbackSet) || !isQuestionSet(questionSet)) {
+    return `${saved.label} is on a suite this site does not have, so it cannot be replayed.`;
   }
+  const retired = retiredPairText(pushbackSet, questionSet);
+  if (retired !== "") return `${saved.label}: ${retired}`;
   return "";
 }
 
@@ -1318,7 +1376,11 @@ async function chooseReplayRun(value) {
     return;
   }
   if (value === SAMPLE_RUN_VALUE) {
+    // The theatre is cleared before the suite changes, so the charts never grade the old run's replies on the new suite.
+    resetReplay();
+    replayView = null;
     setActiveModels(data.models);
+    showSuite();
     replay.items = buildReplayItems(data.records, data.savedView.suite.questions);
     replay.totals = replayTotals(data.records, replay.items);
     resetReplay();
@@ -1329,18 +1391,32 @@ async function chooseReplayRun(value) {
     setStatus("That saved run could not be read.");
     return;
   }
-  const problem = replayProblem(saved, data.savedView.suite);
+  const problem = replayProblem(saved);
   if (problem !== "") {
     setStatus(problem);
     return;
   }
+  // The run replays on its own suite, so that suite's levels, questions and charts are loaded for it.
+  const { pushbackSet, questionSet } = saved.config;
+  setStatus(`Loading the suite ${pushbackSet}+${questionSet} for ${saved.label}.`);
+  let view;
+  try {
+    view = await getSuite(pushbackSet, questionSet);
+  } catch (error) {
+    setStatus(`The suite for ${saved.label} could not be loaded: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  // The theatre is cleared before the suite changes, so the charts never grade the old run's replies on the new suite.
+  resetReplay();
+  replayView = view;
   const records = recordsFromRun(saved).map((record) => ({ ...record, condition: CONDITION }));
   // The run's own models go on the lanes, so every model it replays has a lane to show on.
   setActiveModels(saved.config.models);
-  replay.items = buildReplayItems(records, data.savedView.suite.questions);
+  showSuite();
+  replay.items = buildReplayItems(records, view.suite.questions);
   replay.totals = replayTotals(records, replay.items);
   resetReplay();
-  setStatus(`Ready to replay ${saved.label}: ${replay.totals.units} units. Press Play.`);
+  setStatus(`Ready to replay ${saved.label}: ${replay.totals.units} units on ${pushbackSet}+${questionSet}. Press Play.`);
 }
 
 /** Build the batch runner for the chosen questions and the active suite, then start it. The run ends by its events. */

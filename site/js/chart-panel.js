@@ -84,7 +84,8 @@ export function makeChartPanel(chartHost, tableHost, create, describe) {
     "aria-pressed": "false",
     "aria-controls": tableHost.id,
   });
-  const panel = { chartHost, tableHost, toggle, create, describe, chart: null, options: null };
+  // listeners are called after each draw, so an enlarged chart can follow the panel (see chart-popup.js).
+  const panel = { chartHost, tableHost, toggle, create, describe, chart: null, options: null, listeners: [] };
   // tabIndex -1 lets script move focus to the table (see toggleTable) without adding it to the Tab order.
   tableHost.tabIndex = -1;
   // The toggle stays off until drawPanel has given the panel something to show.
@@ -104,6 +105,9 @@ export function drawPanel(panel, options) {
   }
   panel.tableHost.replaceChildren(buildTable(panel.describe(options)));
   panel.toggle.disabled = false;
+  for (const listener of panel.listeners) {
+    listener();
+  }
 }
 
 /** Show the table or the chart. A chart shown again is redrawn, since it was not measured while hidden. */

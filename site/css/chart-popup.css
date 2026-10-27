@@ -1,0 +1,46 @@
+/* The enlarged chart dialog on the Live page. Colours and spacing come from tokens.css. */
+
+.chart-dialog {
+  width: min(96vw, 1100px);
+  max-width: 96vw;
+  padding: var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.chart-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.chart-dialog-controls {
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+
+/* The model checkboxes sit in a wrapping row, so many models fit above the chart. */
+.chart-model-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0;
+}
+
+.chart-model-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--size-sm);
+  cursor: pointer;
+}
+
+.chart-dialog-host {
+  min-height: 320px;
+}
+
+.chart-dialog .chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

@@ -1,43 +1,42 @@
 // Tests for the Run to replay list on the Live page. The list is the Saved list of the Batch page, so every run in it is
-// listed. Choosing a run that cannot be replayed on the Live suite says why.
+// listed. A run replays on its own suite, so any suite the site offers can be replayed. A run that cannot be replayed
+// says why when it is chosen.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { replayProblem } from "../site/js/page-live.js";
 import { savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED } from "../site/js/saved-runs.js";
 import { importRunDocument } from "../site/js/store/run-store.js";
 import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
-import { choiceOfSuite } from "../site/js/suites.js";
+import { fixedChoiceMenu, setsOfChoice } from "../site/js/suites.js";
 
-const SUITE = { ladderName: "v3", questionSet: "easy", name: "gauntlet_v3+easy" };
 const SAVED_STEP = { steps: [{ condition: "none", model: "M1", question_id: "q1", repeat: 1, step: "level_0", reply: "A" }] };
 
-/** Return a saved batch run document on the given sets, with the given saved units. */
-function batchRun(label, sets, saved) {
-  const results = saved ? { a: SAVED_STEP } : {};
+/** Return a saved batch run document on the given sets, with or without saved replies. */
+function batchRun(label, sets, saved = true) {
   return importRunDocument(createMemoryAdapter(), {
     label,
     status: "stopped",
     config: { kind: KIND_BATCH, models: ["M1"], pushbackSet: sets.pushbackSet, questionSet: sets.questionSet },
     plannedUnits: ["a"],
-    results,
+    results: saved ? { a: SAVED_STEP } : {},
   });
 }
 
-test("replayProblem accepts a run on the replay's suite that has replies", async () => {
-  const wanted = choiceOfSuite(SUITE);
-  const run = await batchRun("on suite", wanted, true);
-  assert.equal(replayProblem(run, SUITE), "");
+test("replayProblem accepts a run with saved replies on any suite the site offers", async () => {
+  for (const choice of fixedChoiceMenu()) {
+    const run = await batchRun(choice.label, setsOfChoice(choice.value));
+    assert.equal(replayProblem(run), "", choice.value);
+  }
 });
 
 test("replayProblem says why a run with no replies cannot be replayed", async () => {
-  const wanted = choiceOfSuite(SUITE);
-  const run = await batchRun("empty", wanted, false);
-  assert.match(replayProblem(run, SUITE), /has no saved replies/);
+  const run = await batchRun("empty", setsOfChoice(fixedChoiceMenu()[0].value), false);
+  assert.match(replayProblem(run), /has no saved replies/);
 });
 
-test("replayProblem says why a run on another suite cannot be replayed here", async () => {
-  const run = await batchRun("other", { pushbackSet: "other", questionSet: "other" }, true);
-  assert.match(replayProblem(run, SUITE), /made on another suite/);
+test("replayProblem says why a run on a suite the site does not have cannot be replayed", async () => {
+  const run = await batchRun("unknown", { pushbackSet: "other", questionSet: "other" });
+  assert.match(replayProblem(run), /suite this site does not have/);
 });
 
 test("the Run to replay list is the Batch page's Saved list, so every batch run is listed", async () => {
