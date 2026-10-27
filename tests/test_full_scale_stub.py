@@ -31,6 +31,7 @@ from ordeal import core
 from ordeal import limiter
 from ordeal import model_client
 from ordeal import runner
+from ordeal import store
 from ordeal.runner import RunSettings
 from ordeal.stub_model import StubModel
 
@@ -201,6 +202,8 @@ class FullScaleStubTests(unittest.TestCase):
         partial_keys, _ = read_key_lines(cache_path)
         self.assertLess(len(partial_keys), len(expected_keys(config)))
         saved = core.load_cache(cache_path, experiment=SUITE.experiment)
+        # runner.main repairs the file before it resumes. This test calls run_all directly, so it does the same step.
+        store.repair_jsonl_from_store(cache_path)
         run_schedule(cache_path, OverlappingStub(make_questions()), cache=saved)
         keys, damaged = read_key_lines(cache_path)
         self.assertEqual(damaged, 0)

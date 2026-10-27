@@ -958,6 +958,9 @@ def main(
         ladder_name, plan.experiment, ", ".join(args.conditions), models, args.probes, len(plan.questions),
         args.repeats, cache_path,
     )
+    # A killed run may have saved a reply only to the store. Copy such replies into the JSONL file before any new
+    # call, so the file is complete again and a resumed run does not leave it one line short.
+    store.repair_jsonl_from_store(cache_path)
     # A mixed run's record is written before the first call, so a stopped run still shows what was planned.
     record_path = core.mixed_runs_path(cache_path)
     run_record = new_run_record(plan, args.shuffle_mix, args.limit) if plan.is_mixed else None
