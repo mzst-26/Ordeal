@@ -5,7 +5,9 @@ Each run writes to a temporary folder that the test creates and removes. The pro
 files are only read, and their sizes and modification times are compared again at the end of the module.
 """
 
+import contextlib
 import csv
+import io
 import json
 import math
 import os
@@ -19,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 from ordeal import core
+from ordeal import runner
+from tests.fake_clock import paced_without_waiting
 from tests.mock_openai import MockOpenAIServer
 from tests.test_default_codes import DEFAULT_RECORD_KEYS
 
@@ -327,11 +331,15 @@ class DefaultStubRunTests(unittest.TestCase):
 
     def test_default_stub_run_keeps_file_order_and_default_keys(self) -> None:
         """The run saves the first 3 questions of the file, under the default code and with no shuffle fields."""
-        result = run_script(RUNNER, [
-            "--stub", "--limit", "3", "--ladder", "gauntlet_v4", "--questions", "hard",
-            "--cache", str(self.cache_path),
-        ])
-        self.assertEqual(result.returncode, 0, result.stderr)
+        # The stub is paced like an unknown model (60 requests a minute), so this run needs about six minutes of
+        # waiting in real time. It runs in this process instead, with a clock that only moves when the pacer sleeps.
+        with paced_without_waiting(), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            code = runner.main([
+                "--stub", "--limit", "3", "--ladder", "gauntlet_v4", "--questions", "hard",
+                "--cache", str(self.cache_path),
+            ])
+        self.assertEqual(code, 0)
         rows = read_rows(self.cache_path)
         self.assertTrue(rows)
         self.assertEqual({row["question_id"] for row in rows}, {question["id"] for question in self.suite.questions[:3]})

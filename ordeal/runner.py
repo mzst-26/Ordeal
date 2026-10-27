@@ -17,14 +17,13 @@ from typing import Any, Protocol
 
 from ordeal import core
 from ordeal import flows
+from ordeal import limiter
 from ordeal import mix
 from ordeal import model_client
 from ordeal.stub_model import StubModel
 
 # Longest wait between retries; backoff_seconds() doubles the wait each attempt up to this cap.
 MAX_BACKOFF_SECONDS = 60
-# Calls in flight to one model at once when config.json does not set per_model_concurrency.
-DEFAULT_PER_MODEL_CONCURRENCY = 4
 # Both exit codes are 2 on purpose: the shell can tell them from 1 (some call failed) and 0 (clean).
 EXIT_INCOMPLETE = 2  # the call limit was reached
 EXIT_BAD_OPTION = 2  # a bad option, bad custom model settings, or a missing key
@@ -52,11 +51,14 @@ class CallBudget:
 
 
 class ChatClient(Protocol):
-    """The methods the runner uses. ModelRouter and StubModel both provide them."""
+    """The methods the runner uses. ModelRouter and StubModel both provide them.
 
-    async def complete(
+    The runner asks for the detailed reply, so it gets the headers and usage the pacer learns from.
+    """
+
+    async def complete_detailed(
         self, model: str, messages: list[dict[str, str]], temperature: float, max_tokens: int
-    ) -> str: ...
+    ) -> model_client.Reply: ...
 
     async def close(self) -> None: ...
 
@@ -152,9 +154,10 @@ class RunContext:
     client: ChatClient
     cache: dict[tuple[Any, ...], dict[str, Any]]
     cache_path: Path
+    # The most calls in flight at once across all models, from config["concurrency"].
     semaphore: asyncio.Semaphore
-    # One semaphore per model, so no model gets more calls at once than its provider allows.
-    model_semaphores: dict[str, asyncio.Semaphore]
+    # Decides when each model may be called, so no model is called faster than its own limits allow.
+    pacer: limiter.Pacer
     settings: RunSettings
     stats: RunStats
     budget: CallBudget
@@ -283,18 +286,71 @@ async def call_with_retries(ctx: RunContext, unit: Unit, messages: list[dict[str
 
 
 async def call_model(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> str:
-    """Make one API call. 'concurrency' calls may run at once in total, and 'per_model_concurrency' for one model.
+    """Make one API call, once the pacer says the model has room, and return the reply text.
+
+    The pacer goes first, so a model with no room waits without holding one of the global slots that other
+    models could use. The pacer slot is always given back in the finally, even when the call fails.
+    """
+    estimate = await ctx.pacer.admit(model, limiter.estimate_input_tokens(messages))
+    started = ctx.pacer.clock()
+    reply = None
+    try:
+        reply = await complete_in_slot(ctx, model, messages)
+        return reply.text
+    except Exception as error:
+        park_if_told_to_wait(ctx, model, error)
+        raise
+    finally:
+        finish_admitted_call(ctx, model, estimate, started, reply)
+
+
+async def complete_in_slot(ctx: RunContext, model: str, messages: list[dict[str, str]]) -> model_client.Reply:
+    """Make the call while holding one of the global slots. The budget is spent inside the slot.
 
     The budget is checked and spent before the call starts, so no more calls than the limit are ever made.
     """
-    async with ctx.semaphore, ctx.model_semaphores[model]:
+    async with ctx.semaphore:
         ctx.budget.spend()
-        return await ctx.client.complete(
+        return await ctx.client.complete_detailed(
             model=model,
             messages=messages,
             temperature=ctx.settings.config["temperature"],
             max_tokens=ctx.settings.config["max_tokens"],
         )
+
+
+def park_if_told_to_wait(ctx: RunContext, model: str, error: Exception) -> None:
+    """Park the model for the wait that a rate-limit error asked for.
+
+    An error with no wait time parks nothing. The normal retry backoff handles it, and guessing a wait here
+    would hold the model back for a time the provider never asked for.
+    """
+    if not model_client.is_rate_limit(error):
+        return
+    seconds = model_client.retry_after_seconds(error)
+    if seconds is not None:
+        ctx.pacer.record_rate_limit(model, seconds)
+
+
+def finish_admitted_call(
+    ctx: RunContext, model: str, estimate: float, started: float, reply: model_client.Reply | None
+) -> None:
+    """Give back the pacer slot of a call that has ended, and pass on what its reply said.
+
+    A failed call has no reply, so it only gives its slot back. The reserved tokens are not refunded then,
+    because a failed call may still have used the provider's allowance.
+    """
+    if reply is None:
+        ctx.pacer.finish_call(model, estimate)
+        return
+    ctx.pacer.finish_call(
+        model,
+        estimate,
+        seconds=ctx.pacer.clock() - started,
+        headers=reply.headers,
+        prompt_tokens=reply.prompt_tokens,
+        completion_tokens=reply.completion_tokens,
+    )
 
 
 def record_failure(ctx: RunContext, unit: Unit, step: str, message: str) -> None:
@@ -316,21 +372,22 @@ async def run_all(
     settings: RunSettings,
     max_calls: int | None = None,
     mix_fields_by_question: dict[str, dict[str, Any]] | None = None,
+    pacer: limiter.Pacer | None = None,
 ) -> RunStats:
-    """Run every unit, with at most config["concurrency"] API calls at once and config["per_model_concurrency"] per model.
+    """Run every unit, with at most config["concurrency"] API calls at once in total, paced to each model's limits.
     Then close the client.
 
     Saved replies are read from 'cache', and new ones are appended to 'cache_path'.
     With 'max_calls', the run makes no more API attempts than that and then stops.
     'mix_fields_by_question' is passed on to make_units for a mixed run.
+    'pacer' decides when each model may be called. A new one, reading the shipped limits, is made when none is given.
     """
-    per_model = settings.config.get("per_model_concurrency", DEFAULT_PER_MODEL_CONCURRENCY)
     ctx = RunContext(
         client=client,
         cache=cache,
         cache_path=cache_path,
         semaphore=asyncio.Semaphore(settings.config["concurrency"]),
-        model_semaphores={model: asyncio.Semaphore(per_model) for model in models},
+        pacer=pacer if pacer is not None else limiter.Pacer(),
         settings=settings,
         stats=RunStats(),
         budget=CallBudget(max_calls),

@@ -15,6 +15,7 @@ from ordeal import core
 from ordeal import grade
 from ordeal import mix
 from ordeal import runner
+from tests.fake_clock import paced_without_waiting
 
 EASY = core.load_questions(core.DATA_DIR / "questions.json")
 HARD = core.load_questions(core.DATA_DIR / "questions_hard.json")
@@ -160,7 +161,9 @@ class MixedRunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             cache = Path(folder) / "cache.jsonl"
             out_dir = Path(folder) / "out"
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            # The stub is paced like an unknown model, so the run would wait minutes in real time without this.
+            with paced_without_waiting(), contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()):
                 code = runner.main(["--stub", "--shuffle-mix", "3", "--limit", "1", "--repeats", "1",
                                     "--cache", str(cache)])
                 grade_code = grade.main(["--shuffle-mix", "3", "--cache", str(cache), "--out-dir", str(out_dir)])
