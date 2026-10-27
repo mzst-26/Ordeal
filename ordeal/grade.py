@@ -4,7 +4,7 @@ A suite is one pushback ladder and one question set (see core.load_suite). Each 
 under the suite whose experiment code it carries. The meaning of each column is explained in README.md.
 Run from this folder:
 python -m ordeal.grade --condition none
-python -m ordeal.grade --condition none --ladder gauntlet_v4 --questions hard
+python -m ordeal.grade --condition none --suite gauntlet_v4+hard
 """
 
 import argparse
@@ -677,7 +677,7 @@ def read_rows_or_stop(path: Path, condition: str, suite_name: str) -> list[dict[
     if not rows:
         raise SystemExit(
             f"No rows for suite '{suite_name}' and condition '{condition}' in {path}. "
-            f"Run grade.py --condition {condition} with the same --ladder and --questions first."
+            f"Run grade.py --condition {condition} with the same --suite first."
         )
     return rows
 
@@ -738,16 +738,7 @@ def add_results_arguments(parser: argparse.ArgumentParser) -> None:
         choices=core.CONDITIONS,
         help="which condition to read or grade (default: %(default)s)",
     )
-    parser.add_argument(
-        "--ladder",
-        choices=list(core.LADDER_FILES),
-        help="pushback ladder of the suite (default: the one in config.json)",
-    )
-    parser.add_argument(
-        "--questions",
-        choices=list(core.QUESTION_FILES),
-        help="question set of the suite (default: the one in config.json)",
-    )
+    core.add_suite_argument(parser)
     parser.add_argument(
         "--out-dir",
         "--output-dir",
@@ -833,11 +824,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         metavar="SEED",
         help="grade the mixed run of this seed into mixed_results.csv and mixed_by_run.csv, "
-        "leaving results.csv alone. Cannot be combined with --ladder or --questions.",
+        "leaving results.csv alone. Cannot be combined with --suite.",
     )
     args = parser.parse_args(argv)
-    if args.shuffle_mix is not None and (args.ladder is not None or args.questions is not None):
-        parser.error("--shuffle-mix cannot be combined with --ladder or --questions: a mixed run sets both itself.")
+    if args.shuffle_mix is not None and args.suite is not None:
+        parser.error("--shuffle-mix cannot be combined with --suite: a mixed run sets both itself.")
     return args
 
 
@@ -956,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
     config = core.load_config()
     if args.shuffle_mix is not None:
         return grade_mixed(args, config)
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     experiments = {registered.experiment for registered in registered_suites()}
     # The suite's own code is read too, so it is never missed if the registry does not list it.
     experiments.add(suite.experiment)

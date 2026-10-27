@@ -596,7 +596,7 @@ class SuiteStorageTests(unittest.TestCase):
         )
         core.append_record(legacy_reply, cache_path)
         argv = [
-            "grade.py", "--ladder", "gauntlet_v4", "--questions", "hard",
+            "grade.py", "--suite", "gauntlet_v4+hard",
             "--cache", str(cache_path), "--out-dir", str(out_dir),
         ]
         with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
@@ -619,7 +619,7 @@ class SuiteStorageTests(unittest.TestCase):
         probes_path = self.folder / "saved" / "old-probes.csv"
         out_dir = self.folder / "out"
         argv = [
-            "--ladder", "gauntlet_v4", "--questions", "hard", "--cache", str(cache_path), "--out-dir", str(out_dir),
+            "--suite", "gauntlet_v4+hard", "--cache", str(cache_path), "--out-dir", str(out_dir),
             "--results-csv", str(results_path), "--probes-csv", str(probes_path),
         ]
         with contextlib.redirect_stdout(io.StringIO()):
@@ -630,6 +630,20 @@ class SuiteStorageTests(unittest.TestCase):
         self.assertTrue(probes_path.is_file())
         self.assertFalse((out_dir / "results.csv").exists())
         self.assertFalse((out_dir / "probes.csv").exists())
+
+    # Guards the --suite option on grade.py: the old two flags are refused, and --shuffle-mix cannot take a suite.
+    def test_grade_refuses_the_old_flags_and_shuffle_mix_with_suite(self) -> None:
+        """--ladder and --questions exit with code 2, and the --shuffle-mix refusal names --suite."""
+        for argv in (["--ladder", "gauntlet_v4"], ["--questions", "hard"]):
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as context:
+                    grade.parse_args(argv)
+                self.assertEqual(context.exception.code, 2)
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as context:
+                grade.parse_args(["--shuffle-mix", "3", "--suite", "gauntlet_v4+hard"])
+        self.assertEqual(context.exception.code, 2)
+        self.assertIn("--shuffle-mix cannot be combined with --suite", stderr.getvalue())
 
     def test_a_record_without_a_suite_gets_the_default_suite_code(self) -> None:
         """make_record with no suite uses the default suite's experiment code and writes no suite field."""

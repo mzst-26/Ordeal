@@ -202,7 +202,7 @@ class GauntletV4HardTests(unittest.TestCase):
         out_dir = self.workdir / "grade_out"
         out_dir.mkdir()
         result = run_script(GRADER, [
-            "--ladder", "gauntlet_v4", "--questions", "hard", "--cache", str(cache_copy), "--out-dir", str(out_dir),
+            "--suite", "gauntlet_v4+hard", "--cache", str(cache_copy), "--out-dir", str(out_dir),
         ])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Breaking Point", result.stdout)

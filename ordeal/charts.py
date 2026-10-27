@@ -150,7 +150,7 @@ def save_fingerprint_picture(args: argparse.Namespace, suite: core.Suite) -> Non
 def main() -> int:
     """Read the results for one suite and condition and save the pictures. Returns 0 on success."""
     args = parse_args()
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     rows = grade.read_condition_rows(grade.results_csv_path(args.out_dir), args.condition, suite.name)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     output_path = grade.picture_path(args.out_dir, "flip_by_level", args.condition, suite)

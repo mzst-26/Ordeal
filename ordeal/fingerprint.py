@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = parse_args(argv)
     config = core.load_config()
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     # Only replies saved under this suite's experiment code are read, so other wordings never mix in.
     records = list(core.load_cache(args.cache, experiment=suite.experiment).values())
     rows = build_rows(suite, records, args.condition, config)

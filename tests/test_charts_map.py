@@ -221,7 +221,7 @@ class GauntletV4ChartTests(SpineFileTestCase):
 
     def test_charts_and_map_main_write_v4_pictures_into_the_output_folder(self):
         self.write_v4_rows([make_v4_row(MODEL_ONE, 0.4, 9.0), make_v4_row(MODEL_TWO, 0.8, 7.0)])
-        argv = ["--ladder", "gauntlet_v4", "--questions", "hard", "--out-dir", str(self.folder)]
+        argv = ["--suite", "gauntlet_v4+hard", "--out-dir", str(self.folder)]
         with mock.patch.object(sys, "argv", ["charts.py", *argv]), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(charts.main(), 0)
         with mock.patch.object(sys, "argv", ["map.py", *argv]), contextlib.redirect_stdout(io.StringIO()):
