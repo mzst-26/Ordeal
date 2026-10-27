@@ -5,6 +5,7 @@ The decision tests here use plain counts and a plain config dict, so no client, 
 
 import unittest
 
+from ordeal import core
 from ordeal import runner
 
 # The thresholds the guard uses, written out here so the tests do not depend on config.json.
@@ -61,6 +62,19 @@ class HealthDecisionTests(unittest.TestCase):
     def test_no_reason_when_healthy(self) -> None:
         """A healthy model has no problem to report."""
         self.assertIsNone(runner.health_problem(runner.HealthCounts(calls=30), THRESHOLDS))
+
+
+# The shipped thresholds are read from config.json, so that a run can be tuned without editing code.
+# These are the defaults: a model is judged after 30 calls, and paused above 20 percent failed or unparsed.
+class ShippedThresholdTests(unittest.TestCase):
+    """config.json holds the three health thresholds, with the defaults the README describes."""
+
+    def test_config_holds_the_default_thresholds(self) -> None:
+        """The three keys are present with the defaults 0.2, 0.2 and 30."""
+        config = core.load_config()
+        self.assertEqual(config["health_max_failure_rate"], 0.2)
+        self.assertEqual(config["health_max_unparsed_rate"], 0.2)
+        self.assertEqual(config["health_min_calls"], 30)
 
 
 if __name__ == "__main__":
