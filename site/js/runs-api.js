@@ -1,13 +1,15 @@
-// Browser side of the web runs. It calls the /api/runs server functions, decides which gauntlet runs get a copy kept
-// in the browser, and writes the text shown in each row of the runs page. The calls take a fetch function as an
-// argument, so a test can pass a fake one. The password is sent only in the request header and is never stored.
+// Browser side of the web runs. It calls the /api/runs server function with this browser's visitor id in a header, so
+// the server shows and changes only this visitor's runs. It also writes the text shown in each row of the runs page.
+// The calls take a fetch function as an argument, so a test can pass a fake one. No password is used here.
 
-import { listRuns, keepRunCopy } from "./store/run-store.js";
 import { RETENTION_DAYS, DAY_MS } from "./run-retention.js";
 
-/** The note the runs page shows, so the visitor knows the 7-day, 1.5 GB and delete rules. */
-export const RUNS_NOTE_TEXT = "Runs are kept for 7 days. The store holds up to 1.5 GB; the oldest runs are removed first "
-  + "when it is full. You can delete a run at any time.";
+/** The note the runs page shows. It gives the 7-day, 200 MB, 1.5 GB and delete rules in plain words. */
+export const RUNS_NOTE_TEXT = "Your runs are kept for 7 days. You can hold up to 200 MB. The shared store holds up to 1.5 GB "
+  + "in total; when it is full, the oldest runs are removed first. You can delete a run at any time.";
+
+// The header that carries the visitor id. The server reads the same name.
+export const VISITOR_HEADER = "x-visitor-id";
 
 const API_PATH = "/api/runs";
 const KIND_LABELS = Object.freeze({ batch: "Batch run", gauntlet: "Gauntlet run" });
@@ -18,7 +20,7 @@ const SIZE_UNITS = Object.freeze([
 ]);
 const LIST_ERROR_TEXT = "The runs could not be loaded from the server.";
 const READ_ERROR_TEXT = "That run could not be read from the server.";
-const WRONG_PASSWORD_TEXT = "The write password is missing or wrong.";
+const SAVE_ERROR_TEXT = "This run could not be saved to the server.";
 const DELETE_ERROR_TEXT = "The run could not be deleted.";
 
 /** Call the browser's fetch. Passed as a function, so a test can replace it without touching the global. */
@@ -26,66 +28,64 @@ function defaultFetch(url, init) {
   return globalThis.fetch(url, init);
 }
 
+/** Return the headers every call sends: the visitor id, so the server knows whose runs to use. */
+function visitorHeaders(visitorId) {
+  return { [VISITOR_HEADER]: visitorId };
+}
+
 /** Return the address of the runs list, or of one run when an id is given. */
 export function runsUrl(id) {
   return id === undefined ? API_PATH : `${API_PATH}?id=${encodeURIComponent(id)}`;
 }
 
-/** Read the list of runs from the server and return the summaries. Reading needs no password. */
-export async function fetchRunList(fetchFn = defaultFetch) {
-  const response = await fetchFn(runsUrl());
+/** Read the list of this visitor's runs from the server and return the summaries. */
+export async function fetchRunList(visitorId, fetchFn = defaultFetch) {
+  const response = await fetchFn(runsUrl(), { headers: visitorHeaders(visitorId) });
   if (!response.ok) throw new Error(LIST_ERROR_TEXT);
   const body = await response.json();
   return body.runs;
 }
 
-/** Read one run, with its full record, from the server. */
-export async function fetchRunRecord(id, fetchFn = defaultFetch) {
-  const response = await fetchFn(runsUrl(id));
+/** Read one of this visitor's runs, with its full record, from the server. */
+export async function fetchRunRecord(visitorId, id, fetchFn = defaultFetch) {
+  const response = await fetchFn(runsUrl(id), { headers: visitorHeaders(visitorId) });
   if (!response.ok) throw new Error(READ_ERROR_TEXT);
   return response.json();
 }
 
 /**
- * Delete one run on the server. The password goes only in the Authorization header, as a Bearer value, and is not
- * kept anywhere. A 401 means the password was wrong or missing, which gets its own message.
+ * Read the sentence the server sent with a refusal, if there is one. A reply that is not JSON gives null, so the
+ * caller falls back to its own plain sentence.
  */
-export async function deleteRun(id, password, fetchFn = defaultFetch) {
-  const response = await fetchFn(runsUrl(id), {
-    method: "DELETE",
-    headers: { authorization: `Bearer ${password}` },
+async function serverMessage(response) {
+  try {
+    const body = await response.json();
+    return typeof body.error === "string" ? body.error : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save a run to the server under this visitor. The kind is "batch" or "gauntlet". A batch sends its summary; a
+ * gauntlet sends the whole run. Returns the summary the server made. A refusal throws the server's own sentence,
+ * such as the one for a full store, so the visitor sees why the save did not happen.
+ */
+export async function saveRun(visitorId, kind, run, fetchFn = defaultFetch) {
+  const response = await fetchFn(runsUrl(), {
+    method: "POST",
+    headers: { ...visitorHeaders(visitorId), "content-type": "application/json" },
+    body: JSON.stringify({ kind, run }),
   });
-  if (response.status === 401) throw new Error(WRONG_PASSWORD_TEXT);
+  if (!response.ok) throw new Error((await serverMessage(response)) ?? SAVE_ERROR_TEXT);
+  return response.json();
+}
+
+/** Delete one of this visitor's runs on the server. A run that is not theirs is simply not removed. */
+export async function deleteRun(visitorId, id, fetchFn = defaultFetch) {
+  const response = await fetchFn(runsUrl(id), { method: "DELETE", headers: visitorHeaders(visitorId) });
   if (!response.ok) throw new Error(DELETE_ERROR_TEXT);
   return true;
-}
-
-/**
- * Return the ids of the gauntlet runs that have no copy in the browser yet. Batch runs are never copied, so they
- * are left out here, and a run already held in the browser is left out too.
- */
-export function planBrowserCopies(summaries, localIds) {
-  const held = new Set(localIds);
-  return summaries
-    .filter((summary) => summary.kind === "gauntlet" && !held.has(summary.id))
-    .map((summary) => summary.id);
-}
-
-/**
- * Save a browser copy of each planned gauntlet run, fetched from the server. A record whose run id does not match
- * the id asked for is skipped, so a bad answer cannot write the wrong run. Returns how many copies were saved.
- */
-export async function keepBrowserCopies(adapter, summaries, fetchFn = defaultFetch) {
-  const localRuns = await listRuns(adapter);
-  let copied = 0;
-  for (const id of planBrowserCopies(summaries, localRuns.map((run) => run.id))) {
-    const record = await fetchRunRecord(id, fetchFn);
-    if (record.run && record.run.id === id) {
-      await keepRunCopy(adapter, record.run);
-      copied += 1;
-    }
-  }
-  return copied;
 }
 
 /**

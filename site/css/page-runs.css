@@ -1,5 +1,5 @@
 /*
- * The runs page: the note, the password box and the list of saved runs. It uses the shared tokens and base styles,
+ * The runs page: the note, the refresh button and the list of saved runs. It uses the shared tokens and base styles,
  * and only adds the layout for one row per run, with the Delete button on the right.
  */
 
