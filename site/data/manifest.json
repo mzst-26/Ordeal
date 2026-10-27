@@ -30,11 +30,6 @@
   "sha256": "449e82db0dbcf201d6fea189f0ba971d3a959e73576a49c8bca6ded7a1646582"
  },
  {
-  "bytes": 6234,
-  "name": "results.json",
-  "sha256": "efdda272131d454e48090b94c324debe9eb496e70ce2b6c85dddc53f23880c94"
- },
- {
   "bytes": 57392,
   "name": "probes.json",
   "sha256": "a5f8e4e0f6c41e3d5a3fd76444f21052116467fcdc4f4d8dfdb921764e1ee514"

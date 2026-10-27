@@ -40,7 +40,6 @@ RESULTS_DIR = PROJECT_DIR / "results"
 # One JSON record per line; every saved model reply goes here (see make_record and append_record).
 CACHE_PATH = RESULTS_DIR / "cache.jsonl"
 STUB_CACHE_PATH = RESULTS_DIR / "stub_cache.jsonl"
-RESULTS_CSV_PATH = RESULTS_DIR / "results.csv"
 PROBES_CSV_PATH = RESULTS_DIR / "probes.csv"
 # One entry per mixed experiment and seed: the planned order, its counts and how far the run got.
 MIXED_RUNS_FILE_NAME = "mixed_runs.json"
