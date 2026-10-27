@@ -34,6 +34,7 @@ import { mountFingerprintFigure } from "./fingerprint-figure.js";
 import { clear, el, formatNumber } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
+import { rateLimitRowFor } from "./rate-limits.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
 import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
@@ -58,6 +59,8 @@ const DATA_PATHS = {
   config: "/data/config.json",
   records: "/data/sample_run.json",
   suites: "/data/suites.json",
+  // Read on its own, not with the others, because the page still works when this file is missing.
+  rateLimits: "/data/rate_limits.json",
 };
 
 // The saved replies were recorded with no system prompt, so they belong to the condition "none".
@@ -214,6 +217,7 @@ const page = {
   platform: null,             // the platform the model rows belong to, or null when none can be chosen
   hasList: false,             // true when the platform has a saved model list, or is the default platform
   modelsFile: null,           // the saved model lists (site/data/models.json), or null when they could not be read
+  rateLimits: null,           // the per-model rate limits (site/data/rate_limits.json), or null when they could not be read
   addedModels: [],            // the names the visitor added for this platform: {id, checked}, kept per platform
   popupRefresh: null,         // redraws the open model popup after its items change, or null when it is closed
   questionRows: [],           // one per question row of the suite on the form: its tick box and its question
@@ -490,7 +494,20 @@ function setupControls(config) {
 /** Load the saved model lists, then draw the model rows for the platform the visitor chose. Never throws. */
 async function loadModelChoices() {
   page.modelsFile = await loadSavedModelLists();
+  page.rateLimits = await loadRateLimits();
   await refreshModelChoices();
+}
+
+/**
+ * Read the per-model rate limits. A missing or broken file gives null, so each row says "unknown" and names the
+ * file, and the rest of the page works without it.
+ */
+async function loadRateLimits() {
+  try {
+    return await loadJson(DATA_PATHS.rateLimits);
+  } catch {
+    return null;
+  }
 }
 
 /** Read the saved model lists. A missing or broken file gives null, so the popup shows its no-list note instead. */
@@ -876,7 +893,7 @@ function buildModelCard(entry) {
   return el("span", { className: "pick-model", title: row.basis }, [
     number,
     el("span", { className: "pick-model-name", text: name }),
-    buildModelFacts(row),
+    buildModelFacts(row, rateLimitRowFor(page.rateLimits, entry.id)),
   ]);
 }
 
@@ -1028,13 +1045,15 @@ async function addFromForm() {
 }
 
 /**
- * Build the line of facts under a model's name: context, reasoning and price. Each one has a fixed-width slot,
- * the same slot as in the heading, so the figures line up from one row to the next.
+ * Build the line of facts under a model's name: context, reasoning, rate limit and price. Each one has a fixed-width
+ * slot, the same slot as in the heading, so the figures line up from one row to the next. The rate limit's tooltip
+ * says where its numbers came from.
  */
-function buildModelFacts(row) {
+function buildModelFacts(row, rate) {
   return el("span", { className: "model-facts" }, [
     el("span", { className: "model-context", text: row.context }),
     el("span", { className: "model-reasoning", text: row.reasoning }),
+    el("span", { className: "model-rate", text: rate.text, title: rate.source }),
     el("span", { className: "model-price", text: row.price }),
   ]);
 }

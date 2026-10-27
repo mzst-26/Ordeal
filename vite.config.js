@@ -42,6 +42,7 @@ export default defineConfig({
         compare: resolve(SITE_DIR, "compare.html"),
         batch: resolve(SITE_DIR, "batch.html"),
         live: resolve(SITE_DIR, "live.html"),
+        pacing: resolve(SITE_DIR, "pacing.html"),
       },
     },
   },

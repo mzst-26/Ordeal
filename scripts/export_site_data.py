@@ -13,7 +13,8 @@ key-like strings and refuses to write if one is found.
 
 # Module overview: run `python scripts/export_site_data.py` to refresh site/data/.
 # Run with --new-files-only to write just the files added for the v4 ladder and
-# the hard question set, leaving the older site files untouched.
+# the hard question set, leaving the older site files untouched. Run with
+# --rate-limits-only to write just site/data/rate_limits.json.
 import csv
 import hashlib
 import json
@@ -42,8 +43,16 @@ PROVIDERS_SITE_NAME = "providers.json"
 # whole file: it holds model ids and their check dates only, never a key.
 MODELS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "data" / "models.json"
 MODELS_SITE_NAME = "models.json"
+# The per-model rate limits. The console table is copied as it is. If a run has written observed values
+# (results/rate_limits.json), they are added under an "observed" key of the same file, so the page can show them.
+RATE_LIMITS_SOURCE_PATH = PROJECT_DIR / "ordeal" / "data" / "rate_limits.json"
+RATE_LIMITS_OBSERVED_PATH = core.RESULTS_DIR / "rate_limits.json"
+RATE_LIMITS_SITE_NAME = "rate_limits.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"
+# Command-line flag that writes only site/data/rate_limits.json. It leaves the other site files alone, so it
+# is safe to run when there are no local results (main() would then write empty results files).
+RATE_LIMITS_FLAG = "--rate-limits-only"
 # File names the v4 ladder and v4 probe spec get on the site.
 V4_LADDER_NAME = "ladder_v4.json"
 V4_PROBE_SPEC_NAME = "probe_spec_v4.json"
@@ -354,6 +363,33 @@ def build_models_output():
     return (MODELS_SITE_NAME, models_data, models_bytes)
 
 
+def build_rate_limits_output():
+    """Return (name, data, bytes) for the per-model rate limits, with the observed values if a run wrote them.
+
+    The console table is parsed first, so a broken file stops the export instead of reaching the browser.
+    The observed values are optional: with no results file, the site copy holds only the published table.
+    """
+    rate_limits_data = json.loads(RATE_LIMITS_SOURCE_PATH.read_text(encoding="utf-8"))
+    if RATE_LIMITS_OBSERVED_PATH.exists():
+        rate_limits_data["observed"] = json.loads(RATE_LIMITS_OBSERVED_PATH.read_text(encoding="utf-8"))
+    rate_limits_bytes = serialize(RATE_LIMITS_SITE_NAME, rate_limits_data).encode("utf-8")
+    return (RATE_LIMITS_SITE_NAME, rate_limits_data, rate_limits_bytes)
+
+
+def write_rate_limits_only():
+    """Write only site/data/rate_limits.json. Return 0 on success, 1 if the file was refused."""
+    # Check the bytes before writing, so a refused file leaves site/data/ unchanged.
+    try:
+        name, data, data_bytes = build_rate_limits_output()
+        check_no_key_text(name, data_bytes)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    write_file(name, data_bytes)
+    print_summary(name, data_bytes, data)
+    return 0
+
+
 def main():
     """Build every output, check for key-like strings, then write the files and the manifest."""
     # Return value is the process exit code: 0 for success, 1 if a file was refused.
@@ -363,6 +399,7 @@ def main():
     # The platform list is prepared above, so its bytes are added as they are.
     rendered.append(build_providers_output())
     rendered.append(build_models_output())
+    rendered.append(build_rate_limits_output())
     for name, _, data_bytes in rendered:
         if contains_secret(name, data_bytes.decode("utf-8")):
             print(f"Refused to write {name}: it contains a key-like string.", file=sys.stderr)
@@ -388,4 +425,6 @@ if __name__ == "__main__":
     # The exit code of the chosen mode becomes the exit code of the script.
     if NEW_FILES_FLAG in sys.argv[1:]:
         sys.exit(write_new_files())
+    if RATE_LIMITS_FLAG in sys.argv[1:]:
+        sys.exit(write_rate_limits_only())
     sys.exit(main())
