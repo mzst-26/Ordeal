@@ -25,6 +25,8 @@ RETRYABLE_ERROR_TYPES = (
     openai.APIConnectionError,
     openai.InternalServerError,
 )
+# The finish_reason the provider sends when max_tokens stopped the reply before it was finished.
+FINISH_REASON_LENGTH = "length"
 # Error text is cut to this length so a long server message cannot flood the output.
 MAX_ERROR_TEXT_LENGTH = 200
 # Number of hex characters of the digest added to a custom model's saved name (see record_label).
@@ -68,6 +70,14 @@ class Reply:
     completion_tokens: int | None
 
 
+class TruncatedReply(Exception):
+    """Raised when max_tokens cut the reply short (finish_reason "length").
+
+    A cut-off answer is not a real answer, so the runner must record it as a failure and never save it.
+    It is not retryable either: the same request with the same max_tokens would be cut off the same way.
+    """
+
+
 class TokenFactoryClient:
     """Sends chat requests to one OpenAI-compatible endpoint."""
 
@@ -90,6 +100,8 @@ class TokenFactoryClient:
 
         The raw-response form is used because the headers are only on the HTTP response. The body is then parsed
         as usual, so the text and the usage come from the same object as before.
+
+        Raises TruncatedReply when max_tokens cut the reply short, because that text is not a finished answer.
         """
         raw = await self.client.chat.completions.with_raw_response.create(
             model=model,
@@ -98,6 +110,9 @@ class TokenFactoryClient:
             max_tokens=max_tokens,
         )
         response = raw.parse()
+        # Checked before anything else is read, so a cut-off reply is never returned as if it were complete.
+        if reply_finish_reason(response) == FINISH_REASON_LENGTH:
+            raise TruncatedReply(f"The reply was cut off at max_tokens={max_tokens}, so it is not a full answer.")
         prompt_tokens, completion_tokens = usage_counts(response)
         return Reply(
             text=reply_text(response),
@@ -152,6 +167,11 @@ def reply_text(response: Any) -> str:
     if content is None:
         return ""
     return content
+
+
+def reply_finish_reason(response: Any) -> str | None:
+    """Return why the provider stopped the first choice, such as "stop" or "length". None if it did not say."""
+    return response.choices[0].finish_reason
 
 
 def usage_counts(response: Any) -> tuple[int | None, int | None]:

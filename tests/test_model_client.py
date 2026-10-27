@@ -303,6 +303,40 @@ class CompleteDetailedTests(unittest.TestCase):
         self.assertEqual(reply.completion_tokens, 2)
 
 
+# Guards the cut-off reply: when max_tokens stops the answer (finish_reason "length"), the client must raise
+# TruncatedReply, so the runner records a failure instead of saving a blank or partial answer as a real one.
+class TruncatedReplyTests(unittest.TestCase):
+    """A reply cut off by max_tokens is an error, not a reply."""
+
+    def test_length_finish_reason_raises_truncated_reply(self):
+        async def scenario(server):
+            client = model_client.TokenFactoryClient(server.base_url, DEFAULT_KEY, timeout_seconds=10)
+            try:
+                return await client.complete_detailed("org/model", MESSAGE, 0.7, 16)
+            finally:
+                await client.close()
+
+        with MockOpenAIServer(finish_reason="length") as server, mock.patch.dict(os.environ, LOOPBACK_NO_PROXY):
+            with self.assertRaises(model_client.TruncatedReply):
+                asyncio.run(scenario(server))
+
+    def test_stop_finish_reason_still_returns_the_reply(self):
+        async def scenario(server):
+            client = model_client.TokenFactoryClient(server.base_url, DEFAULT_KEY, timeout_seconds=10)
+            try:
+                return await client.complete_detailed("org/model", MESSAGE, 0.7, 16)
+            finally:
+                await client.close()
+
+        with MockOpenAIServer(finish_reason="stop") as server, mock.patch.dict(os.environ, LOOPBACK_NO_PROXY):
+            reply = asyncio.run(scenario(server))
+        self.assertEqual(reply.text, "Answer: A")
+
+    def test_truncated_reply_is_not_retryable(self):
+        """Asking again with the same max_tokens would be cut off the same way, so the runner must not retry it."""
+        self.assertFalse(is_retryable(model_client.TruncatedReply("cut off")))
+
+
 # Guards the link between the router and the pacer: the limits in a reply's headers must reach the pacer for
 # that model, so the snapshot shows the provider's own limit and says it came from the headers.
 class RouterReplyHeaderTests(unittest.TestCase):
