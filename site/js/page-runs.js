@@ -1,10 +1,12 @@
-// The runs page. It lists the web runs kept on the server, shows the 7-day and size note, and gives each run a delete
-// button. The list is read when the page opens and again on Refresh. Gauntlet runs also get a copy kept in this
-// browser; batch runs are not copied. Text is always set with textContent, and the rules live in runs-api.js.
+// The runs page. It lists the full-run summary first, as fixed links, then the web runs kept on the server, shows the
+// 7-day and size note, and gives each run a delete button. The list is read when the page opens and again on Refresh.
+// Gauntlet runs also get a copy kept in this browser; batch runs are not copied. Text is always set with textContent,
+// and the rules live in runs-api.js and full-run-summary.js.
 
 import { el } from "./ui.js";
 import { openPageStorage } from "./persistence-ui.js";
 import { fetchRunList, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "./runs-api.js";
+import { summaryLinks } from "./full-run-summary.js";
 
 const LOADING_TEXT = "Loading runs.";
 const EMPTY_TEXT = "No runs are stored yet.";
@@ -80,9 +82,21 @@ async function refresh(passwordInput) {
   }
 }
 
-/** Start the page: show the note, wire Refresh, and read the list. */
+/**
+ * Draw the links to the full-run summary. The links are fixed files, so they are drawn at once, without waiting for
+ * the server, and Refresh does not need to redraw them.
+ */
+function drawSummary() {
+  const items = summaryLinks().map((link) =>
+    el("li", { className: "run-item" }, [el("a", { className: "run-label", href: link.href, text: link.label })]),
+  );
+  document.getElementById("summary-list").replaceChildren(...items);
+}
+
+/** Start the page: show the note, draw the summary links, wire Refresh, and read the list. */
 function startRunsPage() {
   document.getElementById("runs-note").textContent = RUNS_NOTE_TEXT;
+  drawSummary();
   const passwordInput = document.getElementById("runs-password");
   document.getElementById("runs-refresh").addEventListener("click", () => refresh(passwordInput));
   refresh(passwordInput);
