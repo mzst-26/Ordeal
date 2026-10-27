@@ -325,6 +325,11 @@ fieldset.panel > .add-model {
   width: 13ch;
 }
 
+/* Wide enough for "600 req/min · 400K tok/min"; a longer "unknown" line wraps inside its slot */
+.model-rate {
+  width: 26ch;
+}
+
 .model-price {
   flex: 1 1 0;
   min-width: 12ch;
