@@ -41,7 +41,7 @@ import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUni
 import { createPresetStore } from "./presets.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
-  choiceOfSuite, choiceValueOfSuite, fixedChoice, setsOfChoice, suiteChoiceMenu,
+  choiceOfSuite, choiceValueOfSuite, fixedChoice, retiredPairText, setsOfChoice, suiteChoiceMenu,
 } from "./suites.js";
 import {
   applyMixedOrder, buildMixedSuite, countsSentence, mixCounts, mixedOrderPath, MIXED_NAME, orderRows,
@@ -1655,6 +1655,12 @@ async function resumeBatchRun(run) {
     setStatus("This saved batch uses a set that this site does not have, so it cannot be resumed.");
     return;
   }
+  // A run on a pairing the site no longer offers is refused, not guessed into another pairing.
+  const retired = mixed ? "" : retiredPairText(config.pushbackSet, config.questionSet);
+  if (retired !== "") {
+    setStatus(`${retired} This saved batch cannot be resumed.`);
+    return;
+  }
   // A batch from the shuffled orders kept a seed. Its ladder or question order is not on this site any more.
   if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
     setStatus("This saved batch used a shuffled order that this site no longer has, so it cannot be resumed.");
@@ -2379,14 +2385,19 @@ function readPresetSettings() {
 async function applyPresetSettings(settings) {
   const dom = page.dom;
   const current = choiceOfSuite(page.suite);
+  const notes = [];
   // With Shuffle on, a preset does not change the sets: a mixed run always uses both sets.
   if (!shuffleOn()) {
-    await selectSuite(fixedChoice(
-      settings.pushbackSet ?? current.pushbackSet,
-      settings.questionSet ?? current.questionSet,
-    ));
+    const pushbackSet = settings.pushbackSet ?? current.pushbackSet;
+    const questionSet = settings.questionSet ?? current.questionSet;
+    // A preset on a pairing the site no longer offers is not applied, and the status says so.
+    const retired = retiredPairText(pushbackSet, questionSet);
+    if (retired === "") {
+      await selectSuite(fixedChoice(pushbackSet, questionSet));
+    } else {
+      notes.push(`${retired} The sets were not changed.`);
+    }
   }
-  const notes = [];
   if (settings.models !== undefined) {
     const known = settings.models.filter((model) => page.allModels.includes(model));
     setTickedModels(known);

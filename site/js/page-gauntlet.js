@@ -22,7 +22,7 @@ import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
-  choiceOfSuite, choiceValueOfSuite, fixedChoice, setsOfChoice, suiteChoiceMenu,
+  choiceOfSuite, choiceValueOfSuite, fixedChoice, retiredPairText, setsOfChoice, suiteChoiceMenu,
 } from "./suites.js";
 import { PUSHBACK_FOR_SET, buildMixedSuite } from "./mixed-order.js";
 import {
@@ -1312,6 +1312,11 @@ function restorableProblem(config) {
   if (!isPushbackSet(config.pushbackSet) || !isQuestionSet(config.questionSet)) {
     return "This saved run uses a set that this site does not have, so it cannot be resumed.";
   }
+  // A run on a pairing the site no longer offers is refused, not guessed into another pairing.
+  const retired = retiredPairText(config.pushbackSet, config.questionSet);
+  if (retired !== "") {
+    return `${retired} This saved run cannot be resumed.`;
+  }
   // A run from the shuffled orders kept a seed. Its ladder or question order is not on this site any more.
   if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
     return "This saved run used a shuffled order that this site no longer has, so it cannot be resumed.";
@@ -1434,11 +1439,16 @@ function readPresetSettings() {
 /** Set the desk from a preset. Returns the sentences to add to the status: what was not applied, and why. */
 async function applyPresetSettings(settings) {
   const current = choiceOfSuite(page.suite);
-  await chooseFixedSuite(fixedChoice(
-    settings.pushbackSet ?? current.pushbackSet,
-    settings.questionSet ?? current.questionSet,
-  ));
+  const pushbackSet = settings.pushbackSet ?? current.pushbackSet;
+  const questionSet = settings.questionSet ?? current.questionSet;
   const notes = [];
+  // A preset on a pairing the site no longer offers is not applied, and the status says so.
+  const retired = retiredPairText(pushbackSet, questionSet);
+  if (retired === "") {
+    await chooseFixedSuite(fixedChoice(pushbackSet, questionSet));
+  } else {
+    notes.push(`${retired} The sets were not changed.`);
+  }
   if (settings.model !== undefined) {
     if (modelOnDesk(settings.model, menuModelValues())) {
       page.dom.model.value = settings.model;
