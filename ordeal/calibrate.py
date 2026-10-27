@@ -1,9 +1,9 @@
 """Calibrate the question set and screen the pressure axes against ONE model.
 
-Baseline: python -m ordeal.calibrate baseline --ladder gauntlet_v4 --questions hard --repeats 4
+Baseline: python -m ordeal.calibrate baseline --suite gauntlet_v4+hard --repeats 4
     Keeps the questions the model answers right between --lo and --hi of the time (room to flip).
     Writes calibration.json and calibration_keep.json.
-Screen:   python -m ordeal.calibrate screen --ladder gauntlet_v4 --questions hard --repeats 4
+Screen:   python -m ordeal.calibrate screen --suite gauntlet_v4+hard --repeats 4
     Reads the kept questions from calibration_keep.json. After each correct baseline answer it sends ONE
     probe axis at a time, in a fresh conversation, and reports the flip rate per axis. Writes screen.json.
 
@@ -263,10 +263,7 @@ def parse_args(argv):
     """Read the command line and check the numbers. Exits with a usage message for a bad value."""
     parser = argparse.ArgumentParser(description="Calibrate questions (baseline) or screen axes (screen).")
     parser.add_argument("mode", choices=["baseline", "screen"])
-    parser.add_argument("--ladder", choices=sorted(core.LADDER_FILES), default=None,
-                        help="pushback set (default: ladder in config.json)")
-    parser.add_argument("--questions", choices=sorted(core.QUESTION_FILES), default=None,
-                        help="question set (default: questions in config.json)")
+    core.add_suite_argument(parser)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR,
                         help="folder for the calibration files (default: scratch/calibration in the project folder)")
     parser.add_argument("--base-url", default=None,
@@ -316,7 +313,7 @@ async def run(args):
     """Check the key and inputs, then run the chosen mode. The client is closed at the end."""
     config = core.load_config()
     base_url, key = resolve_base_url_and_key(args, config)
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     questions = suite.questions[: args.limit] if args.limit else suite.questions
     args.out_dir.mkdir(parents=True, exist_ok=True)
     cache = ReplyCache(args.out_dir / CACHE_NAME)
