@@ -187,6 +187,21 @@ def get_platform(platform_id: str) -> Platform:
     raise ValueError(f"Unknown platform '{platform_id}'. Valid platforms: {valid_ids}.")
 
 
+def web_platforms(platforms: list[Platform]) -> list[Platform]:
+    """Return the platforms the website shows, in the same order they were given.
+
+    The website shows only hosted inference platforms that have a browser console and a fixed address
+    (see selectablePlatforms in site/js/platforms.js). The command line uses the same rule, so a person
+    sees the same platforms in both places. The rule is repeated here on purpose: the browser code cannot
+    be imported by Python, so the two must be kept in step by the tests.
+    """
+    return [
+        platform
+        for platform in platforms
+        if platform.kind == "inference" and platform.browser is True and isinstance(platform.base_url, str)
+    ]
+
+
 def looks_like_file_path(text: str) -> bool:
     """Return True for text that starts like a file path or contains a backslash."""
     return text.startswith(FILE_PATH_PREFIXES) or "\\" in text

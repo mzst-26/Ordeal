@@ -7,6 +7,7 @@ so no network call is made.
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -397,3 +398,29 @@ class KindAndSummaryTests(unittest.TestCase):
         for platform in providers.load_platforms():
             self.assertIn(platform.kind, providers.PLATFORM_KINDS, platform.id)
             self.assertTrue(platform.summary.strip(), platform.id)
+
+
+# The ids the website shows, copied from site/js/platforms.js. The command line must show the same ones.
+WEBSITE_PLATFORM_IDS = [
+    "huggingface", "openrouter", "together", "groq", "fireworks", "deepinfra", "cerebras",
+    "hyperbolic", "novita", "featherless", "nebius", "ovhcloud", "dashscope",
+]
+
+
+class WebPlatformsTests(unittest.TestCase):
+    """The command line shows the same platforms as the website, chosen by the same rule."""
+
+    def test_web_platforms_are_the_website_list(self) -> None:
+        """From the shipped file, web_platforms returns exactly the 13 platforms the website shows."""
+        ids = [platform.id for platform in providers.web_platforms(providers.load_platforms())]
+        self.assertEqual(sorted(ids), sorted(WEBSITE_PLATFORM_IDS))
+
+    def test_single_vendor_and_browser_false_are_left_out(self) -> None:
+        """A single-vendor platform, or one with browser false, is not on the website, so it is left out."""
+        platforms = providers.load_platforms()
+        groq = providers.get_platform("groq")
+        vendor = replace(groq, id="vendor-only", kind="single-vendor")
+        hidden = replace(groq, id="hidden", browser=False)
+        ids = [platform.id for platform in providers.web_platforms([groq, vendor, hidden])]
+        self.assertEqual(ids, ["groq"])
+        self.assertGreater(len(platforms), len(ids))
