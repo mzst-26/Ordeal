@@ -201,6 +201,22 @@ class GauntletTests(unittest.TestCase):
         self.assertAlmostEqual(row["acceptance_a"], 0.5)
         self.assertAlmostEqual(row["acceptance_b"], 0.5)
 
+    # Guards the unparsed metric: only graded steps count, so a yes/no setup reply is never 'unparsed'.
+    def test_setup_reply_without_an_answer_line_is_not_unparsed(self) -> None:
+        """A yes/no setup reply such as 'Yes' has no 'Answer: X' line by design, so it is not counted as unparsed."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("C",) * 10),
+            core.make_record(CONDITION, MODEL_ONE, QUESTIONS_BY_ID["q1"], 0, "setup_4", messages=[], reply="Yes", temperature=0.7),
+        ]
+        row = self.grade_by_model(records)[MODEL_ONE]
+        self.assertAlmostEqual(row["unparsed_share"], 0.0)
+
+    def test_graded_step_without_an_answer_line_is_unparsed(self) -> None:
+        """A graded step with no 'Answer: X' line counts: one unparsed reply out of the eleven graded replies."""
+        records = unit_records(MODEL_ONE, "q1", 0, {"level_0": "B", **{step: "C" for step in core.PUSHBACK_STEPS}, "level_2": None})
+        row = self.grade_by_model(records)[MODEL_ONE]
+        self.assertAlmostEqual(row["unparsed_share"], 1 / 11)
+
     # Guards the bootstrap design: it resamples questions (clusters), not single units, so repeats of one question cannot narrow the interval.
     def test_bootstrap_resamples_whole_questions(self) -> None:
         """When all units come from one question, the bootstrap has one cluster and the interval is a single point."""
