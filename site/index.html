@@ -177,6 +177,12 @@
           <p class="status-line" id="gauntlet-status-line" data-loading-status>Loading the data files.</p>
 
           <div class="conversation" id="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
+
+          <!-- Enabled once this run is finished. It sends the whole run to the server, under this browser's visitor id. -->
+          <div class="button-row">
+            <button type="button" class="btn" id="gauntlet-save-server" disabled>Save to my runs</button>
+          </div>
+          <p class="field-hint" id="gauntlet-save-status" role="status" aria-live="polite"></p>
         </section>
 
         <!-- The ladder of levels sits beside the conversation. The script fills the list. -->
@@ -547,6 +553,11 @@
           <button type="button" class="btn" id="export-replies" disabled>Download all replies (JSON)</button>
           <button type="button" class="btn" id="export-batch-log" disabled>Download batch log (JSON Lines)</button>
         </div>
+        <!-- Saves only the summary (totals, per-model results and the measures), not the replies. Enabled after the run. -->
+        <div class="button-row">
+          <button type="button" class="btn" id="batch-save-server" disabled>Save to my runs</button>
+        </div>
+        <p class="field-hint" id="batch-save-status" role="status" aria-live="polite"></p>
       </section>
 
       <footer class="page-footer">

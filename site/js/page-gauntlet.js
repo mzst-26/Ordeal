@@ -19,6 +19,8 @@ import { mountModelCheck } from "./model-check.js";
 import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
 import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
+import { saveGauntletToRuns, SAVING_TEXT, SAVED_TEXT } from "./save-to-runs.js";
+import { pageVisitorId } from "./visitor-id.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
@@ -108,6 +110,7 @@ function createPageState() {
     run: null,         // the conversation on screen, or null before Start
     runId: null,       // the saved run for the live conversation on screen, or null
     runFinished: false, // true once every level of the saved run is saved
+    savedRunId: null,  // the run id last sent to the server, so the same run is not sent twice
     saveProblem: false, // true when the last step could not be saved
     busy: false,       // true while a step runs
     working: null,     // which control is working: "start", "confession" or a level number
@@ -139,6 +142,7 @@ export function mountGauntlet(root) {
   page.dom.start.addEventListener("click", startRun);
   page.dom.stop.addEventListener("click", stopStep);
   page.dom.confession.addEventListener("click", askConfession);
+  page.dom.saveServer.addEventListener("click", saveRunToServer);
   page.dom.suite.addEventListener("change", onSuiteChanged);
   page.dom.condition.addEventListener("change", refreshConditionNote);
   page.dom.modelChoose.addEventListener("click", () =>
@@ -187,6 +191,8 @@ function findElements(root) {
     spine: byId(root, "spine"),
     spineMessage: byId(root, "spine-message"),
     status: byId(root, VIEW_IDS.gauntlet["status-line"]),
+    saveServer: byId(root, "gauntlet-save-server"),
+    saveStatus: byId(root, "gauntlet-save-status"),
     conversation: byId(root, "conversation"),
     presetHost: byId(root, VIEW_IDS.gauntlet["preset-panel"]),
     notices: byId(root, VIEW_IDS.gauntlet["resume-notices"]),
@@ -780,11 +786,39 @@ function textLines(text) {
   return nodes;
 }
 
+/**
+ * Enable the Save to my runs button only when the run on screen has finished and is not sent yet. A run that is
+ * still going, or that was never saved in this browser, cannot be sent.
+ */
+function refreshSaveButton() {
+  const alreadySent = page.runId !== null && page.savedRunId === page.runId;
+  page.dom.saveServer.disabled = page.busy || page.storage === null || !page.runFinished || page.runId === null
+    || alreadySent;
+}
+
+/**
+ * Send the finished run to the server, so it appears on this visitor's runs page. The button is locked while the
+ * send runs. A refusal shows the server's own sentence, and the button comes back so the visitor can try again.
+ */
+async function saveRunToServer() {
+  page.dom.saveServer.disabled = true;
+  page.dom.saveStatus.textContent = SAVING_TEXT;
+  try {
+    await saveGauntletToRuns(page.storage.adapter, page.runId, pageVisitorId());
+    page.savedRunId = page.runId;
+    page.dom.saveStatus.textContent = SAVED_TEXT;
+  } catch (error) {
+    page.dom.saveStatus.textContent = error.message;
+  }
+  refreshSaveButton();
+}
+
 /** Enable or disable every control for the current state: busy, no run yet, or the level order. */
 function updateControls() {
   const dom = page.dom;
   const hasRun = page.run !== null;
   const done = hasRun ? page.run.letters.length : 0;
+  refreshSaveButton();
   dom.start.disabled = page.busy || page.data === null || page.suite === null;
   dom.start.textContent = labelWhileWorking("start", START_LABEL);
   dom.stop.hidden = !page.busy;
@@ -1051,6 +1085,8 @@ async function persistStep(run, payload) {
       if (payload.step === `level_${run.suite.levelCount}`) {
         await setStatus(adapter, page.runId, "done");
         page.runFinished = true;
+        // The run is finished now, so the Save to my runs button can be enabled.
+        refreshSaveButton();
       }
     });
   } catch {

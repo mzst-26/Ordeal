@@ -1,4 +1,4 @@
-// Tests for the pure logic of the web run functions: the write password check and the rules for a saved run.
+// Tests for the pure logic of the web run functions: the admin password check and the rules for a saved run.
 // They use plain objects and strings only. Nothing calls Netlify, Netlify Blobs or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -63,23 +63,3 @@ test("buildRecord and summaryOf give the same kind, size and creation time", () 
   assert.deepEqual(summaryOf(VALID_ID, metadata), { id: VALID_ID, kind: "batch", createdAt: 1000, size: 52 });
 });
 
-// The handler refuses a save or delete with 401 before it opens storage, so these checks never reach Netlify.
-// The password variable is set for one test and put back afterwards.
-test("the runs handler answers 401 to a save or delete with a wrong or missing password", async () => {
-  const { default: handler } = await import("../netlify/functions/runs.js");
-  const saved = process.env.WRITE_PASSWORD;
-  const url = `https://example.test/api/runs?id=${VALID_ID}`;
-  try {
-    process.env.WRITE_PASSWORD = EXPECTED;
-    const wrong = await handler(new Request(url, { method: "DELETE", headers: { authorization: "Bearer nope" } }));
-    const none = await handler(new Request(url, { method: "POST", body: "{}" }));
-    assert.equal(wrong.status, 401);
-    assert.equal(none.status, 401);
-    delete process.env.WRITE_PASSWORD;
-    const unset = await handler(new Request(url, { method: "DELETE", headers: { authorization: "Bearer " } }));
-    assert.equal(unset.status, 401);
-  } finally {
-    if (saved === undefined) delete process.env.WRITE_PASSWORD;
-    else process.env.WRITE_PASSWORD = saved;
-  }
-});

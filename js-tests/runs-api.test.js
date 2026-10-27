@@ -1,27 +1,25 @@
-// Tests for the browser side of the web runs: the calls to /api/runs, the browser copies of gauntlet runs, and the
-// text shown in each row. Every request goes through a fake fetch, and storage is the in-memory adapter, so nothing
-// touches the network or a real browser.
+// Tests for the browser side of the web runs (site/js/runs-api.js): the calls to /api/runs, each one carrying the
+// visitor id, and the text shown in each row. Every request goes through a fake fetch, so nothing touches the
+// network or a real browser.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   RUNS_NOTE_TEXT,
+  VISITOR_HEADER,
   runsUrl,
   fetchRunList,
   fetchRunRecord,
+  saveRun,
   deleteRun,
-  planBrowserCopies,
-  keepBrowserCopies,
   daysLeft,
   sizeText,
   rowText,
 } from "../site/js/runs-api.js";
-import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
-import { listRuns } from "../site/js/store/run-store.js";
 import { DAY_MS } from "../site/js/run-retention.js";
 
 const NOW = 50 * DAY_MS;
+const VISITOR = "0123456789abcdef0123456789abcdef";
 const ID_A = "11111111-1111-4111-8111-111111111111";
-const ID_B = "22222222-2222-4222-8222-222222222222";
 
 /** Return a fake fetch that answers with the given status and JSON body, and records every call it gets. */
 function fakeFetch(status, body) {
@@ -34,81 +32,79 @@ function fakeFetch(status, body) {
 }
 
 // The page must say the rules in these words, so a reader sees them on the page.
-test("the note on the runs page gives the 7-day, 1.5 GB and delete rules", () => {
+test("the note on the runs page gives the 7-day, 200 MB, 1.5 GB and delete rules", () => {
   assert.equal(
     RUNS_NOTE_TEXT,
-    "Runs are kept for 7 days. The store holds up to 1.5 GB; the oldest runs are removed first when it is full. "
-      + "You can delete a run at any time.",
+    "Your runs are kept for 7 days. You can hold up to 200 MB. The shared store holds up to 1.5 GB in total; "
+      + "when it is full, the oldest runs are removed first. You can delete a run at any time.",
   );
 });
 
-// The list is read with a plain GET and no password. A single run adds its id as a query value.
+// The visitor id travels in one header, under the name the server reads.
+test("the visitor id is sent in the x-visitor-id header", () => {
+  assert.equal(VISITOR_HEADER, "x-visitor-id");
+});
+
+// The list address is /api/runs, and one run adds its id as a query value.
 test("runsUrl builds the list and single-run addresses", () => {
   assert.equal(runsUrl(), "/api/runs");
   assert.equal(runsUrl(ID_A), `/api/runs?id=${ID_A}`);
 });
 
-// fetchRunList returns the summaries the server sends back.
-test("fetchRunList returns the runs the server lists", async () => {
+// The list is read with a GET that carries this browser's visitor id, and no password.
+test("fetchRunList sends the visitor id and returns the runs the server lists", async () => {
   const summary = { id: ID_A, kind: "batch", createdAt: NOW, size: 10 };
   const { fetchFn, calls } = fakeFetch(200, { runs: [summary] });
-  assert.deepEqual(await fetchRunList(fetchFn), [summary]);
+  assert.deepEqual(await fetchRunList(VISITOR, fetchFn), [summary]);
   assert.equal(calls[0].url, "/api/runs");
+  assert.equal(calls[0].init.headers["x-visitor-id"], VISITOR);
 });
 
 // A failed list is an error with a plain message, so the page can show it.
 test("fetchRunList throws a plain error when the server fails", async () => {
   const { fetchFn } = fakeFetch(500, {});
-  await assert.rejects(fetchRunList(fetchFn), /could not be loaded/);
+  await assert.rejects(fetchRunList(VISITOR, fetchFn), /could not be loaded/);
 });
 
-// Deleting sends the password only in the Authorization header, as a Bearer value.
-test("deleteRun sends the password as a Bearer header and the run id in the address", async () => {
+// Reading one run sends the visitor id and the run id.
+test("fetchRunRecord sends the visitor id and the run id", async () => {
+  const record = { id: ID_A, kind: "gauntlet", createdAt: NOW, run: { label: "one" } };
+  const { fetchFn, calls } = fakeFetch(200, record);
+  assert.deepEqual(await fetchRunRecord(VISITOR, ID_A, fetchFn), record);
+  assert.equal(calls[0].url, `/api/runs?id=${ID_A}`);
+  assert.equal(calls[0].init.headers["x-visitor-id"], VISITOR);
+});
+
+// Saving posts the kind and the run as JSON, with the visitor id, and returns the summary the server sends back.
+test("saveRun posts the kind and run with the visitor id and returns the summary", async () => {
+  const summary = { id: ID_A, kind: "batch", createdAt: NOW, size: 120 };
+  const { fetchFn, calls } = fakeFetch(201, summary);
+  assert.deepEqual(await saveRun(VISITOR, "batch", { label: "x" }, fetchFn), summary);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[0].init.headers["x-visitor-id"], VISITOR);
+  assert.deepEqual(JSON.parse(calls[0].init.body), { kind: "batch", run: { label: "x" } });
+});
+
+// A refused save shows the server's own sentence, which says why (for example the 1.5 GB store is full).
+test("saveRun shows the server's message when a save is refused", async () => {
+  const { fetchFn } = fakeFetch(413, { error: "The shared store is full." });
+  await assert.rejects(saveRun(VISITOR, "batch", {}, fetchFn), /The shared store is full\./);
+});
+
+// A failure with no message from the server gets the plain fallback sentence.
+test("saveRun falls back to a plain sentence when the server gives none", async () => {
+  const { fetchFn } = fakeFetch(500, {});
+  await assert.rejects(saveRun(VISITOR, "gauntlet", {}, fetchFn), /could not be saved/);
+});
+
+// Deleting sends a DELETE with the visitor id. No password is sent, because the id is enough.
+test("deleteRun sends the visitor id and no password", async () => {
   const { fetchFn, calls } = fakeFetch(200, { deleted: ID_A });
-  await deleteRun(ID_A, "example-password", fetchFn);
+  assert.equal(await deleteRun(VISITOR, ID_A, fetchFn), true);
   assert.equal(calls[0].url, `/api/runs?id=${ID_A}`);
   assert.equal(calls[0].init.method, "DELETE");
-  assert.equal(calls[0].init.headers.authorization, "Bearer example-password");
-});
-
-// A wrong password gets its own plain message, so the visitor knows what to fix.
-test("deleteRun explains a wrong password in plain words", async () => {
-  const { fetchFn } = fakeFetch(401, { error: "x" });
-  await assert.rejects(deleteRun(ID_A, "nope", fetchFn), /password is missing or wrong/);
-});
-
-// Only gauntlet runs are copied into the browser. Runs already held in the browser are not copied again.
-test("planBrowserCopies picks gauntlet runs that are not yet in the browser", () => {
-  const summaries = [
-    { id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 },
-    { id: ID_B, kind: "batch", createdAt: NOW, size: 1 },
-  ];
-  assert.deepEqual(planBrowserCopies(summaries, []), [ID_A]);
-  assert.deepEqual(planBrowserCopies(summaries, [ID_A]), []);
-});
-
-// keepBrowserCopies fetches each planned gauntlet run and saves its run document in the browser store.
-test("keepBrowserCopies saves a copy of each planned gauntlet run and no batch run", async () => {
-  const adapter = createMemoryAdapter();
-  const summaries = [
-    { id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 },
-    { id: ID_B, kind: "batch", createdAt: NOW, size: 1 },
-  ];
-  const record = { id: ID_A, kind: "gauntlet", createdAt: NOW, run: { id: ID_A, label: "one", results: {} } };
-  const { fetchFn, calls } = fakeFetch(200, record);
-  assert.equal(await keepBrowserCopies(adapter, summaries, fetchFn), 1);
-  assert.equal(calls.length, 1);
-  assert.deepEqual((await listRuns(adapter)).map((run) => run.id), [ID_A]);
-});
-
-// A record whose run id does not match is not copied, so a bad server answer cannot write the wrong run.
-test("keepBrowserCopies skips a record whose run id does not match", async () => {
-  const adapter = createMemoryAdapter();
-  const summaries = [{ id: ID_A, kind: "gauntlet", createdAt: NOW, size: 1 }];
-  const record = { id: ID_A, kind: "gauntlet", createdAt: NOW, run: { id: ID_B, label: "x" } };
-  const { fetchFn } = fakeFetch(200, record);
-  assert.equal(await keepBrowserCopies(adapter, summaries, fetchFn), 0);
-  assert.deepEqual(await listRuns(adapter), []);
+  assert.equal(calls[0].init.headers["x-visitor-id"], VISITOR);
+  assert.equal(calls[0].init.headers.authorization, undefined);
 });
 
 // Days left: a run saved 1 day ago has 6 days left; a run 7 days old has none; a run saved now has 7.
@@ -133,5 +129,5 @@ test("rowText names the kind, size and days left", () => {
   assert.equal(row.title, "Gauntlet run");
   assert.match(row.meta, /2\.0 KB/);
   assert.match(row.meta, /kept 7 more days/);
-  assert.equal(rowText({ id: ID_B, kind: "batch", createdAt: NOW, size: 1 }, NOW).title, "Batch run");
+  assert.equal(rowText({ id: ID_A, kind: "batch", createdAt: NOW, size: 1 }, NOW).title, "Batch run");
 });
