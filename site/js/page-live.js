@@ -14,9 +14,9 @@ import { createBatchRunner } from "./engine/runner.js";
 import { ALL_FAMILIES } from "./engine/flows.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { openPageStorage } from "./persistence-ui.js";
-import { createRun, saveResult, setStatus as setRunStatus } from "./store/run-store.js";
+import { createRun, saveResult, setStatus as setRunStatus, getRun, listRuns } from "./store/run-store.js";
 import {
-  createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache,
+  createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache, isRunDocument,
 } from "./saved-runs.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice } from "./suites.js";
@@ -1260,6 +1260,62 @@ async function showLatestLiveRun() {
   );
 }
 
+/** The value of the run choice that replays the sample run bundled with the site. */
+const SAMPLE_RUN_VALUE = "sample";
+
+/**
+ * Return the saved runs that can be replayed on this suite: each was made on it and has at least one saved reply. A run
+ * from another suite, or with no replies, would replay nothing, so it is left out of the choice.
+ */
+export function replayableRuns(runs, suite) {
+  return runs.filter((saved) => isRunDocument(saved) && runMatchesSuite(saved, suite) && recordsFromRun(saved).length > 0);
+}
+
+/**
+ * Fill the run choice with the sample run and every saved run that can be replayed. The choice keeps its value when the
+ * list is filled again. It is filled again each time the choice gets the focus, so a run saved after the page opened
+ * is listed too.
+ */
+async function fillRunChoices() {
+  if (storage === null) return;
+  const previous = dom.runSelect.value;
+  const saved = replayableRuns(await listRuns(storage.adapter).catch(() => []), data.savedView.suite);
+  const options = [
+    el("option", { value: SAMPLE_RUN_VALUE, text: "Sample run (bundled with the site)" }),
+    ...saved.map((item) => el("option", { value: item.id, text: `${item.label}, saved ${runDateText(item)}` })),
+  ];
+  dom.runSelect.replaceChildren(...options);
+  const stillListed = options.some((option) => option.getAttribute("value") === previous);
+  dom.runSelect.value = stillListed ? previous : SAMPLE_RUN_VALUE;
+}
+
+/**
+ * Make the chosen run the one the replay plays, in the same way as the sample run. Nothing is sent. A live run that is
+ * going keeps the theatre, so the choice waits until it has finished.
+ */
+async function chooseReplayRun(value) {
+  if (live.running) {
+    setStatus("Wait for the live run to finish before choosing a run to replay.");
+    return;
+  }
+  if (value === SAMPLE_RUN_VALUE) {
+    replay.items = buildReplayItems(data.records, data.savedView.suite.questions);
+    replay.totals = replayTotals(data.records, replay.items);
+    resetReplay();
+    return;
+  }
+  const saved = await getRun(storage.adapter, value).catch(() => null);
+  if (saved === null) {
+    setStatus("That saved run could not be read.");
+    return;
+  }
+  const records = recordsFromRun(saved).map((record) => ({ ...record, condition: CONDITION }));
+  replay.items = buildReplayItems(records, data.savedView.suite.questions);
+  replay.totals = replayTotals(records, replay.items);
+  resetReplay();
+  setStatus(`Ready to replay ${saved.label}: ${replay.totals.units} units. Press Play.`);
+}
+
 /** Build the batch runner for the chosen questions and the active suite, then start it. The run ends by its events. */
 function beginLiveRun(questions, cap, platform) {
   const { suite } = activeView();
@@ -1426,6 +1482,7 @@ function bindDom(root) {
   dom.modeInputs = [...root.querySelectorAll('input[name="mode"]')];
   dom.suiteSelect = byId(root, VIEW_IDS.live["suite-select"]);
   dom.replayPanel = byId(root, "replay-panel");
+  dom.runSelect = byId(root, "live-run-select");
   dom.livePanel = byId(root, "live-panel");
   dom.speedInput = byId(root, "speed-input");
   dom.speedOutput = byId(root, "speed-output");
@@ -1473,6 +1530,8 @@ function wireControls() {
     live.capTouched = true;
     refreshPlanNote();
   });
+  dom.runSelect.addEventListener("focus", fillRunChoices);
+  dom.runSelect.addEventListener("change", () => chooseReplayRun(dom.runSelect.value));
   dom.playButton.addEventListener("click", togglePlay);
   dom.restartButton.addEventListener("click", restartReplay);
   if (dom.skipButton) dom.skipButton.addEventListener("click", skipReplay);
@@ -1521,5 +1580,6 @@ export async function mountLive(root) {
   liveView = data.savedView;
   buildPage();
   storage = await openPageStorage();
+  await fillRunChoices();
   await showLatestLiveRun();
 }

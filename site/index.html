@@ -614,6 +614,12 @@
         </fieldset>
 
         <div class="replay-panel" id="replay-panel">
+          <!-- The run to replay: the sample run, or a saved run on this suite. The script fills the list. -->
+          <div class="field">
+            <label class="field-label" for="live-run-select">Run to replay</label>
+            <select class="select" id="live-run-select"></select>
+            <p class="field-hint">The sample run that comes with the site, or a run saved in this browser on the same suite.</p>
+          </div>
           <div class="field speed-field">
             <label class="field-label" for="speed-input">
               Speed <output class="speed-output" id="speed-output" for="speed-input">2x</output>
