@@ -1,4 +1,4 @@
-// The "not in the list" field in section 5 (Pick models) of the batch page, and under 3. Model on the Gauntlet page.
+// The "not in the list" field in section 5 (Pick models) of the batch page, and under 2. Model on the Gauntlet page.
 // The visitor types a model name that the picker does not have and presses Check model. This module only draws the
 // field and asks the page to add the name.
 //

@@ -46,16 +46,6 @@ export function isQuestionSet(name) {
   return Object.hasOwn(QUESTION_SETS, name);
 }
 
-/** Return the names of the pushback sets, in the order they are listed. */
-export function pushbackSetNames() {
-  return Object.keys(PUSHBACK_SETS);
-}
-
-/** Return the names of the question sets, in the order they are listed. */
-export function questionSetNames() {
-  return Object.keys(QUESTION_SETS);
-}
-
 /** Return true for the suite whose saved replies exist in the site data. */
 export function isSavedSuite(suite) {
   return suite.name === SAVED_SUITE_NAME;
@@ -123,11 +113,6 @@ export function retiredPairText(pushbackSet, questionSet) {
     return "";
   }
   return `${pushbackSet} with ${questionSet} questions is no longer offered on this site.`;
-}
-
-/** Return the dropdown entries for a list of set names. Each set is shown under its own name. */
-export function setMenuChoices(names) {
-  return names.map((name) => ({ value: name, label: name }));
 }
 
 /** Return a choice of two sets: the shape the pages pass to selectSuite. */

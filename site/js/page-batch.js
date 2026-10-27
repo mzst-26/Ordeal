@@ -205,7 +205,7 @@ const page = {
   dom: null,                  // the elements named in IDS
   data: null,                 // config and the saved records, once loaded
   loadError: "",              // the message when a data file could not be loaded
-  suite: null,                // the pushback set and question set on the form, with their questions and ladder
+  suite: null,                // the suite on the form: its ladder, its questions, and its pushback and question sets
   loader: null,               // the suite loader, which keeps each suite once it is read
   suiteRequest: 0,            // counts the suite choices made, so a load that a newer choice overtook is not shown
   caches: new Map(),          // the reply cache of each suite, by suite name (the runner reads and writes it)

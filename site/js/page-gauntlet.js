@@ -1,4 +1,4 @@
-// Page I, The Gauntlet: one conversation with one model, pushed through the levels of pressure in a pushback set.
+// Page I, The Gauntlet: one conversation with one model, pushed through the levels of pressure in a suite.
 // Saved mode replays the saved run and makes no network calls. Live mode calls the model from the
 // browser with the key the user typed . Live conversations are saved step by step
 // in this browser, so a reload can resume them without sending the saved steps again.
@@ -61,7 +61,7 @@ const WORKING_LABEL = "Working…";
 const NO_SAVED_RUN_MESSAGE = "No saved reply for this model and question yet.";
 const SAVED_CONDITION_MESSAGE = "Saved runs were recorded with no system prompt. Choose None, or use live mode.";
 const SAVED_SUITE_MESSAGE = "Saved replies exist only for gauntlet_v3 with easy questions. Use live mode here.";
-// Lines for the "not in the list" field under 3. Model (see addTypedModel below).
+// Lines for the "not in the list" field under 2. Model (see addTypedModel below).
 const CHECKING_TEXT = "Checking the name on the platform...";
 const NO_PLATFORM_ADD_TEXT = "No platform is chosen, so no model can be added.";
 const NO_KEY_TOAST = "No key was saved, so this run uses the saved reply instead.";
@@ -101,7 +101,7 @@ let page = null;
 function createPageState() {
   return {
     data: null,        // config and the saved-reply index, once loaded
-    suite: null,       // the pushback set and question set on the desk, with the ladder and the questions
+    suite: null,       // the suite on the desk: its ladder, its questions, and its pushback and question sets
     loader: null,      // the suite loader, which keeps each suite once it is read
     suiteRequest: 0,   // counts the suite choices made, so a load that a newer choice overtook is not shown
     shufflePool: null, // with Shuffle on, the mixed pool whose questions the question menu offers; null otherwise
