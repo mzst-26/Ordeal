@@ -73,6 +73,11 @@
      plus its bottom padding, rule and gap), so about six to seven lines show before the list scrolls. The totals
      and warnings sit below it and never scroll. */
   --plan-models-max-height: 14rem;
+  /* The Batch fingerprint figure's scroll boxes: the Summary list, the Chart's bars and the Table. Each is a maximum,
+     so a short figure keeps its natural height and 32 models scroll inside this one. It is larger than the plan's
+     token because a Summary row is about three lines (name, rate and the most-flipping probe), so 14rem would show
+     only two rows. 24rem shows about three Summary rows or about a dozen bars. */
+  --fingerprint-list-max-height: 24rem;
   /* The numbered list of the ticked questions is a fixed height, not a maximum, so it takes this space every time
      and scrolls inside it. A short selection still leaves the same box, so the section below does not move. */
   --questions-list-height: 16rem;
