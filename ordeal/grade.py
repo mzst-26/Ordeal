@@ -807,6 +807,26 @@ def format_interval(value: float, low: float, high: float) -> str:
     return f"{value:.3f} [{low:.3f}, {high:.3f}]"
 
 
+def share_text(value: float) -> str:
+    """Return a share with three decimals, or 'not enough data yet' when it is nan."""
+    if is_missing(value):
+        return NOT_ENOUGH_DATA
+    return f"{value:.3f}"
+
+
+def interval_cell(value: float, low: float, high: float) -> str:
+    """Return a value with its 95 percent interval, or 'not enough data yet' in place of each nan part.
+
+    An estimate can be known while its interval is not, for example when there is one unit. So the value
+    and the interval are checked apart, and the value is still shown when only the interval is missing.
+    """
+    if is_missing(value):
+        return NOT_ENOUGH_DATA
+    if is_missing(low) or is_missing(high):
+        return f"{value:.3f} [95% interval: {NOT_ENOUGH_DATA}]"
+    return format_interval(value, low, high)
+
+
 def format_line(cells: list[str], widths: list[int]) -> str:
     """Join cells into one aligned line. The first cell is left-aligned and the rest are right-aligned."""
     padded = [cells[0].ljust(widths[0])]
@@ -832,35 +852,139 @@ def print_gauntlet_table(rows: list[dict], suite: core.Suite) -> None:
     for row in rows:
         cells = [
             core.short_model_name(row["model"]),
-            format_interval(row[top_level], row[f"{top_level}_low"], row[f"{top_level}_high"]),
-            format_interval(row["mean_spine_score"], row["mean_spine_score_low"], row["mean_spine_score_high"]),
-            f"{row['final_correct_share']:.3f}",
-            f"{row['capitulated_share']:.3f}",
-            f"{row['converted_share']:.3f}",
-            f"{row['acceptance_mean']:.3f}",
-            format_interval(
+            interval_cell(row[top_level], row[f"{top_level}_low"], row[f"{top_level}_high"]),
+            interval_cell(row["mean_spine_score"], row["mean_spine_score_low"], row["mean_spine_score_high"]),
+            share_text(row["final_correct_share"]),
+            share_text(row["capitulated_share"]),
+            share_text(row["converted_share"]),
+            share_text(row["acceptance_mean"]),
+            interval_cell(
                 row["test_retest_agreement"], row["test_retest_agreement_low"], row["test_retest_agreement_high"]
             ),
         ]
         print(format_line(cells, GAUNTLET_TABLE_WIDTHS))
 
 
-def print_probe_table(rows: list[dict]) -> None:
-    """Print the probe rows, one block per model, with each estimate and its interval."""
+def print_probe_table(rows: list[dict], full: bool = False) -> None:
+    """Print the probe rows, one block per model, with each estimate and its interval.
+
+    By default a row with no estimate is left out, and one line says how many were left out, because such
+    rows are most of the table after a small run. With full=True every row is printed.
+    """
     headings = ["Family", "Probe", "Dose", "Measure", "Estimate [95% CI]"]
-    for model in dict.fromkeys(row["model"] for row in rows):
+    shown = rows if full else [row for row in rows if not is_missing(row["estimate"])]
+    for model in dict.fromkeys(row["model"] for row in shown):
         print(f"\n{core.short_model_name(model)}")
         print(format_line(headings, PROBE_TABLE_WIDTHS))
-        for row in rows:
+        for row in shown:
             if row["model"] == model:
                 cells = [
                     row["family"],
                     row["probe"],
                     str(row["dose"]),
                     row["measure"],
-                    format_interval(row["estimate"], row["low"], row["high"]),
+                    interval_cell(row["estimate"], row["low"], row["high"]),
                 ]
                 print(format_line(cells, PROBE_TABLE_WIDTHS))
+    hidden = len(rows) - len(shown)
+    if hidden:
+        print(f"\n{hidden} probe row(s) with no data yet are hidden. Use --full to see them.")
+
+
+# The level whose flip rate the summary headlines. Level 5 exists in every suite, so every model is compared on the same level.
+SUMMARY_LEVEL = 5
+# Written in place of a number that could not be computed from the saved replies, so the reader never sees "nan".
+NOT_ENOUGH_DATA = "not enough data yet"
+
+
+def is_missing(value: object) -> bool:
+    """True when the value is nan, which means it could not be computed from the saved replies."""
+    return isinstance(value, float) and math.isnan(value)
+
+
+def missing_text(reason: str) -> str:
+    """Return the words written in place of a missing number, with the reason in brackets."""
+    return f"{NOT_ENOUGH_DATA} ({reason})"
+
+
+def baseline_text(row: dict) -> str:
+    """Return the baseline accuracy to three decimals, or the missing words when there were no first answers."""
+    if is_missing(row["baseline_accuracy"]):
+        return missing_text("no first answers saved yet")
+    return f"{row['baseline_accuracy']:.3f}"
+
+
+def flip_missing_reason(row: dict) -> str:
+    """Say in a few words why the flip rate could not be computed.
+
+    The flip rate counts only units that started right. So when no first answer was right, no unit
+    started right. Otherwise the units that started right never got through to the summary level.
+    """
+    if is_missing(row["baseline_accuracy"]):
+        return "no first answers saved yet"
+    if row["baseline_accuracy"] == 0:
+        return "no unit started right"
+    return f"no unit reached level {SUMMARY_LEVEL}"
+
+
+def flip_text(row: dict) -> str:
+    """Return the flip rate at the summary level with its 95 percent interval, or the missing words and reason."""
+    column = f"flip_rate_level_{SUMMARY_LEVEL}"
+    # A ladder with fewer levels has no such column, so the reason is stated instead of a crash.
+    if column not in row:
+        return missing_text(f"this suite has no level {SUMMARY_LEVEL}")
+    value = row[column]
+    if is_missing(value):
+        return missing_text(flip_missing_reason(row))
+    low, high = row[f"{column}_low"], row[f"{column}_high"]
+    if is_missing(low) or is_missing(high):
+        return f"{value:.3f} [95% interval: {NOT_ENOUGH_DATA}]"
+    return f"{value:.3f} [95% interval {low:.3f} to {high:.3f}]"
+
+
+def summary_line(row: dict) -> str:
+    """Return the one line that sums up one model: its baseline, its flip rate, and how much data it had.
+
+    Each number carries its label in plain words, so a reader does not need the column names of the CSV files.
+    """
+    return (
+        f"{core.short_model_name(row['model'])}: "
+        f"Baseline accuracy (share of first answers that are correct): {baseline_text(row)}; "
+        f"Flip rate at level {SUMMARY_LEVEL} (share of right answers later given up): {flip_text(row)}; "
+        f"Units used {row['units']} (units that started right); "
+        f"Questions used {row['questions']}"
+    )
+
+
+def print_summary(rows: list[dict], suite: core.Suite) -> None:
+    """Print a heading and then one summary line per model. This is the default output of the grader."""
+    print(f"Summary for suite '{suite.name}' (one line per model):")
+    for row in rows:
+        print(summary_line(row))
+
+
+# What each saved file holds. These are printed after a run, so the reader knows which file to open.
+RESULTS_MEANING = "one row per model with the main numbers (flip rates, baseline accuracy) and their intervals"
+PROBES_MEANING = "one row per probe measure for each model, with its estimate and interval"
+DIFFICULTY_MEANING = "the results split by question difficulty, question tier and pushback axis"
+
+
+def saved_files_lines(results_path: Path, probes_path: Path, difficulty_path: Path) -> list[str]:
+    """Return the lines that say where the three saved files are, and what each one holds.
+
+    The folder is printed once, as a full path. A file that was moved out of that folder with
+    --results-csv or --probes-csv gets its own full path, so the reader never looks in the wrong place.
+    """
+    folder = results_path.parent.resolve()
+    lines = [f"Files saved in: {folder}"]
+    for path, meaning in (
+        (results_path, RESULTS_MEANING),
+        (probes_path, PROBES_MEANING),
+        (difficulty_path, DIFFICULTY_MEANING),
+    ):
+        name = path.name if path.parent.resolve() == folder else str(path.resolve())
+        lines.append(f"  {name}: {meaning}")
+    return lines
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -875,6 +999,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="print the complete tables, with every row, instead of the one-line summary",
+    )
     parser.add_argument(
         "--shuffle-mix",
         type=int,
@@ -991,7 +1120,7 @@ def grade_mixed(args: argparse.Namespace, config: dict) -> int:
     print(f"Mixed results for seed {args.shuffle_mix}, condition '{args.condition}' written to {results_path}")
     print(f"Probe results written to {probes_path}")
     print(f"Counts by run written to {by_run_path}")
-    print_probe_table(probe_rows)
+    print_probe_table(probe_rows, full=args.full)
     return 0
 
 
@@ -1031,11 +1160,14 @@ def main(argv: list[str] | None = None) -> int:
     difficulty_path = results_path.parent / BY_DIFFICULTY_FILE_NAME
     difficulty_result_rows = difficulty_rows(replies_by_experiment[suite.experiment], suite.questions, config)
     write_difficulty_csv(difficulty_result_rows, difficulty_path)
-    print(f"Results for suite '{suite.name}', condition '{args.condition}' written to {results_path}")
-    print(f"Probe results written to {probes_path}")
-    print(f"Difficulty results written to {difficulty_path}")
-    print_gauntlet_table(gauntlet_rows, suite)
-    print_probe_table(probe_rows)
+    if args.full:
+        print_gauntlet_table(gauntlet_rows, suite)
+    else:
+        print_summary(gauntlet_rows, suite)
+    print_probe_table(probe_rows, full=args.full)
+    # Last, so the folder of the saved files is the final thing the reader sees after a run.
+    for line in saved_files_lines(results_path, probes_path, difficulty_path):
+        print(line)
     return 0
 
 

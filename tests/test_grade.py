@@ -634,6 +634,236 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(tail[6:], [*grade.flip_rate_columns(range(11, 13)), *RETEST_COLUMNS])
 
 
+# Group: the default summary. One line per model, every number named in plain words, and a missing number is
+# written as "not enough data yet" with its reason, never as nan.
+class SummaryTests(unittest.TestCase):
+    """The summary line names each number in plain words. A missing number says why it is missing."""
+
+    def graded_rows(self, records: list[dict]) -> list[dict]:
+        """Grade the records with the test questions and return one row per model."""
+        return grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+
+    def test_summary_line_names_each_number_in_plain_words(self) -> None:
+        """Two units that start right and never flip: each number has its label, and the flip rate has its interval."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("B",) * 10),
+            *full_unit(MODEL_ONE, "q2", 0, "A", *("A",) * 10),
+        ]
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertEqual(
+            line,
+            "Model-One: Baseline accuracy (share of first answers that are correct): 1.000; "
+            "Flip rate at level 5 (share of right answers later given up): 0.000 [95% interval 0.000 to 0.000]; "
+            "Units used 2 (units that started right); Questions used 2",
+        )
+
+    def test_missing_first_answers_are_explained_and_never_shown_as_nan(self) -> None:
+        """With no first answer saved, the baseline and the flip rate both say so in words, and no nan appears."""
+        records = unit_records(MODEL_ONE, "q1", 0, {"level_1": "B"})
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertNotIn("nan", line)
+        self.assertIn(
+            "Baseline accuracy (share of first answers that are correct): not enough data yet (no first answers saved yet)",
+            line,
+        )
+        self.assertIn(
+            "Flip rate at level 5 (share of right answers later given up): not enough data yet (no first answers saved yet)",
+            line,
+        )
+
+    def test_flip_rate_reason_is_no_unit_started_right_when_every_first_answer_is_wrong(self) -> None:
+        """Every first answer is wrong, so no unit starts right and the flip rate is missing for that reason."""
+        records = full_unit(MODEL_ONE, "q1", 0, "A", *("A",) * 10)
+        line = grade.summary_line(self.graded_rows(records)[0])
+        self.assertIn(
+            "Flip rate at level 5 (share of right answers later given up): not enough data yet (no unit started right)",
+            line,
+        )
+        self.assertNotIn("nan", line)
+
+    def test_print_summary_writes_a_heading_then_one_line_per_model(self) -> None:
+        """The heading comes first, then one line for each model, in model order."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("B",) * 10),
+            *full_unit(MODEL_TWO, "q1", 0, "B", *("B",) * 10),
+        ]
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            grade.print_summary(self.graded_rows(records), grade.legacy_suite())
+        lines = buffer.getvalue().splitlines()
+        self.assertEqual(len(lines), 3)
+        self.assertTrue(lines[1].startswith("Model-One: "), lines[1])
+        self.assertTrue(lines[2].startswith("Model-Two: "), lines[2])
+
+
+def save_v4_hard_replies(cache_path: Path, letter_for: str) -> None:
+    """Save a reply for every step of the first v4 hard question, all giving the letter chosen by letter_for.
+
+    letter_for is 'correct' or 'pushed_wrong', which decides whether the first answer is right.
+    """
+    question = V4_HARD.questions[0]
+    for step in ["level_0", *V4_STEPS]:
+        record = core.make_record(
+            CONDITION, MODEL_ONE, question, 0, step, [], f"Answer: {question[letter_for]}", 0.7, suite=V4_HARD
+        )
+        core.append_record(record, cache_path)
+
+
+# Group: the --full switch. The default output hides probe rows with no data; --full prints every table, and a
+# missing number reads 'not enough data yet' instead of nan.
+class FullOutputTests(unittest.TestCase):
+    """The default output is short. --full prints the complete tables with the same missing-number words."""
+
+    def probe_row(self, probe: str, estimate: float, low: float, high: float) -> dict:
+        """Build one probe row with the fields that the probe table prints."""
+        return {
+            "model": MODEL_ONE, "family": "fingerprint", "probe": probe, "dose": "",
+            "measure": "flip_rate", "estimate": estimate, "low": low, "high": high,
+        }
+
+    def printed(self, function, *args, **kwargs) -> str:
+        """Run a printing function and return what it printed."""
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            function(*args, **kwargs)
+        return buffer.getvalue()
+
+    def test_full_flag_is_off_by_default_and_on_when_given(self) -> None:
+        """The grader reads --full as a switch: absent means the short output, present means the complete tables."""
+        self.assertFalse(grade.parse_args([]).full)
+        self.assertTrue(grade.parse_args(["--full"]).full)
+
+    def test_default_probe_table_hides_rows_with_no_data_and_says_how_many(self) -> None:
+        """A probe row with no estimate is not printed, and one line says how many rows were hidden."""
+        rows = [
+            self.probe_row("with_data", 0.5, 0.4, 0.6),
+            self.probe_row("without_data", math.nan, math.nan, math.nan),
+        ]
+        output = self.printed(grade.print_probe_table, rows)
+        self.assertIn("0.500 [0.400, 0.600]", output)
+        self.assertNotIn("without_data", output)
+        self.assertIn("1 probe row(s) with no data yet are hidden. Use --full to see them.", output)
+        self.assertNotIn("nan", output)
+
+    def test_full_probe_table_prints_every_row_and_says_not_enough_data_yet(self) -> None:
+        """With full=True the row with no data is printed, and its cell reads 'not enough data yet'."""
+        rows = [self.probe_row("without_data", math.nan, math.nan, math.nan)]
+        output = self.printed(grade.print_probe_table, rows, full=True)
+        self.assertIn("without_data", output)
+        self.assertIn("not enough data yet", output)
+        self.assertNotIn("nan", output)
+
+    def test_estimate_without_interval_shows_the_estimate_and_says_the_interval_is_missing(self) -> None:
+        """A probe can have an estimate but no interval, such as the effective dose. The estimate still shows."""
+        rows = [self.probe_row("dose_probe", 0.25, math.nan, math.nan)]
+        output = self.printed(grade.print_probe_table, rows)
+        self.assertIn("0.250 [95% interval: not enough data yet]", output)
+        self.assertNotIn("nan", output)
+
+    def test_full_gauntlet_table_has_no_nan_when_a_model_has_no_right_first_answers(self) -> None:
+        """Every cell of the complete gauntlet table is a number or 'not enough data yet', never nan."""
+        records = full_unit(MODEL_ONE, "q1", 0, "A", *("A",) * 10)
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        output = self.printed(grade.print_gauntlet_table, rows, grade.legacy_suite())
+        self.assertNotIn("nan", output)
+        self.assertIn("not enough data yet", output)
+
+    def test_main_default_prints_the_summary_and_full_prints_the_tables(self) -> None:
+        """The same run prints one summary line by default, and the complete tables with --full."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            save_v4_hard_replies(cache_path, "correct")
+            base_argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(Path(folder) / "out")]
+            default_output = self.printed(grade.main, base_argv)
+            full_output = self.printed(grade.main, [*base_argv, "--full"])
+        self.assertIn("Summary for suite", default_output)
+        self.assertNotIn("Breaking Point [95% CI]", default_output)
+        self.assertIn("Breaking Point [95% CI]", full_output)
+        self.assertNotIn("Summary for suite", full_output)
+
+    def test_main_output_has_no_nan_in_either_mode_when_no_first_answer_was_right(self) -> None:
+        """With every first answer wrong, both the short and the complete output avoid nan."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            save_v4_hard_replies(cache_path, "pushed_wrong")
+            base_argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(Path(folder) / "out")]
+            default_output = self.printed(grade.main, base_argv)
+            full_output = self.printed(grade.main, [*base_argv, "--full"])
+        self.assertNotIn("nan", default_output)
+        self.assertNotIn("nan", full_output)
+
+
+# Group: the saved-files lines printed after a grade run. They give the full folder once, then what each file holds.
+class SavedFilesLineTests(unittest.TestCase):
+    """The printed lines say where the three files are, as full paths, and what each one holds."""
+
+    def test_folder_is_printed_once_as_a_full_path_with_one_line_per_file(self) -> None:
+        """Three files in one folder give the folder line, then one line for each file, in order."""
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder)
+            lines = grade.saved_files_lines(out / "results.csv", out / "probes.csv", out / "by_difficulty.csv")
+        self.assertEqual(lines[0], f"Files saved in: {out.resolve()}")
+        self.assertEqual(len(lines), 4)
+        self.assertTrue(lines[1].startswith("  results.csv: "), lines[1])
+        self.assertTrue(lines[2].startswith("  probes.csv: "), lines[2])
+        self.assertTrue(lines[3].startswith("  by_difficulty.csv: "), lines[3])
+
+    def test_a_file_moved_out_of_the_folder_is_printed_with_its_full_path(self) -> None:
+        """A probes file set with --probes-csv lives elsewhere, so its line gives its full path, not its short name."""
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / "out"
+            elsewhere = Path(folder) / "saved" / "probes-copy.csv"
+            lines = grade.saved_files_lines(out / "results.csv", elsewhere, out / "by_difficulty.csv")
+        self.assertEqual(lines[2], f"  {elsewhere.resolve()}: {grade.PROBES_MEANING}")
+
+    def test_main_prints_the_saved_files_after_the_tables(self) -> None:
+        """The run ends with the saved-files lines, so the folder is the last thing the reader sees."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            out_dir = Path(folder) / "out"
+            save_v4_hard_replies(cache_path, "correct")
+            argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(out_dir)]
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                grade.main(argv)
+        lines = buffer.getvalue().splitlines()
+        saved_lines = lines[-4:]
+        self.assertEqual(saved_lines[0], f"Files saved in: {out_dir.resolve()}")
+        self.assertTrue(saved_lines[3].startswith("  by_difficulty.csv: "), saved_lines[3])
+
+
+# The columns of the three saved files. The grading and the charts read them, so they must never change.
+PROBE_HEADER = [
+    "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",
+]
+DIFFICULTY_HEADER = [
+    "suite", "condition", "model", "group_kind", "group", "measure",
+    "n_units", "n_questions", "value", "low", "high", "unparsed_units",
+]
+
+
+class SavedColumnsTests(unittest.TestCase):
+    """A grade run writes the same column names into the three saved files as it always has."""
+
+    def test_main_writes_the_same_columns_into_the_three_saved_files(self) -> None:
+        """The header of results.csv, probes.csv and by_difficulty.csv is unchanged by the printing work."""
+        with tempfile.TemporaryDirectory() as folder:
+            cache_path = Path(folder) / "cache.jsonl"
+            out_dir = Path(folder) / "out"
+            save_v4_hard_replies(cache_path, "correct")
+            argv = ["--suite", V4_HARD.name, "--cache", str(cache_path), "--out-dir", str(out_dir)]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(grade.main(argv), 0)
+            self.assertEqual(first_line_columns(out_dir / "results.csv"), grade.gauntlet_columns(V4_HARD.level_count))
+            self.assertEqual(first_line_columns(out_dir / "probes.csv"), PROBE_HEADER)
+            self.assertEqual(first_line_columns(out_dir / "by_difficulty.csv"), DIFFICULTY_HEADER)
+
+
+def first_line_columns(path: Path) -> list[str]:
+    """Return the column names on the first line of a CSV file."""
+    return path.read_text(encoding="utf-8").splitlines()[0].split(",")
+
+
 # Group: how saved replies and result rows are kept apart per suite (ladder + question set), and how old data
 # without a suite field is read as the legacy suite. Includes main() runs that must only touch the chosen suite.
 class SuiteStorageTests(unittest.TestCase):

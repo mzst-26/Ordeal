@@ -39,6 +39,8 @@ SUMMARY_FOLDER_PARTS = ("docs", "cli-results")
 SOURCE_FILE_NAME = "source.json"
 COMMAND_LINE_SOURCE = "command line"
 SUMMARY_FILE_NAMES = [grade.RESULTS_FILE_NAME, grade.PROBES_FILE_NAME, difficulty.BY_DIFFICULTY_FILE_NAME]
+# The option that asks the grader for the complete tables. It is taken out of the runner options.
+FULL_FLAG = "--full"
 
 
 def route_key(platform: providers.Platform) -> str:
@@ -224,22 +226,27 @@ def write_source_file(out_dir: Path, suite: core.Suite, condition: str) -> None:
 
 
 def cmd_test(args: argparse.Namespace) -> int:
-    """Run the Ordeal experiment on one model, then print its table.
+    """Run the Ordeal experiment on one model, then print its summary (or its full tables with --full).
 
-    Options after the model name (such as --limit or --probes) go to the runner unchanged. The cache
-    file is named after the platform and model, so each model's replies are kept apart.
+    Options after the model name (such as --limit or --probes) go to the runner unchanged, except --full,
+    which only the grader understands. The cache file is named after the platform and model, so each
+    model's replies are kept apart.
     """
     platform = providers.get_platform(args.platform)
     route = resolve_route(platform, args.model, args.base_url)
     cache = results_folder() / cache_file_name(platform.id, route.api_model)
+    runner_options = [option for option in args.extras if option != FULL_FLAG]
     # Our --cache comes first, so a --cache written by hand after it still wins, as the runner's own rule says.
-    code = runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route})
+    code = runner.main(["--cache", str(cache), *runner_options], prebuilt_routes={route.name: route})
     # Grade whatever was saved, even after a failed call, so the person can see the partial table.
     if code in (0, 1):
         # The suite and condition are the ones grade.py uses when no option names them, so the folder matches.
         suite = core.load_chosen_suite()
         out_dir = args.out_dir or summary_folder(suite.name, core.NO_SYSTEM_PROMPT)
-        if grade.main(["--cache", str(cache), "--out-dir", str(out_dir)]) == 0:
+        grade_options = ["--cache", str(cache), "--out-dir", str(out_dir)]
+        if FULL_FLAG in args.extras:
+            grade_options.append(FULL_FLAG)
+        if grade.main(grade_options) == 0:
             write_source_file(out_dir, suite, core.NO_SYSTEM_PROMPT)
     return code
 
@@ -284,7 +291,8 @@ def build_parser() -> argparse.ArgumentParser:
     test = commands.add_parser(
         "test",
         help="run the Ordeal test on a model",
-        epilog="Other options, such as --limit, --probes or --max-calls, are passed to the runner.",
+        epilog="Other options, such as --limit, --probes or --max-calls, are passed to the runner. "
+        "Add --full to print the complete tables instead of the one-line summary.",
     )
     test.add_argument("platform", help="platform id")
     test.add_argument("model", help="model id, such as org/name, or a link to its page")
