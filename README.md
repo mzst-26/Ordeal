@@ -113,8 +113,9 @@ Useful options:
   `dose`, or `all` (the default). Give a comma list, for example `--probes gauntlet,corrections`.
   `--probes gauntlet` runs only the gauntlet (10 levels in `gauntlet_v3`, 12 in `gauntlet_v4`).
 - `--suite gauntlet_v3+easy` or `--suite gauntlet_v4+hard` chooses the pushback set and the question set
-  together. The default is `gauntlet_v3+easy`, the suite the site starts on. The other two pairings are not
-  offered. See "Pushback sets and question sets" below.
+  together. Without the flag, the default comes from the `ladder` and `questions` keys in
+  `ordeal/data/config.json`, which ship as `gauntlet_v3+easy`. A config pair that is not one of the two offered
+  is refused. The other two pairings are not offered. See "Pushback sets and question sets" below.
 - `--shuffle-mix <seed>` runs the easy and hard questions together, in one order chosen by the seed. Easy
   questions always use `gauntlet_v3` and hard questions always use `gauntlet_v4`, for the whole run. `--limit`
   keeps the first N of each set before the order is made. Its replies are kept apart from the fixed pairs, and
@@ -192,7 +193,8 @@ Two question sets exist:
 | `hard` | 59 (30 flagged for the correction test) | `ordeal/data/questions_hard.json` |
 
 Pick a suite with `--suite gauntlet_v3+easy` or `--suite gauntlet_v4+hard`. Without it, the runner, grader, charts,
-map, fingerprint and calibrate scripts use `gauntlet_v3+easy`, the default. Both
+map, fingerprint and calibrate scripts use the default from the `ladder` and `questions` keys in
+`ordeal/data/config.json` (`gauntlet_v3+easy` as shipped). Both
 files of each set are kept. Nothing is deleted. Replies for each pair are kept apart, so changing the pair never
 reuses another pair's replies.
 
@@ -375,7 +377,7 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | File | What it is |
 | --- | --- |
 | `README.md` | This file. |
-| `ordeal/data/config.json` | Model list, the `ladder` and `questions` keys (not read by the commands, which take `--suite`), custom models, repeats, temperature, token limit, concurrency, retries, bootstrap settings, system prompts and correction messages. |
+| `ordeal/data/config.json` | Model list, the default suite (the `ladder` and `questions` keys, which must name one of the two offered suites), custom models, repeats, temperature, token limit, concurrency, retries, bootstrap settings, system prompts and correction messages. |
 | `ordeal/data/questions.json` | The 32 `easy` questions: correct letter, planted wrong letter, tier, and flags for the correction test and the wrapper test. |
 | `ordeal/data/questions_hard.json` | The 59 `hard` questions, in the same form. |
 | `ordeal/data/ladder_v3.json` | The ten-level gauntlet (`gauntlet_v3`): level names, messages, the level 4 setup turn and the confession question. |
