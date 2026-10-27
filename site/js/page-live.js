@@ -75,6 +75,8 @@ const SAVED_SUITE_NAME = `${DEFAULT_LADDER}+${DEFAULT_QUESTION_SET}`;
 // Module state. The page is mounted once and keeps this state while the visitor is on another view.
 // The config, models, saved records and the saved run's suite view, once loaded.
 let data = null;
+// The models the page shows and runs. They start as the config's models, and a chosen run replaces them with its own.
+let activeModels = [];
 // The suite view behind the live choice: the pushback set and question set the visitor picked.
 let liveView = null;
 // Counts the choice requests, so a slow load that finishes late is ignored.
@@ -358,9 +360,21 @@ function createLane(model, index, levels) {
 /** Build one lane per model from the suite's levels, and put the lanes on the page in place of the old ones. */
 function buildLanes(view) {
   const levels = view.suite.ladder.levels;
-  lanes = new Map(data.models.map((model, index) => [model, createLane(model, index, levels)]));
+  lanes = new Map(activeModels.map((model, index) => [model, createLane(model, index, levels)]));
   clear(dom.lanes);
   dom.lanes.append(...[...lanes.values()].map((lane) => lane.root));
+}
+
+/**
+ * Make these models the ones the page shows and runs. A chosen run brings its own models, so a live run uses them too.
+ * The lanes are built again for them, and the model list and the charts follow. Nothing is sent.
+ */
+function setActiveModels(models) {
+  activeModels = [...models];
+  buildLanes(activeView());
+  dom.modelList.textContent = activeModels.map(shortName).join(", ");
+  renderKpis();
+  refreshCharts();
 }
 
 /** Set one pip to "empty", "passed" (sage) or "gave" (terracotta). */
@@ -565,7 +579,7 @@ function levelOptions(rows, suite) {
     yAxisTitle: "Flip rate",
     yMax: 1,
     ariaLabel: "Line chart: the share of right first answers that have given way by each pressure level.",
-    series: data.models.map((model, index) => {
+    series: activeModels.map((model, index) => {
       const row = rowFor(rows, model);
       const field = (level, suffix = "") => (row ? row[`flip_rate_level_${level}${suffix}`] : Number.NaN);
       return {
@@ -592,7 +606,7 @@ function fingerprintOptions(probeRows, suite) {
     yAxisTitle: "Flip rate",
     yMax: 1,
     ariaLabel: "Bar chart: the flip rate of each fingerprint probe, for each model, with its interval.",
-    series: data.models.map((model, index) => ({
+    series: activeModels.map((model, index) => ({
       name: shortName(model),
       ...seriesStyle(index),
       valuesByGroup: valuesFor(model, "estimate"),
@@ -606,7 +620,7 @@ function fingerprintOptions(probeRows, suite) {
 function twinOptions(probeRows, suite) {
   const twinIds = suite.probeSpec.axes.filter((axis) => axis.twin).map((axis) => axis.id);
   const points = [];
-  data.models.forEach((model, index) => {
+  activeModels.forEach((model, index) => {
     const x = meanOf(twinIds.map((id) => probeValue(probeRows, model, id, "twin", "false_alarm_rate")));
     const y = meanOf(twinIds.map((id) => probeValue(probeRows, model, id, "twin", "hit_rate")));
     if (Number.isFinite(x) && Number.isFinite(y)) {
@@ -761,7 +775,7 @@ function renderKpis() {
   if (!data) return;
   const flips = [...run.units.values()].filter((unit) => unit.gaveWayAt !== null).length;
   const cap = Math.floor(Number(dom.capInput.value));
-  setKpi(dom.kpiModels, String(data.models.length));
+  setKpi(dom.kpiModels, String(activeModels.length));
   setKpi(dom.kpiCalls, String(live.calls));
   setKpi(dom.kpiCap, Number.isFinite(cap) ? String(cap) : "No data loaded");
   setKpi(dom.kpiFlips, String(flips));
@@ -793,7 +807,7 @@ function setStatus(text) {
 /** Sort order for the replay: by repeat, then question, then model, so the lanes move together. */
 function replayOrder(questions) {
   const questionIndex = new Map(questions.map((question, index) => [question.id, index]));
-  const modelIndex = new Map(data.models.map((model, index) => [model, index]));
+  const modelIndex = new Map(activeModels.map((model, index) => [model, index]));
   return (a, b) => {
     return a.ref.repeat - b.ref.repeat
       || (questionIndex.get(a.ref.questionId) ?? 0) - (questionIndex.get(b.ref.questionId) ?? 0)
@@ -1014,7 +1028,7 @@ function chosenQuestions() {
 function livePlan(questions) {
   const { suite } = activeView();
   return planAllModels(
-    data.models, questions, LIVE_REPEATS, cacheFor(suite.name), CONDITION, ALL_FAMILIES,
+    activeModels, questions, LIVE_REPEATS, cacheFor(suite.name), CONDITION, ALL_FAMILIES,
     suite.ladder, suite.probeSpec, data.config,
   );
 }
@@ -1166,7 +1180,7 @@ function handleLiveEvent(event) {
     case "finished":
       endLive("Live run finished.", "done");
       showFinale(
-        `Live run complete: ${data.models.length} models, ${live.questionCount} questions, ` +
+        `Live run complete: ${activeModels.length} models, ${live.questionCount} questions, ` +
         `${live.units} units, ${event.calls} calls made.`,
       );
       break;
@@ -1186,14 +1200,14 @@ function startLiveRecord(questions, suite) {
   const config = {
     kind: KIND_LIVE,
     ...choiceOfSuite(suite),
-    models: data.models,
+    models: activeModels,
     questions: questionIds,
     families: [...ALL_FAMILIES],
     repeats: LIVE_REPEATS,
     condition: CONDITION,
   };
-  const label = `Live ${suite.name}: ${data.models.length} models, ${questions.length} questions`.slice(0, 80);
-  const plannedUnits = plannedBatchUnits(data.models, questionIds, LIVE_REPEATS);
+  const label = `Live ${suite.name}: ${activeModels.length} models, ${questions.length} questions`.slice(0, 80);
+  const plannedUnits = plannedBatchUnits(activeModels, questionIds, LIVE_REPEATS);
   return liveQueue.run(async () => {
     const created = await createRun(storage.adapter, { label, config, plannedUnits });
     await setRunStatus(storage.adapter, created.id, "running");
@@ -1268,7 +1282,8 @@ const SAMPLE_RUN_VALUE = "sample";
  * from another suite, or with no replies, would replay nothing, so it is left out of the choice.
  */
 export function replayableRuns(runs, suite) {
-  return runs.filter((saved) => isRunDocument(saved) && runMatchesSuite(saved, suite) && recordsFromRun(saved).length > 0);
+  return runs.filter((saved) => isRunDocument(saved) && runMatchesSuite(saved, suite) && recordsFromRun(saved).length > 0
+    && Array.isArray(saved.config.models) && saved.config.models.length > 0);
 }
 
 /**
@@ -1299,6 +1314,7 @@ async function chooseReplayRun(value) {
     return;
   }
   if (value === SAMPLE_RUN_VALUE) {
+    setActiveModels(data.models);
     replay.items = buildReplayItems(data.records, data.savedView.suite.questions);
     replay.totals = replayTotals(data.records, replay.items);
     resetReplay();
@@ -1310,6 +1326,8 @@ async function chooseReplayRun(value) {
     return;
   }
   const records = recordsFromRun(saved).map((record) => ({ ...record, condition: CONDITION }));
+  // The run's own models go on the lanes, so every model it replays has a lane to show on.
+  setActiveModels(saved.config.models);
   replay.items = buildReplayItems(records, data.savedView.suite.questions);
   replay.totals = replayTotals(records, replay.items);
   resetReplay();
@@ -1341,7 +1359,7 @@ function beginLiveRun(questions, cap, platform) {
   liveRunReady = startLiveRecord(questions, suite);
   live.runner = createBatchRunner({
     client,
-    models: data.models,
+    models: activeModels,
     questions,
     repeats: LIVE_REPEATS,
     condition: CONDITION,
@@ -1450,6 +1468,7 @@ function onModeChange(mode) {
   showSuite();
   if (mode === "replay") {
     dom.planNote.textContent = "";
+    fillRunChoices();
     resetReplay();
   } else {
     dom.playButton.textContent = "Play";
@@ -1555,7 +1574,7 @@ function buildPage() {
   replay.items = buildReplayItems(data.records, data.savedView.suite.questions);
   replay.totals = replayTotals(data.records, replay.items);
   dom.questionInput.value = String(DEFAULT_QUESTION_COUNT);
-  dom.modelList.textContent = data.models.map(shortName).join(", ");
+  dom.modelList.textContent = activeModels.map(shortName).join(", ");
   fillSuiteChoices();
   setChoiceInput(liveView);
   wireControls();
@@ -1578,6 +1597,7 @@ export async function mountLive(root) {
     return;
   }
   liveView = data.savedView;
+  activeModels = [...data.models];
   buildPage();
   storage = await openPageStorage();
   await fillRunChoices();

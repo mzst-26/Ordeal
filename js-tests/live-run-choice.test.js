@@ -14,7 +14,7 @@ function run(id, config, results) {
 
 test("replayableRuns keeps runs on the replay's suite that have replies, and drops the rest", () => {
   const wanted = choiceOfSuite(SUITE);
-  const onSuite = { kind: "batch", pushbackSet: wanted.pushbackSet, questionSet: wanted.questionSet };
+  const onSuite = { kind: "batch", models: ["M1"], pushbackSet: wanted.pushbackSet, questionSet: wanted.questionSet };
   const runs = [
     run("kept", onSuite, { a: { steps: [{ step: "level_0" }] } }),
     run("no-replies", onSuite, {}),
