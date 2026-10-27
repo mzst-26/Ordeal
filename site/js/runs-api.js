@@ -20,6 +20,13 @@ const LIST_ERROR_TEXT = "The runs could not be loaded from the server.";
 const READ_ERROR_TEXT = "That run could not be read from the server.";
 const WRONG_PASSWORD_TEXT = "The write password is missing or wrong.";
 const DELETE_ERROR_TEXT = "The run could not be deleted.";
+const SAVED_TEXT = "Saved to the web store. It is kept for 7 days.";
+// Exported so the save panel can show the same words when the request never reaches the server.
+export const SAVE_ERROR_TEXT = "The run could not be saved to the web store.";
+const SAVE_TOO_BIG_TEXT = "This run is too large for the 1.5 GB store, so it was not saved.";
+// The status the server sends back when it has kept a new run.
+const CREATED_STATUS = 201;
+const TOO_BIG_STATUS = 413;
 
 /** Call the browser's fetch. Passed as a function, so a test can replace it without touching the global. */
 function defaultFetch(url, init) {
@@ -86,6 +93,51 @@ export async function keepBrowserCopies(adapter, summaries, fetchFn = defaultFet
     }
   }
   return copied;
+}
+
+/**
+ * Return the body of a save request. The server reads the kind and the run from it. The password is not in the body:
+ * it travels only in the header, so it is never written into a stored record.
+ */
+export function buildSaveBody(kind, run) {
+  return { kind, run };
+}
+
+/**
+ * Return the headers of a save request. The password is sent as a Bearer value, the same way as a delete, and the
+ * body is declared as JSON so the server reads it as one.
+ */
+export function buildSaveHeaders(password) {
+  return { "content-type": "application/json", authorization: `Bearer ${password}` };
+}
+
+/**
+ * Return the plain message the page shows for a save answer, given its HTTP status. Only the statuses the page can
+ * act on get their own words; every other failure gets the general message.
+ */
+export function saveMessage(status) {
+  if (status === CREATED_STATUS) return SAVED_TEXT;
+  if (status === 401) return WRONG_PASSWORD_TEXT;
+  if (status === TOO_BIG_STATUS) return SAVE_TOO_BIG_TEXT;
+  return SAVE_ERROR_TEXT;
+}
+
+/**
+ * Send one run to the web store. Returns { saved, status, message }: saved is true only when the server kept the
+ * run, status is the HTTP status it sent, and message is the text to show. A network failure makes fetch throw,
+ * and the caller shows SAVE_ERROR_TEXT.
+ */
+export async function saveRunToWeb(kind, run, password, fetchFn = defaultFetch) {
+  const response = await fetchFn(API_PATH, {
+    method: "POST",
+    headers: buildSaveHeaders(password),
+    body: JSON.stringify(buildSaveBody(kind, run)),
+  });
+  return {
+    saved: response.status === CREATED_STATUS,
+    status: response.status,
+    message: saveMessage(response.status),
+  };
 }
 
 /**
