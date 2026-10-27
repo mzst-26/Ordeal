@@ -173,7 +173,7 @@ class GauntletV4HardTests(unittest.TestCase):
         responder = PressureResponder(self.suite.questions, wrong_turn_count=level_user_turns(11, setup_level))
         mock = self.enterContext(MockOpenAIServer(responder=responder))
         result = run_script(RUNNER, [
-            "--ladder", "gauntlet_v4", "--questions", "hard", "--models", first_model(),
+            "--suite", "gauntlet_v4+hard", "--models", first_model(),
             "--limit", "5", "--repeats", "1", "--probes", "gauntlet",
             "--base-url", mock.base_url, "--cache", str(self.cache_path),
         ])
@@ -328,7 +328,7 @@ class DefaultStubRunTests(unittest.TestCase):
     def test_default_stub_run_keeps_file_order_and_default_keys(self) -> None:
         """The run saves the first 3 questions of the file, under the default code and with no shuffle fields."""
         result = run_script(RUNNER, [
-            "--stub", "--limit", "3", "--ladder", "gauntlet_v4", "--questions", "hard",
+            "--stub", "--limit", "3", "--suite", "gauntlet_v4+hard",
             "--cache", str(self.cache_path),
         ])
         self.assertEqual(result.returncode, 0, result.stderr)

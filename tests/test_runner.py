@@ -379,31 +379,52 @@ class GauntletV4RunTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client.sent[-2][-1]["content"].endswith(REMINDER))
 
 
-# Guards the suite options: unset means the config decides, named values are passed on, and names not
-# in the registry are refused by the parser.
+# Guards the suite option: unset means the default suite, an offered name is passed on, and any other
+# pairing is refused by the parser. The old --ladder and --questions flags are gone.
 class SuiteOptionTests(unittest.TestCase):
-    """--ladder, --questions and --cache: default to None so config.json decides."""
+    """--suite and --cache: both default to None, so the default suite and the default cache are used."""
 
     def test_suite_options_default_to_none(self) -> None:
-        """Without the options, the ladder, questions and cache are left for the config and the default path."""
+        """Without the options, the suite and the cache are left for the default path."""
         args = parse_args([])
-        self.assertIsNone(args.ladder)
-        self.assertIsNone(args.questions)
+        self.assertIsNone(args.suite)
         self.assertIsNone(args.cache)
 
-    def test_suite_options_are_read(self) -> None:
-        """Named values come back as given, and --cache becomes a path."""
-        args = parse_args(["--ladder", "gauntlet_v4", "--questions", "hard", "--cache", "saved.jsonl"])
-        self.assertEqual((args.ladder, args.questions), ("gauntlet_v4", "hard"))
+    def test_suite_and_cache_are_read(self) -> None:
+        """The offered suite name comes back as given, and --cache becomes a path."""
+        args = parse_args(["--suite", "gauntlet_v4+hard", "--cache", "saved.jsonl"])
+        self.assertEqual(args.suite, "gauntlet_v4+hard")
         self.assertEqual(args.cache, Path("saved.jsonl"))
 
-    def test_unknown_ladder_or_question_set_exits_with_code_two(self) -> None:
-        """A name that is not in the registry is refused by the parser."""
-        for argv in (["--ladder", "gauntlet_v9"], ["--questions", "medium"]):
+    def test_suites_not_offered_exit_with_code_two(self) -> None:
+        """A pairing the command line does not offer, and a name not in the registry, are both refused."""
+        for argv in (["--suite", "gauntlet_v3+hard"], ["--suite", "gauntlet_v4+easy"], ["--suite", "gauntlet_v9+hard"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as context:
                     parse_args(argv)
                 self.assertEqual(context.exception.code, 2)
+
+    def test_the_old_ladder_and_questions_flags_are_refused(self) -> None:
+        """--ladder and --questions were replaced by --suite, so an old command fails loudly."""
+        for argv in (["--ladder", "gauntlet_v4"], ["--questions", "hard"]):
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as context:
+                    parse_args(argv)
+                self.assertEqual(context.exception.code, 2)
+
+    def test_shuffle_mix_alone_is_fine_and_leaves_the_suite_unset(self) -> None:
+        """A mixed run sets both sets itself, so --shuffle-mix on its own needs no --suite."""
+        args = parse_args(["--shuffle-mix", "3"])
+        self.assertEqual(args.shuffle_mix, 3)
+        self.assertIsNone(args.suite)
+
+    def test_shuffle_mix_cannot_be_combined_with_suite(self) -> None:
+        """The refusal names --suite, so the user knows which flag to drop."""
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            with self.assertRaises(SystemExit) as context:
+                parse_args(["--shuffle-mix", "3", "--suite", "gauntlet_v4+hard"])
+        self.assertEqual(context.exception.code, 2)
+        self.assertIn("--shuffle-mix cannot be combined with --suite", stderr.getvalue())
 
 
 # Guards the test-only --base-url override: only plain loopback addresses are accepted, so a real or
@@ -463,7 +484,7 @@ class SuiteDryRunTests(unittest.TestCase):
             with mock.patch("ordeal.model_client.ModelRouter") as router_class, mock.patch(
                 "ordeal.core.read_api_key"
             ) as read_key, contextlib.redirect_stdout(output), contextlib.redirect_stderr(io.StringIO()):
-                exit_code = main(["--dry-run", "--ladder", "gauntlet_v4", "--questions", "hard", "--limit", "2",
+                exit_code = main(["--dry-run", "--suite", "gauntlet_v4+hard", "--limit", "2",
                                   "--cache", str(cache)])
             self.assertEqual(exit_code, 0)
             self.assertIn("Ladder: gauntlet_v4", output.getvalue())
