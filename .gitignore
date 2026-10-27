@@ -34,10 +34,42 @@ dist/
 build/
 *.egg-info/
 
-# Run results: the files the batch page downloads, and the results file the export script writes.
-# They are made by running the site or the scripts. They are not code, so they must not be committed.
+# Run results and exports. They are made by running the site or the scripts. They are not code,
+# so they must never be committed. Every file the site downloads is listed here.
+
+# Batch page downloads (the two CSV files are no longer made, but stay ignored in case an old copy exists)
 batch-gauntlet.csv
 batch-probes.csv
 batch-replies.json
 ordeal-batch-log-*.jsonl
+
+# Gauntlet and Batch pages: Export on a saved run downloads run-<id>.json
+run-*.json
+
+# Compare page: Download card saves model-card-<model>.png
+model-card-*.png
+
+# Written by scripts/export_site_data.py (the other site data is tracked on purpose)
 site/data/results.json
+
+# Written by the Python tools into results/ or scratch/ by default, which are ignored above.
+# These names are ignored anywhere, so a run with another --out-dir is kept out of git too.
+by_difficulty.csv
+mixed_results.csv
+mixed_probes.csv
+mixed_by_run.csv
+mixed_runs.json
+stub_cache.jsonl
+calib_cache.jsonl
+calibration*.json
+screen.json
+fingerprint_table_*.csv
+fingerprint_*.png
+flip_by_level_*.png
+map_*.png
+
+# These two names also appear in tracked test fixtures (tests/fixtures/compare/),
+# so only the copies at the project root are ignored.
+/results.csv
+/probes.csv
+/cache.jsonl

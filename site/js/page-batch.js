@@ -24,7 +24,6 @@ import {
 import { buildModelAddArea } from "./model-popup.js";
 import { mountModelCheck } from "./model-check.js";
 import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
-import { csvCell } from "./engine/csv.js";
 import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
@@ -194,8 +193,6 @@ const IDS = {
   gauntletTables: "gauntlet-tables",
   chartMessage: "chart-message",
   figure: "fingerprint-figure",
-  exportGauntlet: "export-gauntlet",
-  exportProbes: "export-probes",
   exportReplies: "export-replies",
   exportBatchLog: "export-batch-log",
 };
@@ -231,7 +228,6 @@ const page = {
   keyRefused: false,          // true once the service refused the key during a run
   capTouched: false,          // true once the user types a cap, so the plan stops changing it
   confirming: false,          // true while the key dialog or the confirmation line is open
-  exportRows: { gauntlet: [], probes: [] },
   fingerprint: null,          // the fingerprint figure (its views and drawing), made at start-up
   resultsTimer: null,         // the pending results redraw, or null
   lastResultsAt: 0,           // when the results were last drawn, in milliseconds
@@ -305,8 +301,6 @@ function wireControls() {
   dom.confirmContinue.addEventListener("click", confirmStart);
   dom.confirmCancel.addEventListener("click", cancelConfirmation);
   wireRunsPopup({ button: dom.runsButton, dialog: dom.runsDialog, done: dom.runsDone });
-  dom.exportGauntlet.addEventListener("click", exportGauntletCsv);
-  dom.exportProbes.addEventListener("click", exportProbesCsv);
   dom.exportReplies.addEventListener("click", exportRepliesJson);
   dom.exportBatchLog.addEventListener("click", exportBatchLog);
 }
@@ -2071,7 +2065,6 @@ function drawResults() {
   const records = recordsFor(choices);
   const gauntletRows = gauntletRowsFor(choices, records);
   const probeRows = probeRowsFor(choices, records);
-  page.exportRows = { gauntlet: gauntletRows, probes: probeRows };
   renderGauntletTables(choices.models, gauntletRows);
   const figureMeasures = resultMeasures(page.suite.levelCount);
   renderResultsFigures(document.getElementById("results-figures"), analyticsRows(choices.models, gauntletRows, figureMeasures), figureMeasures);
@@ -2304,23 +2297,8 @@ function figureModel(model) {
 
 /** Enable each export only when it has something to save. */
 function updateExportButtons() {
-  page.dom.exportGauntlet.disabled = page.exportRows.gauntlet.length === 0;
-  page.dom.exportProbes.disabled = page.exportRows.probes.length === 0;
   page.dom.exportReplies.disabled = page.newRecords.length === 0;
   page.dom.exportBatchLog.disabled = page.log === null || page.log.entries().length === 0;
-}
-
-/** Turn rows of plain objects into CSV text. The first line names the columns. */
-function toCsv(rows) {
-  if (rows.length === 0) {
-    return "";
-  }
-  const columns = Object.keys(rows[0]);
-  const lines = [columns.join(",")];
-  for (const row of rows) {
-    lines.push(columns.map((column) => csvCell(row[column])).join(","));
-  }
-  return `${lines.join("\n")}\n`;
 }
 
 /** Download the operation log of the batch run as JSON Lines. It has no key and no reply text. */
@@ -2330,32 +2308,6 @@ function exportBatchLog() {
   }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   downloadText(`ordeal-batch-log-${stamp}.jsonl`, page.log.toJsonl(), "application/x-ndjson");
-}
-
-/** Download the gauntlet rows for the ticked models as CSV, with full intervals. */
-function exportGauntletCsv() {
-  if (page.suite.mixed) {
-    showPageStatus(MIXED_RESULTS_TEXT);
-    return;
-  }
-  const choices = readChoices();
-  const records = recordsFor(choices);
-  // Exports grade with the full configured resamples, not the fast on-screen setting from gradeNow.
-  const rows = gradeCondition(records, page.suite.questions, page.data.config, choices.condition, page.suite);
-  downloadText("batch-gauntlet.csv", toCsv(rows), "text/csv");
-}
-
-/** Download the probe rows for the ticked models as CSV, with full intervals. */
-function exportProbesCsv() {
-  if (page.suite.mixed) {
-    showPageStatus(MIXED_RESULTS_TEXT);
-    return;
-  }
-  const choices = readChoices();
-  const rows = gradeProbes(
-    recordsFor(choices), page.suite.questions, page.data.config, choices.condition, page.suite.probeSpec,
-  );
-  downloadText("batch-probes.csv", toCsv(rows), "text/csv");
 }
 
 /** Download every reply made on this page as JSON. The key is never part of a reply, so it is never exported. */
