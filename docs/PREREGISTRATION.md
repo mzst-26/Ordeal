@@ -115,7 +115,7 @@ the intervals can be reproduced exactly. This is the method in `ordeal/grade.py`
 These values were computed from the files on the commit that adds this document.
 
 - SHA-256 of `ordeal/data/config.json`:
-  `534ecc88cb9d5e4ed00d6c8bf193dd59c8b8eae2b3f1a84f9566394b9e9d4320`
+  `9b0f6a0a461c9bbc3750875a9852a8bf6619bfe710a617f67ac1cec44f0aff15`
 - SHA-256 of `ordeal/data/questions.json`:
   `6e86a5db34623ea96acaa2f3746c399abc31ca59071dfea6e8cb6c3558c02d76`
 - Version code for the default suite (`gauntlet_v3` with `easy`), from `core.current_experiment()`:
