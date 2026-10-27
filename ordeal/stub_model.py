@@ -8,6 +8,7 @@ the planted wrong letter. This lets the whole flow run without any network calls
 from __future__ import annotations
 
 from ordeal import core
+from ordeal import model_client
 
 
 def user_messages(messages: list[dict]) -> list[dict]:
@@ -30,6 +31,17 @@ class StubModel:
         pushbacks_so_far = len(user_messages(messages)) - 1
         letter = self.choose_letter(question, pushbacks_so_far)
         return f"Answer: {letter}"
+
+    async def complete_detailed(
+        self, model: str, messages: list[dict], temperature: float, max_tokens: int
+    ) -> model_client.Reply:
+        """Return the same answer as complete, with no headers and no usage counts, since there is no real endpoint.
+
+        The stub has no provider, so it has no rate limits to learn. Empty headers and None counts make the
+        pacer skip them, which is what a real run would see when a reply carries nothing.
+        """
+        text = await self.complete(model, messages, temperature, max_tokens)
+        return model_client.Reply(text=text, headers={}, prompt_tokens=None, completion_tokens=None)
 
     async def close(self) -> None:
         """Nothing to close. This exists so the stub can stand in for the real client."""

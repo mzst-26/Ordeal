@@ -49,6 +49,15 @@ class StubModelTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await stub.complete("any-model", conversation(other_question, 0), 0.7, 64)
 
+    async def test_complete_detailed_gives_the_same_text_with_no_headers_or_usage(self):
+        """The stub has no real reply, so its detailed reply carries empty headers and no usage counts."""
+        stub = StubModel([QUESTION])
+        reply = await stub.complete_detailed("any-model", conversation(QUESTION, 0), 0.7, 64)
+        self.assertEqual(reply.text, "Answer: B")
+        self.assertEqual(reply.headers, {})
+        self.assertIsNone(reply.prompt_tokens)
+        self.assertIsNone(reply.completion_tokens)
+
 
 if __name__ == "__main__":
     unittest.main()

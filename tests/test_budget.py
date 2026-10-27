@@ -9,6 +9,7 @@ from typing import Any
 
 from ordeal import core
 from ordeal import flows
+from ordeal import model_client
 from ordeal.runner import RunSettings, plan_model_calls, run_all
 
 MODEL = "test-model"
@@ -33,6 +34,13 @@ class FakeClient:
         """Count the call and return the fixed reply."""
         self.calls += 1
         return self.reply
+
+    async def complete_detailed(
+        self, model: str, messages: list[dict[str, str]], temperature: float, max_tokens: int
+    ) -> model_client.Reply:
+        """Return the reply from complete with no headers and no usage."""
+        text = await self.complete(model, messages, temperature, max_tokens)
+        return model_client.Reply(text=text, headers={}, prompt_tokens=None, completion_tokens=None)
 
     async def close(self) -> None:
         """Nothing to close."""

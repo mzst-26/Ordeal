@@ -99,7 +99,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, b"{this is not valid json")
             return
         if injected is not None:
-            self._send(injected, _error_body(injected, "Injected failure."))
+            self._send(injected, _error_body(injected, "Injected failure."), owner.error_headers)
             return
         if not isinstance(body, dict) or not isinstance(body.get("messages"), list):
             self._send(400, _error_body(400, "Request body must be JSON with a messages list."))
@@ -110,13 +110,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(500, _error_body(500, f"Responder failed: {type(error).__name__}"))
             return
         completion = owner._completion(body, text)
-        self._send(200, json.dumps(completion).encode("utf-8"))
+        self._send(200, json.dumps(completion).encode("utf-8"), owner.reply_headers)
 
-    def _send(self, status, payload):
-        """Send a JSON body with its length."""
+    def _send(self, status, payload, extra_headers=None):
+        """Send a JSON body with its length, plus any extra headers the test asked for (such as rate-limit headers)."""
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
+        for name, value in (extra_headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(payload)
 
@@ -124,9 +126,13 @@ class _Handler(BaseHTTPRequestHandler):
 class MockOpenAIServer:
     """A local OpenAI-compatible chat endpoint for tests. Use it as a context manager."""
 
-    def __init__(self, responder=None, api_key=DEFAULT_KEY):
+    def __init__(self, responder=None, api_key=DEFAULT_KEY, reply_headers=None, error_headers=None):
         self.responder = responder or default_responder
         self.api_key = api_key
+        # Extra headers sent with every successful reply, e.g. rate-limit headers. Empty by default.
+        self.reply_headers = dict(reply_headers or {})
+        # Extra headers sent with every injected failure, e.g. retry-after on a 429. Empty by default.
+        self.error_headers = dict(error_headers or {})
         self.base_url = None
         self.port = None
         self.chat_path = None

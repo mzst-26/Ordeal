@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -11,9 +12,13 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import httpx2
+import openai
+
 from ordeal import adaptive
 from ordeal import core
 from ordeal import flows
+from ordeal import limiter
 from ordeal import model_client
 from ordeal.model_client import ModelRoute
 from ordeal.runner import (
@@ -28,6 +33,7 @@ from ordeal.runner import (
     run_all,
     step_key,
 )
+from tests.fake_clock import FakeClock, isolated_run
 from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 # Runner tests use fakes in place of the model client, the waiting function and the cache file, so each test
@@ -70,9 +76,23 @@ class FakeClient:
             raise item
         return item
 
+    async def complete_detailed(
+        self, model: str, messages: list[dict[str, str]], temperature: float, max_tokens: int
+    ) -> model_client.Reply:
+        """Return the reply from complete with no headers and no usage. A scripted error is raised the same way."""
+        text = await self.complete(model, messages, temperature, max_tokens)
+        return model_client.Reply(text=text, headers={}, prompt_tokens=None, completion_tokens=None)
+
     async def close(self) -> None:
         """Remember that the client was closed."""
         self.closed = True
+
+
+def rate_limit_error(headers: dict[str, str]) -> openai.RateLimitError:
+    """Build an openai rate-limit error whose HTTP response carries the given headers. Nothing is sent."""
+    request = httpx2.Request("POST", "https://example.invalid/v1/chat/completions")
+    response = httpx2.Response(429, headers=headers, request=request)
+    return openai.RateLimitError("slow down", response=response, body=None)
 
 
 def is_retryable(error: Exception) -> bool:
@@ -253,6 +273,104 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(client.sent), 3)
         self.assertEqual(waits, [1, 2])
         self.assertEqual(len(stats.failures), 1)
+
+
+# Guards the pacing in the runner: a rate limit that names a wait parks only that model, the reply after the
+# park is still saved, a rate limit with no wait is left to the normal retry backoff, and a failed call never
+# keeps its slot. The pacer runs on a fake clock, so the parks are checked without waiting.
+class PacedRunnerTests(unittest.IsolatedAsyncioTestCase):
+    """The runner passes each call through the pacer and gives its slot back, even when the call fails."""
+
+    def setUp(self) -> None:
+        """Create a temporary folder for the cache file, so the real cache is never touched."""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self.cache_path = Path(temp_dir.name) / "cache.jsonl"
+        self.clock = FakeClock()
+        self.pacer = limiter.Pacer(table={}, clock=self.clock, sleep=self.clock.sleep)
+
+    async def run_once(self, client: FakeClient, waits: list[float]) -> RunStats:
+        """Run one question through the client with the pacer, retrying the rate-limit errors the runner knows."""
+        settings = replace(make_settings(waits=waits), is_retryable=model_client.is_retryable)
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return await run_all(
+                client, {}, self.cache_path, [make_question("q1")], [MODEL], 1, settings, pacer=self.pacer
+            )
+
+    async def test_rate_limit_with_retry_after_parks_the_model_then_the_reply_is_saved(self) -> None:
+        """A 429 that says retry-after 7 holds the model back for 7 seconds, and the next try's reply is saved."""
+        client = TimedClient(self.clock, [rate_limit_error({"retry-after": "7"})])
+        stats = await self.run_once(client, waits=[])
+        self.assertEqual(len(client.call_times), 2)
+        self.assertGreaterEqual(client.call_times[1] - client.call_times[0], 7.0)
+        self.assertEqual(stats.failures, [])
+        self.assertEqual(stats.calls_made, 1)
+        saved = core.load_cache(self.cache_path)
+        self.assertEqual([record["reply"] for record in saved.values()], ["Answer: B"])
+        self.assertEqual(self.pacer.snapshot_for(MODEL)["rate_limited"], 1)
+
+    async def test_rate_limit_with_no_wait_does_not_park_the_model(self) -> None:
+        """A 429 without a wait time leaves the model free, so only the normal retry backoff applies."""
+        client = TimedClient(self.clock, [rate_limit_error({})])
+        waits: list[float] = []
+        stats = await self.run_once(client, waits=waits)
+        self.assertEqual(waits, [1])
+        self.assertEqual(stats.calls_made, 1)
+        self.assertEqual(self.pacer.snapshot_for(MODEL)["rate_limited"], 0)
+        self.assertEqual(self.clock.now, 0.0)
+
+    async def test_failed_call_gives_its_slot_back(self) -> None:
+        """A call that fails for good still releases its in-flight slot, so the model is not left full."""
+        client = FakeClient(script=[FatalError("bad request")])
+        await self.run_once(client, waits=[])
+        self.assertEqual(self.pacer.state_for(MODEL).in_flight, 0)
+
+    async def test_successful_call_gives_its_slot_back(self) -> None:
+        """A call that succeeds releases its slot as well."""
+        await self.run_once(FakeClient(), waits=[])
+        self.assertEqual(self.pacer.state_for(MODEL).in_flight, 0)
+
+    def test_config_has_the_global_limit_and_no_per_model_count(self) -> None:
+        """Pacing replaces the fixed per-model count, so config.json keeps 'concurrency' and drops the old key."""
+        self.assertIn("concurrency", CONFIG)
+        self.assertNotIn("per_model_concurrency", CONFIG)
+
+
+# Fake client for the pacing tests: it notes the fake time of each call, then answers like FakeClient, so a
+# test can measure how long the pacer held the model back between two tries.
+class TimedClient(FakeClient):
+    """Records the fake time of every call. The script holds the errors to raise, in order."""
+
+    def __init__(self, clock: FakeClock, script: list[Exception]) -> None:
+        super().__init__(script=list(script))
+        self.clock = clock
+        self.call_times: list[float] = []
+
+    async def complete_detailed(
+        self, model: str, messages: list[dict[str, str]], temperature: float, max_tokens: int
+    ) -> model_client.Reply:
+        """Note the fake time, then answer as FakeClient does."""
+        self.call_times.append(self.clock.now)
+        return await super().complete_detailed(model, messages, temperature, max_tokens)
+
+
+# Guards the file the run leaves behind: after a run, main writes the rate snapshot into the results folder, so
+# a reader can see the limits each model ended with and how often it was rate-limited.
+class SnapshotFileTests(unittest.TestCase):
+    """main writes results/rate_limits.json after the run, with the model that was called."""
+
+    def test_main_writes_the_rate_snapshot_after_the_run(self) -> None:
+        """A stub run leaves rate_limits.json in the results folder, with the stub model's calls counted."""
+        with tempfile.TemporaryDirectory() as folder:
+            results = Path(folder) / "results"
+            cache = Path(folder) / "cache.jsonl"
+            with isolated_run(results), contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                code = main(["--stub", "--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", str(cache)])
+            self.assertEqual(code, 0)
+            written = json.loads((results / "rate_limits.json").read_text(encoding="utf-8"))
+        self.assertIn("stub", written)
+        self.assertGreater(written["stub"]["calls"], 0)
 
 
 # Guards command-line validation that must fail before any call is made.
@@ -461,8 +579,8 @@ class BaseUrlOptionTests(unittest.TestCase):
             cache_path = Path(folder) / "cache.jsonl"
             loopback = "127.0.0.1,localhost"
             env = {"TOKEN_FACTORY_TOKEN": DEFAULT_KEY, "NO_PROXY": loopback, "no_proxy": loopback}
-            with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()), \
-                    contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.dict(os.environ, env), isolated_run(Path(folder) / "results"), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 code = main(["--models", MODEL, "--limit", "1", "--repeats", "1", "--probes", "gauntlet",
                              "--base-url", server.base_url, "--cache", str(cache_path)])
             self.assertEqual(code, 0)
@@ -570,9 +688,10 @@ class CustomModelCommandTests(unittest.TestCase):
             return FakeClient()
 
         config = dict(core.load_config(), custom_models=[self.entry])
+        results = Path(self.cache).parent / "results"
         with mock.patch.object(core, "load_config", return_value=config), mock.patch(
             "ordeal.runner.make_client", side_effect=fake_make_client
-        ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        ), isolated_run(results), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = main(["--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", self.cache])
         self.assertEqual(code, 0)
         self.assertEqual(seen["models"], CONFIG["models"])

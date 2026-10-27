@@ -7,15 +7,17 @@ to the local mock server on 127.0.0.1, so no network is used.
 import asyncio
 import os
 import unittest
+from dataclasses import replace
 from unittest import mock
 
 import httpx2
 import openai
 
 from ordeal import core
+from ordeal import limiter
 from ordeal import model_client
 from ordeal.model_client import ModelRoute, describe_error, is_retryable
-from tests.mock_openai import MockOpenAIServer
+from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 # A key variable name that is never set in the environment, so tests control exactly when a key exists.
 # CUSTOM_ENTRY is a valid config.json custom_models entry; tests change one field at a time to break it.
@@ -31,10 +33,10 @@ CUSTOM_ENTRY = {
 API_URL = "https://example.invalid/v1/chat/completions"
 
 
-def fake_response(status_code: int) -> httpx2.Response:
+def fake_response(status_code: int, headers: dict[str, str] | None = None) -> httpx2.Response:
     """Build a response object for an openai status error, without sending anything."""
     request = httpx2.Request("POST", API_URL)
-    return httpx2.Response(status_code, request=request)
+    return httpx2.Response(status_code, headers=headers, request=request)
 
 
 def fake_request() -> httpx2.Request:
@@ -269,6 +271,91 @@ class RecordLabelTests(unittest.TestCase):
         self.assertEqual(labels["mine"], model_client.record_label(route))
         overridden = model_client.record_labels(["mine"], config, [route], "http://127.0.0.1:9/v1")
         self.assertNotEqual(overridden["mine"], labels["mine"])
+
+
+# Loopback addresses must bypass any proxy, or the local mock server would be reached through it.
+LOOPBACK_NO_PROXY = {"NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost"}
+MESSAGE = [{"role": "user", "content": "Which is larger?"}]
+
+
+# Guards the detailed reply: the text, the reply headers and the usage counts must come back from one call,
+# because the runner learns the provider's limits from the same reply it saves.
+class CompleteDetailedTests(unittest.TestCase):
+    """complete_detailed keeps the reply headers (lower-case names) and the usage counts."""
+
+    def test_reply_has_text_lower_case_headers_and_usage(self):
+        headers = {"X-RateLimit-Limit-Requests": "600", "X-RateLimit-Remaining-Requests": "599"}
+
+        async def scenario(server):
+            client = model_client.TokenFactoryClient(server.base_url, DEFAULT_KEY, timeout_seconds=10)
+            try:
+                return await client.complete_detailed("org/model", MESSAGE, 0.7, 16)
+            finally:
+                await client.close()
+
+        with MockOpenAIServer(reply_headers=headers) as server, mock.patch.dict(os.environ, LOOPBACK_NO_PROXY):
+            reply = asyncio.run(scenario(server))
+        self.assertEqual(reply.text, "Answer: A")
+        self.assertEqual(reply.headers["x-ratelimit-limit-requests"], "600")
+        self.assertEqual(reply.headers["x-ratelimit-remaining-requests"], "599")
+        # The mock counts words: the question has 3, the reply "Answer: A" has 2.
+        self.assertEqual(reply.prompt_tokens, 3)
+        self.assertEqual(reply.completion_tokens, 2)
+
+
+# Guards the link between the router and the pacer: the limits in a reply's headers must reach the pacer for
+# that model, so the snapshot shows the provider's own limit and says it came from the headers.
+class RouterReplyHeaderTests(unittest.TestCase):
+    """The headers of a routed reply, handed to the pacer, set that model's limits."""
+
+    def test_reply_headers_give_the_model_its_header_limits(self):
+        headers = {"x-ratelimit-limit-requests": "600", "x-ratelimit-limit-tokens": "400000"}
+        route = ModelRoute("good", "org/good-model", "", "KEY_GOOD", api_key=DEFAULT_KEY)
+
+        async def scenario(server):
+            routes = {"good": replace(route, base_url=server.base_url)}
+            router = model_client.ModelRouter(routes, timeout_seconds=10)
+            try:
+                return await router.complete_detailed("good", MESSAGE, 0.7, 16)
+            finally:
+                await router.close()
+
+        with MockOpenAIServer(reply_headers=headers) as server, mock.patch.dict(os.environ, LOOPBACK_NO_PROXY):
+            reply = asyncio.run(scenario(server))
+        pacer = limiter.Pacer(table={})
+        pacer.record_headers("good", reply.headers)
+        snapshot = pacer.snapshot_for("good")
+        self.assertEqual(snapshot["requests_per_minute"], 600)
+        self.assertEqual(snapshot["tokens_per_minute"], 400000)
+        self.assertEqual(snapshot["source"], "headers")
+
+
+# Guards the wait a rate-limit error asks for. The runner parks a model for this long, so a wrong reading
+# would stall a model for too long or send calls into a provider that is still refusing them.
+class RetryAfterTests(unittest.TestCase):
+    """retry_after_seconds reads the retry-after header, then the reset header, and gives None when neither is there."""
+
+    def test_retry_after_header_gives_its_seconds(self):
+        error = openai.RateLimitError("slow down", response=fake_response(429, {"retry-after": "7"}), body=None)
+        self.assertEqual(model_client.retry_after_seconds(error), 7.0)
+
+    def test_reset_requests_header_is_used_when_there_is_no_retry_after(self):
+        headers = {"x-ratelimit-reset-requests": "1m30s"}
+        error = openai.RateLimitError("slow down", response=fake_response(429, headers), body=None)
+        self.assertEqual(model_client.retry_after_seconds(error), 90.0)
+
+    def test_error_with_no_wait_header_gives_none(self):
+        error = openai.RateLimitError("slow down", response=fake_response(429), body=None)
+        self.assertIsNone(model_client.retry_after_seconds(error))
+
+    def test_error_with_no_response_gives_none(self):
+        self.assertIsNone(model_client.retry_after_seconds(openai.APITimeoutError(request=fake_request())))
+
+    def test_only_a_rate_limit_error_counts_as_a_rate_limit(self):
+        rate_limit = openai.RateLimitError("slow down", response=fake_response(429), body=None)
+        server_error = openai.InternalServerError("broke", response=fake_response(500), body=None)
+        self.assertTrue(model_client.is_rate_limit(rate_limit))
+        self.assertFalse(model_client.is_rate_limit(server_error))
 
 
 if __name__ == "__main__":
