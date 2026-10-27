@@ -67,15 +67,15 @@ function overallText(overall) {
 
 /**
  * The 0% to 100% scale across the top of the bars. It has the same three columns as each bar row (the label, the
- * bar and the value), so the 0%, 50% and 100% labels line up with the bars. It is hidden from screen readers, because
- * each bar's text already says its own rate.
+ * bar and the value), so the 0% and 100% labels line up with the bars. There is no 50% label: at a phone width the
+ * middle label ran into the 100% label, and the bars already show the middle of the scale with a gridline. The scale
+ * is hidden from screen readers, because each bar's text already says its own rate.
  */
 function buildScale() {
   return el("div", { className: "fp-scale", "aria-hidden": "true" }, [
     el("span", { className: "fp-scale-spacer" }),
     el("div", { className: "fp-scale-track" }, [
       el("span", { className: "fp-tick is-start", text: "0%" }),
-      el("span", { className: "fp-tick is-middle", text: "50%" }),
       el("span", { className: "fp-tick is-end", text: "100%" }),
     ]),
     el("span", { className: "fp-scale-spacer" }),

@@ -930,78 +930,98 @@ fieldset:disabled .check-box {
   font-weight: 600;
 }
 
-/* Summary: one block per model, with one sentence per probe */
+/* The probe picker sits in one row above the Chart and the Table. It is hidden in the Summary, which has no probe to pick. */
+.fp-probe-picker {
+  margin-bottom: var(--space-4);
+}
+
+.fp-probe-picker .select {
+  max-width: 100%;
+}
+
+/* Summary: one row per model. The list is the one scroll box, so 32 models take the same height as a short list. */
 .fp-summary {
-  display: grid;
-  gap: var(--space-6);
   min-width: 0;
 }
 
-.fp-model-name {
-  margin: 0 0 var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--size-base);
-  font-weight: 600;
-  color: var(--ink);
+.fp-summary-list {
+  display: grid;
+  margin: 0;
+  padding: 0 var(--space-2) 0 0;
+  list-style: none;
+  min-width: 0;
+  max-height: var(--fingerprint-list-max-height);
+  overflow-y: auto;
+  scrollbar-color: var(--edge) transparent;
 }
 
-.fp-sentences {
+/* A hairline between rows reads as a list. Each row is a line of text, not a card. */
+.fp-summary-row {
   display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.fp-summary-row:first-child {
+  border-top: 0;
+}
+
+.fp-row-name {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
-  padding-left: var(--space-6);
   font-family: var(--font-sans);
   font-size: var(--size-ui);
-  color: var(--ink-soft);
+  font-weight: 600;
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
-/* Chart: one legend, then one block per probe with a bar for each model */
-.fp-chart {
-  display: grid;
-  gap: var(--space-4);
-  min-width: 0;
+/* The catalogue number is quieter than the name, and its digits line up down the list */
+.fp-row-number {
+  font-weight: 400;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
 }
 
-.fp-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+.fp-row-rate,
+.fp-row-most {
   margin: 0;
-  padding: 0;
-  list-style: none;
   font-family: var(--font-sans);
   font-size: var(--size-sm);
   color: var(--ink-soft);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
-.fp-legend-item {
-  display: inline-flex;
-  align-items: center;
+/* Chart: one probe, one bar per model. The chart is the one scroll box, so the bars scroll inside a fixed height.
+   --fp-chart-columns is the column layout that the scale and every bar row share: the model's number and name,
+   the bar, then the rate. Setting it once keeps the 0%, 50% and 100% labels lined up with the bars. */
+.fp-chart {
+  --fp-chart-columns: 7rem minmax(0, 1fr) 2.75rem;
+  display: grid;
+  align-content: start;
   gap: var(--space-2);
   min-width: 0;
-  overflow-wrap: anywhere;
+  max-height: var(--fingerprint-list-max-height);
+  overflow-y: auto;
+  padding-right: var(--space-2);
+  scrollbar-color: var(--edge) transparent;
 }
 
-/* A swatch takes its model's colour from --series, set by the script. A repeat model is striped. */
-.fp-swatch {
-  flex: none;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: var(--radius-sm);
-  background: var(--series, var(--ink-mute));
-}
-
-.fp-swatch.is-repeat,
-.fp-fill.is-repeat {
-  background: repeating-linear-gradient(45deg, var(--series, var(--ink-mute)) 0 3px, transparent 3px 6px);
-}
-
-/* The scale and the bars share one two-column grid, so the 0%, 50% and 100% labels line up with the bars */
+/* The scale is sticky, so the 0% to 100% labels stay in view while the bars scroll under them */
 .fp-scale {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: grid;
-  grid-template-columns: 0.75rem minmax(0, 1fr);
+  grid-template-columns: var(--fp-chart-columns);
   gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  background: var(--paper-raised);
   font-family: var(--font-sans);
   font-size: var(--size-sm);
   color: var(--ink-mute);
@@ -1024,39 +1044,34 @@ fieldset:disabled .check-box {
   left: 0;
 }
 
-.fp-tick.is-middle {
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 .fp-tick.is-end {
   right: 0;
 }
 
-.fp-probe {
+/* One bar row: the model's number and name, the bar, then its rate. The label is text in the text colour, not the
+   series colour, so the bar alone carries the series. */
+.fp-bar-row {
   display: grid;
+  grid-template-columns: var(--fp-chart-columns);
   gap: var(--space-2);
+  align-items: center;
   min-width: 0;
 }
 
-.fp-probe + .fp-probe {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--rule);
-}
-
-.fp-probe-name {
-  margin: 0;
+.fp-row-label {
   font-family: var(--font-sans);
-  font-size: var(--size-ui);
-  color: var(--ink);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
 
-.fp-bar-row {
-  display: grid;
-  grid-template-columns: 0.75rem minmax(0, 1fr);
-  gap: var(--space-2);
-  align-items: center;
+/* The rate sits in its own column at the end of the row, so it never covers the bar or its range line */
+.fp-value {
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The track is the full 0% to 100% width. Its middle gridline is drawn in the background. */
@@ -1073,12 +1088,15 @@ fieldset:disabled .check-box {
   border-radius: var(--radius-sm);
 }
 
+/* The fill is the one series colour (the first categorical slot), so every bar has the same colour. Its far end is
+   rounded and its start is square at the baseline, which is the bar spec in the dataviz guidance. */
 .fp-fill {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  background: var(--series, var(--ink-mute));
+  border-radius: 0 4px 4px 0;
+  background: var(--cat-1);
 }
 
 /* The 95% range: a line with an end at each bound. A thin surface ring keeps it readable over a coloured bar. */
@@ -1111,6 +1129,42 @@ fieldset:disabled .check-box {
   font-family: var(--font-sans);
   font-size: var(--size-sm);
   color: var(--ink-soft);
+}
+
+/* Table: one probe, one row per model. It is a scroll box like the chart, with its header kept in view. The model
+   names wrap, so the four columns fit a phone and the table never scrolls sideways. The width rule overrides the
+   wide table rule for the batch page, because this table is sized to the screen, not to its longest cell. */
+#fingerprint-table {
+  max-height: var(--fingerprint-list-max-height);
+  overflow-y: auto;
+  scrollbar-color: var(--edge) transparent;
+}
+
+#fingerprint-table > .chart-table {
+  width: 100%;
+}
+
+#fingerprint-table > .chart-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper-raised);
+}
+
+/* Cells may wrap, so a long model name or "Not run yet" breaks onto two lines instead of forcing a sideways scroll.
+   The Low and High columns are short percentages, so they never wrap and "72%" is never split. */
+#fingerprint-table > .chart-table th,
+#fingerprint-table > .chart-table td {
+  white-space: normal;
+}
+
+#fingerprint-table > .chart-table th:nth-child(n+3),
+#fingerprint-table > .chart-table td:nth-child(n+3) {
+  white-space: nowrap;
+}
+
+#fingerprint-table > .chart-table td:first-child {
+  overflow-wrap: anywhere;
 }
 
 /* 7. Export and footer */
