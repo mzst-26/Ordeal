@@ -21,10 +21,6 @@
    "requests_per_minute": 600,
    "tokens_per_minute": 400000
   },
-  "Qwen/Qwen3-Embedding-8B": {
-   "requests_per_minute": 10000,
-   "tokens_per_minute": 600000
-  },
   "Qwen/Qwen3.5-397B-A17B": {
    "requests_per_minute": 600,
    "tokens_per_minute": 400000
@@ -81,10 +77,6 @@
    "requests_per_minute": 300,
    "tokens_per_minute": 200000
   },
-  "nvidia/Nemotron-3.5-Super-VL": {
-   "requests_per_minute": 300,
-   "tokens_per_minute": 2000000
-  },
   "nvidia/Nemotron-3_5-Lightning": {
    "requests_per_minute": 600,
    "tokens_per_minute": 400000
@@ -96,10 +88,6 @@
   "openai/gpt-oss-120b": {
    "requests_per_minute": 600,
    "tokens_per_minute": 500000
-  },
-  "openbmb/MiniCPM-V-4_5": {
-   "requests_per_minute": 300,
-   "tokens_per_minute": 200000
   },
   "reflection/beam": {
    "requests_per_minute": 10000000000,
