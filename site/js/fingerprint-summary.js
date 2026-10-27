@@ -116,6 +116,7 @@ export function buildFingerprintView(rows, models) {
       id: model.id,
       name: model.name,
       index: model.index,
+      numberText: model.numberText,
       cells: probes.map((probe) => buildCell(probe, byPair.get(`${model.id}\u0000${probe}`))),
     })),
   };

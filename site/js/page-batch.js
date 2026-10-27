@@ -2315,9 +2315,13 @@ function drawFingerprint(models, probeRows) {
   page.fingerprint.render(models.map(figureModel), rows);
 }
 
-/** Describe one ticked model for the figure: its id, its short name, and its place in the full list (which sets its colour). */
+/**
+ * Describe one ticked model for the figure: its id, its short name, its catalogue number as text (such as "#19"),
+ * and its place in the full list (which sets its colour). The number is what a reader uses to find the model in the picker.
+ */
 function figureModel(model) {
-  return { id: model, name: shortName(model), index: page.allModels.indexOf(model) };
+  const entry = page.modelEntries.find((item) => item.id === model);
+  return { id: model, name: shortName(model), numberText: modelNumberText(entry), index: page.allModels.indexOf(model) };
 }
 
 /** Enable each export only when it has something to save. */

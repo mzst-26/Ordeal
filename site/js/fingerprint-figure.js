@@ -8,7 +8,8 @@
 
 import { el } from "./ui.js";
 import { buildTable, seriesSlot, isRepeatSeries } from "./chart-panel.js";
-import { buildFingerprintView, NOT_RUN_TEXT } from "./fingerprint-summary.js";
+import { buildFingerprintView, NOT_RUN_TEXT, percentText } from "./fingerprint-summary.js";
+import { rankModels } from "./fingerprint-overview.js";
 
 // The three views, in the order the buttons show them. Summary is first and is the default, because a sentence
 // needs no reading skill and is the most useful view for a reader who is new to charts.
@@ -45,15 +46,43 @@ function applySeries(node, model) {
   return node;
 }
 
-/** One section per model: its name, then one sentence per probe. Reading down the list is the simplest view. */
+// The Summary says how the overall rate is worked out. The overall rate is across all the probes a model was run
+// on, so a reader needs to know that its range is an average of the probe ranges, not a range of its own.
+const SUMMARY_NOTE = "Overall is across the probes each model was run on, weighted by questions. Its range averages the probe ranges.";
+
+/**
+ * The Summary view: one row per model, highest overall flip rate first, so 32 models take one line each and not a
+ * block each. The list is built by rankModels, which also puts the models that were not run last.
+ */
 function buildSummary(view) {
-  return view.models.map((model) => {
-    const sentences = model.cells.map((cell) => el("li", { text: cell.sentence }));
-    return el("section", { className: "fp-model" }, [
-      el("h3", { className: "fp-model-name", text: model.name }),
-      el("ul", { className: "fp-sentences" }, sentences),
-    ]);
-  });
+  const rows = rankModels(view.models).map((item) => buildSummaryRow(item.model, item.overall, item.most));
+  return [el("p", { className: "field-hint", text: SUMMARY_NOTE }), el("ol", { className: "fp-summary-list" }, rows)];
+}
+
+/**
+ * One Summary row: the model's catalogue number and name, its overall rate with the range, and the probe where it
+ * flips most. A model that was not run shows "Not run yet" in place of the rate, and has no probe line.
+ */
+function buildSummaryRow(model, overall, most) {
+  const name = el("p", { className: "fp-row-name" }, [
+    el("span", { className: "fp-row-number", text: model.numberText }),
+    el("span", { text: model.name }),
+  ]);
+  const rate = el("p", { className: "fp-row-rate", text: overallText(overall) });
+  const mostLine = most === null ? null : el("p", { className: "fp-row-most", text: `Most flips: ${most.phrase} (${most.text}).` });
+  return el("li", { className: "fp-summary-row" }, [name, rate, mostLine]);
+}
+
+/** The overall rate as text, such as "Overall 25% (range 10% to 40%)". A missing bound leaves out the range. */
+function overallText(overall) {
+  if (overall.notRun) {
+    return NOT_RUN_TEXT;
+  }
+  const rate = `Overall ${percentText(overall.estimate)}`;
+  if (overall.low === null || overall.high === null) {
+    return rate;
+  }
+  return `${rate} (range ${percentText(overall.low)} to ${percentText(overall.high)})`;
 }
 
 /**
