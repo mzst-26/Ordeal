@@ -438,14 +438,20 @@ fieldset:disabled .check-box {
   margin-bottom: var(--space-1);
 }
 
-/* The plan body is a scroll box. The plan details, progress and log scroll inside it, and it stops at
-   --plan-body-max-height (tokens.css). min-height 0 lets a grid row shrink so the scroll can start. */
+/* The plan body is not a scroll box. The totals, cost, warnings, progress and log stack in normal flow, so they stay
+   in view while the model list scrolls. The log has its own height cap (.log-list). */
 .plan-body {
   display: grid;
   align-content: start;
   gap: var(--space-3);
-  min-height: 0;
-  max-height: var(--plan-body-max-height);
+}
+
+/* The per-model lines are the one scroll box in the plan. A short plan keeps its natural height. A long one
+   scrolls inside the box at --plan-models-max-height (tokens.css). min-width 0 lets the box shrink inside the
+   grid, so a long model name wraps instead of pushing the panel wider than the screen. */
+.plan-models-scroll {
+  min-width: 0;
+  max-height: var(--plan-models-max-height);
   overflow-y: auto;
   scrollbar-color: var(--edge) transparent;
 }

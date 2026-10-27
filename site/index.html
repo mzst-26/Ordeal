@@ -446,9 +446,14 @@
           <!-- The plan: planned call counts, cost, and the run controls (start, pause, stop), progress and log. -->
           <section class="run-panel panel" aria-labelledby="plan-heading">
             <h2 class="panel-title" id="plan-heading">The plan</h2>
-            <!-- The scroll box: the plan details, progress and log. It stops at --plan-body-max-height (tokens.css). -->
-            <div class="plan-body" id="plan-body" role="region" aria-label="Plan details, progress and log" tabindex="0">
-              <ul class="plan-list" id="plan-models"></ul>
+            <!-- The plan details, progress and log. This box does not scroll: only the model list inside it does,
+                 so the totals and the warnings stay in view. -->
+            <div class="plan-body" id="plan-body">
+              <!-- The one line per model is the only scroll box in the plan. Its height comes from --plan-models-max-height
+                   (tokens.css). It is a region with a label and a tab stop, so a keyboard user can scroll it. -->
+              <div class="plan-models-scroll" role="region" aria-label="Models in the plan" tabindex="0">
+                <ul class="plan-list" id="plan-models"></ul>
+              </div>
               <p class="plan-totals" id="plan-totals"></p>
               <p class="plan-cost" id="plan-cost"></p>
               <p class="plan-problem" id="plan-problem"></p>
