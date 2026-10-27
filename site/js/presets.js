@@ -20,7 +20,7 @@ const MAX_TEMPERATURE = 2;
 // The probe family names a batch preset may list.
 const PROBE_FAMILIES = ["gauntlet", "corrections", "fingerprint", "twins", "dose"];
 const MAX_REPEATS = 4;
-const MAX_CONCURRENCY = 8;
+const MAX_CONCURRENCY = 300;
 
 const NAME_MESSAGE = "A preset needs a name of 1 to 80 characters.";
 const DUPLICATE_MESSAGE = "A preset with that name already exists on this page.";

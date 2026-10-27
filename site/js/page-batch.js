@@ -75,7 +75,7 @@ const FINGERPRINT_FAMILY = "fingerprint";
 const FLIP_MEASURE = "flip_rate";
 // Upper limits for the Repeats and Concurrency inputs; readChoices treats anything outside 1..max as invalid.
 const MAX_REPEATS = 4;
-const MAX_CONCURRENCY = 32;
+const MAX_CONCURRENCY = 300;
 // The most API attempts one batch may be given. It is the same limit as the live page's cap.
 const MAX_BATCH_CALLS = 400;
 // The default call cap is the planned attempt bound rounded up to a multiple of this.
