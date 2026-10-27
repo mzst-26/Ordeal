@@ -5,8 +5,7 @@
 /** Map of view name to a map of old id to new id. Only ids that clash, or that the batch counts use, appear. */
 export const VIEW_IDS = {
   gauntlet: {
-    "pushback-select": "gauntlet-pushback-select",
-    "question-set-select": "gauntlet-question-set-select",
+    "suite-select": "gauntlet-suite-select",
     "suite-summary": "gauntlet-suite-summary",
     "condition-select": "gauntlet-condition-select",
     "start-button": "gauntlet-start-button",

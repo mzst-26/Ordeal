@@ -21,9 +21,10 @@ import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.j
 import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
-  createSuiteLoader, suiteSummary, isSavedSuite, pushbackSetNames, questionSetNames, isPushbackSet,
-  isQuestionSet, DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET, choiceOfSuite, fixedChoice, setMenuChoices,
+  createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
+  choiceOfSuite, choiceValueOfSuite, fixedChoice, setsOfChoice, suiteChoiceMenu,
 } from "./suites.js";
+import { PUSHBACK_FOR_SET, buildMixedSuite } from "./mixed-order.js";
 import {
   createSerialQueue, gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, KIND_GAUNTLET,
 } from "./saved-runs.js";
@@ -47,6 +48,8 @@ const QUESTION_WORD_LIMIT = 6;
 // Longest label for a saved run, in characters.
 const LABEL_LIMIT = 80;
 const START_PROMPT = "Pick a model and a question, then press Start.";
+// The suite summary while Shuffle is on: the question menu offers both sets, and each question runs with its own pushback set.
+const SHUFFLE_SUMMARY = "Questions from both sets. Each question runs with its own pushback set.";
 const NO_DATA_TEXT = "No data loaded";
 const EMPTY_CONVERSATION = "The conversation appears here after you press Start.";
 const SETUP_NOTE = "This level first asks the model a yes or no question.";
@@ -101,6 +104,7 @@ function createPageState() {
     suite: null,       // the pushback set and question set on the desk, with the ladder and the questions
     loader: null,      // the suite loader, which keeps each suite once it is read
     suiteRequest: 0,   // counts the suite choices made, so a load that a newer choice overtook is not shown
+    shufflePool: null, // with Shuffle on, the mixed pool whose questions the question menu offers; null otherwise
     run: null,         // the conversation on screen, or null before Start
     runId: null,       // the saved run for the live conversation on screen, or null
     runFinished: false, // true once every level of the saved run is saved
@@ -135,8 +139,7 @@ export function mountGauntlet(root) {
   page.dom.start.addEventListener("click", startRun);
   page.dom.stop.addEventListener("click", stopStep);
   page.dom.confession.addEventListener("click", askConfession);
-  page.dom.pushback.addEventListener("change", onSuiteChanged);
-  page.dom.questionSet.addEventListener("change", onSuiteChanged);
+  page.dom.suite.addEventListener("change", onSuiteChanged);
   page.dom.condition.addEventListener("change", refreshConditionNote);
   page.dom.modelChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
@@ -146,7 +149,7 @@ export function mountGauntlet(root) {
     checkingText: () => CHECKING_TEXT,
   });
   page.dom.questionChoose.addEventListener("click", () =>
-    openChoicePicker(page.dom.question, "Choose a question", "Search questions", questionCard));
+    openChoicePicker(page.dom.question, "Choose a question", "Search questions", questionCard, onQuestionPicked));
   wireRunsPopup({ button: page.dom.runsButton, dialog: page.dom.runsDialog, done: page.dom.runsDone });
   renderAll();
   loadData();
@@ -168,8 +171,7 @@ function byId(root, id) {
 /** Look up the elements this page writes to, by id, inside the view's section. */
 function findElements(root) {
   return {
-    pushback: byId(root, VIEW_IDS.gauntlet["pushback-select"]),
-    questionSet: byId(root, VIEW_IDS.gauntlet["question-set-select"]),
+    suite: byId(root, VIEW_IDS.gauntlet["suite-select"]),
     suiteSummary: byId(root, VIEW_IDS.gauntlet["suite-summary"]),
     model: byId(root, "model-select"),
     modelChoose: byId(root, "gauntlet-model-choose"),
@@ -230,7 +232,7 @@ async function loadData() {
     page.loader = createSuiteLoader(loadPageJson, suites);
     fillSuiteMenus();
     fillModelAndCondition(config);
-    await selectSuite(fixedChoice(DEFAULT_PUSHBACK_SET, DEFAULT_QUESTION_SET));
+    await chooseFixedSuite(setsOfChoice(DEFAULT_CHOICE));
     showStatus(START_PROMPT);
   } catch (error) {
     showStatus(errorText(error));
@@ -345,10 +347,13 @@ function modelChoices(config) {
   return config.models.map((id) => ({ id, kind: "" }));
 }
 
-/** Fill the pushback set and question set menus with the names this site has. */
+/**
+ * Fill the suite menu with its three choices, then set it to the default. A reload can keep the choice of the last
+ * visit, and the page never opens on Shuffle by accident.
+ */
 function fillSuiteMenus() {
-  fillSelect(page.dom.pushback, setMenuChoices(pushbackSetNames()));
-  fillSelect(page.dom.questionSet, setMenuChoices(questionSetNames()));
+  fillSelect(page.dom.suite, suiteChoiceMenu());
+  page.dom.suite.value = DEFAULT_CHOICE;
 }
 
 /**
@@ -378,19 +383,25 @@ function refreshConditionNote() {
   updateConditionDescription(page.dom.conditionNote, page.dom.condition.value);
 }
 
-/** Fill the question menu from the questions of the suite on the desk. The current choice is kept when it exists. */
+/** Fill the question menu from the questions the menu offers. The current choice is kept when it is still offered. */
 function fillQuestionMenu(suite) {
   const kept = page.dom.question.value;
+  const offered = menuQuestions(suite);
   fillSelect(
     page.dom.question,
-    suite.questions.map((question) => ({
+    offered.map((question) => ({
       value: question.id,
       label: `${question.id}: ${firstWords(question.question)}`,
     })),
   );
-  if (suite.questions.some((question) => question.id === kept)) {
+  if (offered.some((question) => question.id === kept)) {
     page.dom.question.value = kept;
   }
+}
+
+/** Return the questions the question menu offers: the desk suite's, or both sets' questions while Shuffle is on. */
+function menuQuestions(suite) {
+  return page.shufflePool === null ? suite.questions : page.shufflePool.questions;
 }
 
 /** Replace the options of one select with the given value and label pairs. */
@@ -402,8 +413,10 @@ function fillSelect(select, choices) {
 /**
  * Open the popup picker for a single-choice menu, the same popup the batch page uses. Picking a card sets the
  * menu and closes the popup. The hidden select stays the record of the choice, so the rest of the page reads it.
+ * An optional onPicked runs after the pick, for a menu whose pick has effects beyond the select (the question menu
+ * in Shuffle moves the desk to the question's own suite).
  */
-function openChoicePicker(select, title, searchPlaceholder, renderCard) {
+function openChoicePicker(select, title, searchPlaceholder, renderCard, onPicked = null) {
   const items = [...select.options].map((option) => ({ value: option.value, label: option.textContent }));
   const dialog = openPicker({
     title,
@@ -414,6 +427,9 @@ function openChoicePicker(select, title, searchPlaceholder, renderCard) {
       select.value = item.value;
       syncChoiceButtons();
       dialog.close();
+      if (onPicked !== null) {
+        onPicked(item.value);
+      }
     },
     renderCard,
     searchPlaceholder,
@@ -491,7 +507,8 @@ function setModelChoice(model) {
  * Put a suite on the desk: its menus, its level cards, its spine and its footer. A different suite ends the
  * conversation on screen, because its levels and questions are not the ones it was built with. The choice is
  * { pushbackSet, questionSet }. Returns false when a newer choice was made while this one loaded, so this suite
- * is not put on the desk.
+ * is not put on the desk. The suite menu is not set here: its callers set it, because with Shuffle the menu shows
+ * Shuffle while the desk shows one fixed suite.
  */
 async function selectSuite(choice) {
   page.suiteRequest += 1;
@@ -506,25 +523,81 @@ async function selectSuite(choice) {
     page.runFinished = false;
   }
   page.suite = suite;
-  page.dom.pushback.value = choice.pushbackSet;
-  page.dom.questionSet.value = choice.questionSet;
-  page.dom.suiteSummary.textContent = suiteSummary(suite);
+  page.dom.suiteSummary.textContent = page.shufflePool === null ? suiteSummary(suite) : SHUFFLE_SUMMARY;
   fillQuestionMenu(suite);
   buildLevelCards();
   buildSegments();
-  page.dom.footer.textContent = FOOTER_TEXT.replace("%COUNT%", String(suite.questions.length));
+  page.dom.footer.textContent = FOOTER_TEXT.replace("%COUNT%", String(menuQuestions(suite).length));
   return true;
 }
 
 /**
- * Choose a new suite from the two menus, then load it. Not allowed while a step runs, because the menus are off then.
+ * Put a fixed suite on the desk and show that choice in the suite menu. This leaves Shuffle, so the question menu
+ * goes back to the questions of this one suite. Returns the same as selectSuite.
+ */
+async function chooseFixedSuite(choice) {
+  page.shufflePool = null;
+  const loaded = await selectSuite(choice);
+  if (loaded) {
+    page.dom.suite.value = choiceValueOfSuite(page.suite);
+  }
+  return loaded;
+}
+
+/**
+ * The suite menu was changed. A fixed choice puts its suite on the desk. Shuffle keeps the desk as it is and offers
+ * the questions of both sets. Not allowed while a step runs, because the menu is off then.
  */
 async function onSuiteChanged() {
-  const choice = fixedChoice(page.dom.pushback.value, page.dom.questionSet.value);
+  const value = page.dom.suite.value;
   try {
-    if (await selectSuite(choice)) {
+    if (value === SHUFFLE_CHOICE) {
+      await enterShuffle();
+    } else if (await chooseFixedSuite(setsOfChoice(value))) {
       showStatus(START_PROMPT);
     }
+  } catch (error) {
+    showStatus(errorText(error));
+  }
+  renderAll();
+}
+
+/**
+ * Show Shuffle: the question menu offers the questions of both sets, each run with its own pushback set. The desk
+ * keeps its suite until a question of the other set is picked (see onQuestionPicked), so the levels match the question.
+ */
+async function enterShuffle() {
+  page.suiteRequest += 1;
+  const request = page.suiteRequest;
+  const [easy, hard] = await Promise.all([
+    page.loader.load(PUSHBACK_FOR_SET.easy, "easy"),
+    page.loader.load(PUSHBACK_FOR_SET.hard, "hard"),
+  ]);
+  if (request !== page.suiteRequest) {
+    return;
+  }
+  page.shufflePool = buildMixedSuite(easy, hard);
+  page.dom.suiteSummary.textContent = SHUFFLE_SUMMARY;
+  fillQuestionMenu(page.suite);
+  page.dom.footer.textContent = FOOTER_TEXT.replace("%COUNT%", String(menuQuestions(page.suite).length));
+  showStatus(START_PROMPT);
+}
+
+/**
+ * A question was picked while Shuffle is on. A question of the other set moves the desk to its own fixed suite, so
+ * the question runs with its own pushback set. The question menu is locked during a step, so this never moves the
+ * desk mid-run.
+ */
+async function onQuestionPicked(questionId) {
+  if (page.shufflePool === null) {
+    return;
+  }
+  const questionSet = page.shufflePool.questionSetOf(questionId);
+  if (questionSet === page.suite.questionSet) {
+    return;
+  }
+  try {
+    await selectSuite(fixedChoice(PUSHBACK_FOR_SET[questionSet], questionSet));
   } catch (error) {
     showStatus(errorText(error));
   }
@@ -717,8 +790,10 @@ function updateControls() {
   dom.stop.hidden = !page.busy;
   dom.confession.disabled = page.busy || !hasRun;
   dom.confession.textContent = labelWhileWorking("confession", CONFESSION_LABEL);
-  dom.pushback.disabled = page.busy;
-  dom.questionSet.disabled = page.busy;
+  dom.suite.disabled = page.busy;
+  // The question menu is locked too, so a question of the other set cannot move the desk while a step runs.
+  dom.question.disabled = page.busy;
+  dom.questionChoose.disabled = page.busy;
   if (page.panels.presets) {
     page.panels.presets.setBusy(page.busy);
   }
@@ -1276,7 +1351,7 @@ async function restoreDesk(config) {
   if (problem !== "") {
     return problem;
   }
-  await selectSuite(fixedChoice(config.pushbackSet, config.questionSet));
+  await chooseFixedSuite(fixedChoice(config.pushbackSet, config.questionSet));
   if (!page.suite.questions.some((question) => question.id === config.questionId)) {
     return `The question ${config.questionId} is not in ${page.suite.name}, so this run cannot be resumed.`;
   }
@@ -1359,7 +1434,7 @@ function readPresetSettings() {
 /** Set the desk from a preset. Returns the sentences to add to the status: what was not applied, and why. */
 async function applyPresetSettings(settings) {
   const current = choiceOfSuite(page.suite);
-  await selectSuite(fixedChoice(
+  await chooseFixedSuite(fixedChoice(
     settings.pushbackSet ?? current.pushbackSet,
     settings.questionSet ?? current.questionSet,
   ));
