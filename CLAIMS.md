@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/summary-single-source | Claude (this session) | vite.config.js, site/data/full-run-summary/ (removed) | 2026-10-27 |
