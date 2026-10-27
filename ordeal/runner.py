@@ -22,6 +22,7 @@ from ordeal import flows
 from ordeal import limiter
 from ordeal import mix
 from ordeal import model_client
+from ordeal import store
 from ordeal.stub_model import StubModel
 
 # Longest wait between retries; backoff_seconds() doubles the wait each attempt up to this cap.
@@ -320,6 +321,10 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         extra=saved_extra_fields(unit, reply),
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
+    # The store commits the row before add returns. The same line is then appended to the JSONL file, which
+    # stays a copy of the store for tools that still read the file.
+    with store.open_store(ctx.cache_path) as db:
+        db.add(record)
     core.append_record(record, ctx.cache_path)
     ctx.cache[key] = record
     ctx.stats.calls_made += 1
