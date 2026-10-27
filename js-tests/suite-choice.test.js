@@ -8,6 +8,7 @@ import {
   SHUFFLE_CHOICE,
   choiceValueOfSets,
   choiceValueOfSuite,
+  fixedChoiceMenu,
   retiredPairText,
   setsOfChoice,
   suiteChoiceMenu,
@@ -35,6 +36,18 @@ test("each fixed choice is named like a suite in the suites index", () => {
     if (choice.value !== SHUFFLE_CHOICE) {
       assert.ok(names.includes(choice.value), `${choice.value} is not in site/data/suites.json`);
     }
+  }
+});
+
+// The Live page runs one ladder with one question at a time, so it offers the fixed choices only, never Shuffle.
+test("the Live menu offers the two fixed choices, in the same order and labels, and no Shuffle", () => {
+  assert.deepEqual(fixedChoiceMenu(), [
+    { value: "gauntlet_v4+hard", label: "Gauntlet v4 – hard questions" },
+    { value: "gauntlet_v3+easy", label: "Gauntlet v3 – easy questions" },
+  ]);
+  for (const choice of fixedChoiceMenu()) {
+    assert.notEqual(choice.value, SHUFFLE_CHOICE);
+    assert.ok(setsOfChoice(choice.value).pushbackSet, `${choice.value} must name a pushback set`);
   }
 });
 
