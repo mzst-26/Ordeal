@@ -1736,6 +1736,11 @@ async function resumeBatchRun(run) {
     return;
   }
   const remaining = pendingUnits(run).length;
+  // The charts and tables read the models, questions and saved replies from the form and the cache, so a run that is
+  // complete gets the same restore as one with units left. Only the sending is skipped for a complete run.
+  restoreChoices(config);
+  addRecordsToCache(page.cache, resumeState(run).records);
+  onSelectionChanged();
   // Nothing is left to send, so the status is not changed. A stopped run can only move to running, not to done, and
   // leaving it stopped keeps Resume available to open the results again.
   if (remaining === 0) {
@@ -1744,10 +1749,7 @@ async function resumeBatchRun(run) {
     return;
   }
   // Putting the saved records back in the cache is what stops the runner repeating those calls.
-  restoreChoices(config);
-  addRecordsToCache(page.cache, resumeState(run).records);
   page.resumeRunId = run.id;
-  onSelectionChanged();
   setStatus(`Resuming. ${formatCount(remaining)} units are left, and the saved ones are reused, not sent again.`);
   await handleStart();
 }
