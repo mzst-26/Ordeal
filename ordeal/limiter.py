@@ -408,3 +408,16 @@ class Pacer:
     def snapshot(self) -> dict[str, dict[str, Any]]:
         """Return the snapshot of every model seen so far, keyed by model name."""
         return {model: self.snapshot_for(model) for model in self.states}
+
+
+def write_snapshot(pacer: Pacer, path: Path) -> None:
+    """Write what the pacer learned about each model to a JSON file, creating the folder if it is missing.
+
+    The file is for people to read after a run: the limits each model ended with, where they came from, and how
+    many calls and rate-limit errors it had. Keys are sorted and indented, so the file reads the same way from run
+    to run. It holds only the numbers from snapshot_for, never a key or a header value.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(pacer.snapshot(), file, indent=2, sort_keys=True)
+        file.write("\n")

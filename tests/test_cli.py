@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest import mock
 
 from ordeal import cli, grade, keys, model_client, providers, runner
+from tests.fake_clock import isolated_run
 
 FAKE_KEY = "test-key-123"
 GROQ_MODELS = ["org/alpha-7b", "org/beta-large", "other/alpha-small"]
@@ -238,7 +239,8 @@ class RunnerHookTests(CliTestCase):
 
         cache = self.folder / "cache.jsonl"
         with mock.patch.object(model_client, "attach_keys", side_effect=AssertionError("no key lookup")), \
-                mock.patch.object(runner, "run_all", new=fake_run_all), redirect_stdout(io.StringIO()):
+                mock.patch.object(runner, "run_all", new=fake_run_all), isolated_run(self.folder / "results"), \
+                redirect_stdout(io.StringIO()):
             code = runner.main(
                 ["--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", str(cache)],
                 prebuilt_routes={route.name: route},

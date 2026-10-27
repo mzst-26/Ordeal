@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -32,7 +33,7 @@ from ordeal.runner import (
     run_all,
     step_key,
 )
-from tests.fake_clock import FakeClock
+from tests.fake_clock import FakeClock, isolated_run
 from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 # Runner tests use fakes in place of the model client, the waiting function and the cache file, so each test
@@ -348,6 +349,25 @@ class TimedClient(FakeClient):
         return await super().complete_detailed(model, messages, temperature, max_tokens)
 
 
+# Guards the file the run leaves behind: after a run, main writes the rate snapshot into the results folder, so
+# a reader can see the limits each model ended with and how often it was rate-limited.
+class SnapshotFileTests(unittest.TestCase):
+    """main writes results/rate_limits.json after the run, with the model that was called."""
+
+    def test_main_writes_the_rate_snapshot_after_the_run(self) -> None:
+        """A stub run leaves rate_limits.json in the results folder, with the stub model's calls counted."""
+        with tempfile.TemporaryDirectory() as folder:
+            results = Path(folder) / "results"
+            cache = Path(folder) / "cache.jsonl"
+            with isolated_run(results), contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                code = main(["--stub", "--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", str(cache)])
+            self.assertEqual(code, 0)
+            written = json.loads((results / "rate_limits.json").read_text(encoding="utf-8"))
+        self.assertIn("stub", written)
+        self.assertGreater(written["stub"]["calls"], 0)
+
+
 # Guards command-line validation that must fail before any call is made.
 class ArgumentTests(unittest.TestCase):
     """Command-line options are checked before the run starts."""
@@ -533,8 +553,8 @@ class BaseUrlOptionTests(unittest.TestCase):
             cache_path = Path(folder) / "cache.jsonl"
             loopback = "127.0.0.1,localhost"
             env = {"TOKEN_FACTORY_TOKEN": DEFAULT_KEY, "NO_PROXY": loopback, "no_proxy": loopback}
-            with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()), \
-                    contextlib.redirect_stderr(io.StringIO()):
+            with mock.patch.dict(os.environ, env), isolated_run(Path(folder) / "results"), \
+                    contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 code = main(["--models", MODEL, "--limit", "1", "--repeats", "1", "--probes", "gauntlet",
                              "--base-url", server.base_url, "--cache", str(cache_path)])
             self.assertEqual(code, 0)
@@ -642,9 +662,10 @@ class CustomModelCommandTests(unittest.TestCase):
             return FakeClient()
 
         config = dict(core.load_config(), custom_models=[self.entry])
+        results = Path(self.cache).parent / "results"
         with mock.patch.object(core, "load_config", return_value=config), mock.patch(
             "ordeal.runner.make_client", side_effect=fake_make_client
-        ), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        ), isolated_run(results), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = main(["--limit", "1", "--repeats", "1", "--probes", "gauntlet", "--cache", self.cache])
         self.assertEqual(code, 0)
         self.assertEqual(seen["models"], CONFIG["models"])

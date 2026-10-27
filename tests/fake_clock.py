@@ -3,12 +3,15 @@
 Why this exists: the runner paces each model with the real clock and the shipped limits. A stub run that makes
 a few hundred calls then waits for minutes in real time. Tests that check what a run saves do not care about
 the waiting, so they run the pacer on this clock instead. The clock moves only when the pacer sleeps.
+The same run also writes its rate snapshot, so the results folder is moved to a temporary one for the run.
 """
 
 import contextlib
 from collections.abc import Iterator
+from pathlib import Path
 from unittest import mock
 
+from ordeal import core
 from ordeal import limiter
 
 
@@ -29,12 +32,13 @@ class FakeClock:
 
 
 @contextlib.contextmanager
-def paced_without_waiting() -> Iterator[FakeClock]:
-    """Make every pacer built inside the block use a fake clock and no table of limits.
+def isolated_run(results_dir: Path) -> Iterator[FakeClock]:
+    """Make a runner.main run wait for nothing and write its results folder into 'results_dir'.
 
     runner.main and run_all build their pacer with limiter.Pacer(), so patching that name is enough to cover them.
     The table is empty, so every model uses the low default limits, the same as an unknown model in a real run.
     The real Pacer class is saved before the patch, so the factory can still build a real pacer.
+    The results folder is moved, so the rate snapshot of the run never lands in the project's real results/.
     Yields the fake clock, so a test can read how long the pacer wanted to wait.
     """
     clock = FakeClock()
@@ -44,5 +48,5 @@ def paced_without_waiting() -> Iterator[FakeClock]:
         """Build a real pacer that uses the fake clock and never really waits."""
         return real_pacer(table={}, clock=clock, sleep=clock.sleep)
 
-    with mock.patch.object(limiter, "Pacer", make_pacer):
+    with mock.patch.object(limiter, "Pacer", make_pacer), mock.patch.object(core, "RESULTS_DIR", results_dir):
         yield clock

@@ -854,12 +854,15 @@ def main(
     run_record = new_run_record(plan, args.shuffle_mix, args.limit) if plan.is_mixed else None
     if run_record is not None:
         core.write_run_record(run_record, record_path)
+    # One pacer for the whole run, so the snapshot written below shows what the run itself learned about each model.
+    pacer = limiter.Pacer()
     stats = asyncio.run(
         run_all(
             client, cache, cache_path, plan.questions, models, args.repeats, settings, args.max_calls,
-            plan.mix_fields_by_question,
+            plan.mix_fields_by_question, pacer=pacer,
         )
     )
+    limiter.write_snapshot(pacer, core.RESULTS_DIR / "rate_limits.json")
     if run_record is not None:
         run_record["completed"] = count_finished_questions(
             cache, args.condition, models, args.repeats, plan.questions, labels, plan.mix_fields_by_question,

@@ -22,12 +22,11 @@ from typing import Any
 
 from ordeal import core
 from ordeal import runner
-from tests.fake_clock import paced_without_waiting
+from tests.fake_clock import isolated_run
 from tests.mock_openai import MockOpenAIServer
 from tests.test_default_codes import DEFAULT_RECORD_KEYS
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-RUNNER = "ordeal.runner"
 GRADER = "ordeal.grade"
 FAKE_KEY = "test-key-123"
 NO_PROXY_VALUE = "127.0.0.1,localhost"
@@ -37,7 +36,7 @@ V4_HARD_EXPERIMENT = "96efc1daaa50"
 V3_EASY_EXPERIMENT = "82f5e58164d9"
 # The real results/ files. They are only read; setUpModule and tearDownModule fail the module if any
 # of them changes, which proves the tests never wrote to the real results.
-RESULTS_FILES = ("cache.jsonl", "results.csv", "probes.csv")
+RESULTS_FILES = ("cache.jsonl", "results.csv", "probes.csv", "rate_limits.json")
 # Matches the per-level flip-rate column names, so the tests can count how many levels a results file has.
 FLIP_COLUMN_PATTERN = re.compile(r"flip_rate_level_\d+")
 RESULTS_BEFORE: dict[str, tuple[int, int] | None] = {}
@@ -77,6 +76,27 @@ def run_script(module: str, args: list[str]) -> subprocess.CompletedProcess:
     """Run a project module with this Python (python -m), from the project folder, and return the finished process."""
     return subprocess.run(
         [sys.executable, "-m", module, *args],
+        cwd=PROJECT_DIR,
+        env=child_environment(),
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=False,
+    )
+
+
+# The runner writes a rate snapshot into core.RESULTS_DIR after each run. This child code moves that folder to
+# the first argument before calling main, so the snapshot goes to the test's temporary folder, not the real results/.
+RUNNER_CODE = (
+    "import sys; from pathlib import Path; from ordeal import core, runner; "
+    "core.RESULTS_DIR = Path(sys.argv[1]); sys.exit(runner.main(sys.argv[2:]))"
+)
+
+
+def run_runner(results_dir: Path, args: list[str]) -> subprocess.CompletedProcess:
+    """Run runner.py in a child process with its results folder set to 'results_dir', and return the finished process."""
+    return subprocess.run(
+        [sys.executable, "-c", RUNNER_CODE, str(results_dir), *args],
         cwd=PROJECT_DIR,
         env=child_environment(),
         capture_output=True,
@@ -176,7 +196,7 @@ class GauntletV4HardTests(unittest.TestCase):
         setup_level = setup_level_of(self.suite.ladder)
         responder = PressureResponder(self.suite.questions, wrong_turn_count=level_user_turns(11, setup_level))
         mock = self.enterContext(MockOpenAIServer(responder=responder))
-        result = run_script(RUNNER, [
+        result = run_runner(self.workdir / "results", [
             "--ladder", "gauntlet_v4", "--questions", "hard", "--models", first_model(),
             "--limit", "5", "--repeats", "1", "--probes", "gauntlet",
             "--base-url", mock.base_url, "--cache", str(self.cache_path),
@@ -234,7 +254,7 @@ class GauntletV3EasyDefaultTests(unittest.TestCase):
         setup_level = setup_level_of(self.suite.ladder)
         responder = PressureResponder(self.suite.questions, wrong_turn_count=level_user_turns(9, setup_level))
         with MockOpenAIServer(responder=responder) as mock:
-            result = run_script(RUNNER, [
+            result = run_runner(self.workdir / "results", [
                 "--models", first_model(), "--limit", "3", "--repeats", "1", "--probes", "gauntlet",
                 "--base-url", mock.base_url, "--cache", str(self.cache_path),
             ])
@@ -283,7 +303,7 @@ class RetryTests(unittest.TestCase):
         responder = PressureResponder(self.suite.questions, baseline_correct=False)
         with MockOpenAIServer(responder=responder) as mock:
             mock.add_failure(429, 1)
-            result = run_script(RUNNER, [
+            result = run_runner(self.workdir / "results", [
                 "--models", first_model(), "--limit", "2", "--repeats", "1", "--probes", "gauntlet",
                 "--base-url", mock.base_url, "--cache", str(self.cache_path),
             ])
@@ -307,7 +327,7 @@ class LocalhostRuleTests(unittest.TestCase):
         workdir = Path(self.enterContext(tempfile.TemporaryDirectory()))
         cache_path = workdir / "cache.jsonl"
         with MockOpenAIServer() as mock:
-            result = run_script(RUNNER, [
+            result = run_runner(workdir / "results", [
                 "--models", first_model(), "--limit", "1", "--base-url", "https://example.com",
                 "--cache", str(cache_path),
             ])
@@ -333,7 +353,7 @@ class DefaultStubRunTests(unittest.TestCase):
         """The run saves the first 3 questions of the file, under the default code and with no shuffle fields."""
         # The stub is paced like an unknown model (60 requests a minute), so this run needs about six minutes of
         # waiting in real time. It runs in this process instead, with a clock that only moves when the pacer sleeps.
-        with paced_without_waiting(), \
+        with isolated_run(self.workdir / "results"), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = runner.main([
                 "--stub", "--limit", "3", "--ladder", "gauntlet_v4", "--questions", "hard",

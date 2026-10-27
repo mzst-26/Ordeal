@@ -313,5 +313,47 @@ class EstimateTests(unittest.TestCase):
         self.assertEqual(limiter.estimate_input_tokens([{"role": "user", "content": "x" * 400}]), 100)
 
 
+# Guards the snapshot file written after each run. It is read by people, so it must hold the models and their
+# numbers, and it must never hold a key or an authorization header, even though the replies carry headers.
+class WriteSnapshotTests(unittest.TestCase):
+    """The snapshot file: the models, the folder is created, and no key or bearer text."""
+
+    def test_file_holds_every_model_and_its_folder_is_created(self) -> None:
+        """The file is written under a folder that did not exist, with one entry per model the pacer has seen."""
+        pacer = limiter.Pacer(table=TABLE)
+        pacer.state_for(MODEL)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "new" / "nested" / "rate_limits.json"
+            limiter.write_snapshot(pacer, path)
+            written = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(set(written), {MODEL})
+        self.assertEqual(written[MODEL]["requests_per_minute"], 60)
+        self.assertEqual(written[MODEL]["source"], "table")
+
+    def test_file_has_no_key_or_bearer_text_even_after_headers_are_read(self) -> None:
+        """Headers are read into the pacer, but the file keeps only the numbers, so no bearer or key text appears."""
+        pacer = limiter.Pacer(table={})
+        pacer.record_headers(MODEL, {**NEBIUS_HEADERS, "Authorization": "Bearer secret-token-value"})
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "rate_limits.json"
+            limiter.write_snapshot(pacer, path)
+            text = path.read_text(encoding="utf-8").lower()
+        for forbidden in ("bearer", "secret-token-value", "authorization", "api_key", "sk-"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, text)
+
+    def test_file_is_indented_with_sorted_keys(self) -> None:
+        """Keys are sorted and indented by two spaces, so the file reads the same from one run to the next."""
+        pacer = limiter.Pacer(table={})
+        pacer.state_for("zeta/model")
+        pacer.state_for("alpha/model")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "rate_limits.json"
+            limiter.write_snapshot(pacer, path)
+            text = path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith('{\n  "alpha/model"'))
+        self.assertLess(text.index("alpha/model"), text.index("zeta/model"))
+
+
 if __name__ == "__main__":
     unittest.main()
