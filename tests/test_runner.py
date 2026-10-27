@@ -380,7 +380,7 @@ class GauntletV4RunTests(unittest.IsolatedAsyncioTestCase):
 
 
 # Guards the suite option: unset means the default suite, an offered name is passed on, and any other
-# pairing is refused by the parser. The old --ladder and --questions flags are gone.
+# pairing is refused by the parser. The old separate pushback and question options are gone.
 class SuiteOptionTests(unittest.TestCase):
     """--suite and --cache: both default to None, so the default suite and the default cache are used."""
 
@@ -405,7 +405,7 @@ class SuiteOptionTests(unittest.TestCase):
                 self.assertEqual(context.exception.code, 2)
 
     def test_the_old_ladder_and_questions_flags_are_refused(self) -> None:
-        """--ladder and --questions were replaced by --suite, so an old command fails loudly."""
+        """The old separate pushback and question options were replaced by --suite, so an old command fails loudly."""
         for argv in (["--ladder", "gauntlet_v4"], ["--questions", "hard"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as context:

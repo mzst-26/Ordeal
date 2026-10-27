@@ -633,7 +633,7 @@ class SuiteStorageTests(unittest.TestCase):
 
     # Guards the --suite option on grade.py: the old two flags are refused, and --shuffle-mix cannot take a suite.
     def test_grade_refuses_the_old_flags_and_shuffle_mix_with_suite(self) -> None:
-        """--ladder and --questions exit with code 2, and the --shuffle-mix refusal names --suite."""
+        """The old pushback and question options exit with code 2, and the --shuffle-mix refusal names --suite."""
         for argv in (["--ladder", "gauntlet_v4"], ["--questions", "hard"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as context:
