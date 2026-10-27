@@ -233,8 +233,23 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 - **Presets** are named sets of choices for one page: models, question set, pushback set, probe families,
   repeats, temperature, max tokens, concurrency, call cap and system-prompt condition. Presets can be saved,
   loaded, renamed and deleted.
-- Saved runs and presets are per browser. Another browser or device sees none of them.
+- Saved runs in the browser and presets are per browser. Another browser or device sees none of them. Runs saved
+  to the server are listed on the runs page for everyone who opens it.
 - Neither saved runs nor presets store the key. A key-looking field is refused.
+
+## Web run storage
+
+The website has a small server part: Netlify functions in `netlify/functions/`. They keep saved web runs in Netlify
+Blobs, and the runs page (`/runs.html`) lists them.
+
+- **What is stored:** each run's id, kind (batch or gauntlet), save time, size and run record. The key is never stored.
+- **7-day rule:** a run is kept for 7 days. A scheduled function runs once a day and removes runs older than that.
+- **1.5 GB cap:** the whole store holds up to 1.5 GB. When a save would go over, the oldest runs are removed first
+  until it fits. A run too big for the whole cap is refused.
+- **Password:** saving and deleting need the write password. Set it in the Netlify dashboard as the environment
+  variable `WRITE_PASSWORD` (Site configuration, then Environment variables). It is never written into the code. If it
+  is not set, no run can be saved or deleted. Reading the list needs no password.
+- **Browser copies:** gauntlet runs also keep a copy in the browser's IndexedDB. Batch runs are not copied.
 
 ## Where the key comes from
 
@@ -243,7 +258,8 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 - **The website** asks the visitor to type in their own key. The key is kept in memory only, for that tab.
   It is not saved to browser storage, cookies or the address, and closing the tab removes it. The browser
   sends it only to the Nebius Token Factory. The project's `.env` key is never used on the site.
-- **No database** holds keys or results on the server. The site has no server-side storage.
+- **No key is stored on the server.** The site now has a small server part, which keeps saved web runs (see
+  [Web run storage](#web-run-storage)). Keys never reach it.
 
 ## Storage
 
@@ -253,7 +269,8 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 - `results/results.csv`, `results/probes.csv` and the PNG pictures are written by the grading and chart scripts.
 - Calibration writes `calib_cache.jsonl` and its JSON files to `--out-dir`. The Makefile uses
   `scratch/calibration/`, which is not in git.
-- The website uses the visitor's browser only (IndexedDB, as above). It has no Supabase or other server
+- The website keeps saved runs in the visitor's browser (IndexedDB, as above). Its small server part keeps the
+  owner's saved web runs in Netlify Blobs (see [Web run storage](#web-run-storage)). It has no Supabase or other
   database.
 
 ## Calibrating the questions
