@@ -86,10 +86,27 @@ def key_status(platform: providers.Platform) -> str:
     return "yes"
 
 
+def website_platform(platform_id: str) -> providers.Platform:
+    """Return the platform with this id, but only if the website shows it.
+
+    Login is limited to the website's platforms, so the command line never asks for a key the website
+    would not use. The error lists the platforms that can be chosen, so the person can pick one.
+    """
+    platforms = providers.web_platforms(providers.load_platforms())
+    for platform in platforms:
+        if platform.id == platform_id:
+            return platform
+    choices = ", ".join(platform.id for platform in platforms)
+    raise ValueError(
+        f"'{platform_id}' is not one of the platforms on the website, so no key is saved for it. "
+        f"Choose one of: {choices}."
+    )
+
+
 def cmd_platforms(args: argparse.Namespace) -> int:
-    """Print every platform, its id, whether a key is saved, and its name."""
+    """Print every platform the website shows, its id, whether a key is saved, and its name."""
     print(f"{'Id':<14} {'Key':<11} Name")
-    for platform in providers.load_platforms():
+    for platform in providers.web_platforms(providers.load_platforms()):
         print(f"{platform.id:<14} {key_status(platform):<11} {platform.name}")
     print("Save a key with: ordeal login <id>")
     return 0
@@ -100,10 +117,7 @@ def cmd_login(args: argparse.Namespace) -> int:
 
     The key is typed with getpass, so it is never shown on screen and never stored in the shell history.
     """
-    platform = providers.get_platform(args.platform)
-    if platform.key_env is None:
-        print(f"{platform.name} runs on this computer and needs no key.")
-        return 0
+    platform = website_platform(args.platform)
     if platform.signup:
         print(f"Make a key at {platform.signup}")
     key = getpass.getpass(f"Paste the {platform.name} key (typing is hidden): ")

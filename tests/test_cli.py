@@ -51,13 +51,19 @@ class CliTestCase(unittest.TestCase):
 class PlatformsTests(CliTestCase):
     """The platforms command lists every registry entry and never prints a key."""
 
-    def test_lists_every_platform(self) -> None:
-        """Each platform id from providers.json appears in the output, with a header row."""
+    def test_lists_every_website_platform(self) -> None:
+        """Each platform the website shows appears in the output, with a header row."""
         code, out, _ = self.run_cli(["platforms"])
         self.assertEqual(code, 0)
         self.assertIn("Key", out)
-        for platform in providers.load_platforms():
+        for platform in providers.web_platforms(providers.load_platforms()):
             self.assertIn(platform.id, out)
+
+    def test_leaves_out_platforms_the_website_does_not_show(self) -> None:
+        """A local server is in providers.json but not on the website, so the command line does not list it."""
+        code, out, _ = self.run_cli(["platforms"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("ollama", out)
 
     def test_never_prints_a_key(self) -> None:
         """A key set in the environment is used for the status, but its value is not printed."""
@@ -128,20 +134,22 @@ class LoginTests(CliTestCase):
         self.assertIn("empty", err)
         self.assertFalse(keys.credentials_path().exists())
 
-    def test_local_platform_needs_no_key(self) -> None:
-        """A platform on this computer has no key, so the prompt is never shown."""
+    def test_platform_not_on_the_website_is_refused(self) -> None:
+        """A platform the website does not show (a local server) is refused and asks for no key."""
         with mock.patch("ordeal.cli.getpass.getpass") as prompt:
-            code, out, _ = self.run_cli(["login", "ollama"])
-        self.assertEqual(code, 0)
+            code, _, err = self.run_cli(["login", "ollama"])
+        self.assertEqual(code, 1)
+        self.assertIn("'ollama' is not one of the platforms on the website", err)
+        self.assertIn("groq", err)
         prompt.assert_not_called()
-        self.assertIn("no key", out)
+        self.assertFalse(keys.credentials_path().exists())
 
-    def test_unknown_platform_fails(self) -> None:
+    def test_unknown_platform_is_refused(self) -> None:
         """An unknown platform fails with exit code 1 and asks nothing."""
         with mock.patch("ordeal.cli.getpass.getpass") as prompt:
             code, _, err = self.run_cli(["login", "nope"])
         self.assertEqual(code, 1)
-        self.assertIn("Unknown platform", err)
+        self.assertIn("'nope' is not one of the platforms on the website", err)
         prompt.assert_not_called()
 
 
