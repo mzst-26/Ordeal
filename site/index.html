@@ -132,7 +132,10 @@
                 <span class="section-number">4.</span> Conditions
               </label>
               <select class="select" id="gauntlet-condition-select"></select>
-              <p class="field-hint">The system prompt the model is given. Saved runs were recorded with none.</p>
+              <!-- Says what the chosen condition does to the prompt. The page fills it when the choice changes. -->
+              <p class="field-hint" id="gauntlet-condition-note" aria-live="polite"></p>
+              <!-- Still true here: the saved replies on this page were recorded with no system prompt. -->
+              <p class="field-hint">Saved runs were recorded with none.</p>
             </div>
 
             <fieldset class="control">

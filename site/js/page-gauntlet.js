@@ -8,6 +8,7 @@ import { activePlatform } from "./platform-choice.js";
 import { showToast } from "./toast.js";
 import { vault } from "./engine/token.js";
 import { VIEW_IDS } from "./view-ids.js";
+import { updateConditionDescription } from "./condition-text.js";
 import { loadJson } from "./data-cache.js";
 import { createBudget, createChatClient, BudgetExhausted } from "./engine/api.js";
 import * as rules from "./engine/rules.js";
@@ -136,6 +137,7 @@ export function mountGauntlet(root) {
   page.dom.confession.addEventListener("click", askConfession);
   page.dom.pushback.addEventListener("change", onSuiteChanged);
   page.dom.questionSet.addEventListener("change", onSuiteChanged);
+  page.dom.condition.addEventListener("change", refreshConditionNote);
   page.dom.modelChoose.addEventListener("click", () =>
     openChoicePicker(page.dom.model, "Choose a model", "Search models", modelCard));
   mountModelCheck(page.dom.modelCheck, {
@@ -175,6 +177,7 @@ function findElements(root) {
     question: byId(root, "question-select"),
     questionChoose: byId(root, "gauntlet-question-choose"),
     condition: byId(root, VIEW_IDS.gauntlet["condition-select"]),
+    conditionNote: byId(root, "gauntlet-condition-note"),
     start: byId(root, VIEW_IDS.gauntlet["start-button"]),
     stop: byId(root, VIEW_IDS.gauntlet["stop-button"]),
     levels: byId(root, "level-list"),
@@ -362,6 +365,17 @@ function fillModelAndCondition(config) {
     page.dom.condition,
     rules.CONDITIONS.map((condition) => ({ value: condition, label: CONDITION_LABELS[condition] })),
   );
+  refreshConditionNote();
+}
+
+/**
+ * Write the description of the chosen condition under its dropdown. It runs when the menu is filled, when the user
+ * picks another option, when a saved run is put back on the desk, and when a preset is applied. Setting .value in
+ * code does not fire a change event, so the restore and preset code calls this function itself. The batch page
+ * runs it at the same four moments.
+ */
+function refreshConditionNote() {
+  updateConditionDescription(page.dom.conditionNote, page.dom.condition.value);
 }
 
 /** Fill the question menu from the questions of the suite on the desk. The current choice is kept when it exists. */
@@ -1269,6 +1283,7 @@ async function restoreDesk(config) {
   page.dom.model.value = config.model;
   page.dom.question.value = config.questionId;
   page.dom.condition.value = config.condition;
+  refreshConditionNote();
   return "";
 }
 
@@ -1358,6 +1373,7 @@ async function applyPresetSettings(settings) {
   }
   if (settings.condition !== undefined) {
     page.dom.condition.value = settings.condition;
+    refreshConditionNote();
   }
   notes.push(fixedSettingsNote(settings));
   renderAll();
