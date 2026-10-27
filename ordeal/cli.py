@@ -16,7 +16,7 @@ from pathlib import Path
 
 import openai
 
-from ordeal import grade, keys, model_client, providers, runner
+from ordeal import core, grade, keys, model_client, providers, runner
 
 # How many model ids the models command prints before it asks for a --search.
 MAX_MODELS_SHOWN = 50
@@ -29,6 +29,9 @@ CHECK_REPLY_SHOWN = 80
 # Length of the digest added to a cache file name. It keeps two model names that differ only in punctuation apart.
 CACHE_DIGEST_LENGTH = 8
 RESULTS_FOLDER_NAME = "results"
+# The summary tables of a command-line run go under docs/, so they can be read in the repository. The raw
+# saved replies stay in results/, because they are large and git-ignored.
+SUMMARY_FOLDER_PARTS = ("docs", "cli-results")
 
 
 def route_key(platform: providers.Platform) -> str:
@@ -169,6 +172,14 @@ def results_folder() -> Path:
     return Path.cwd() / RESULTS_FOLDER_NAME
 
 
+def summary_folder(suite_name: str, condition: str) -> Path:
+    """Return the summary folder of one suite and condition, such as docs/cli-results/gauntlet_v3+easy/none.
+
+    The suite and the condition are part of the path, so a run on one suite never overwrites the tables of another.
+    """
+    return Path.cwd().joinpath(*SUMMARY_FOLDER_PARTS, suite_name, condition)
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     """Run the Ordeal experiment on one model, then print its table.
 
@@ -182,7 +193,10 @@ def cmd_test(args: argparse.Namespace) -> int:
     code = runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route})
     # Grade whatever was saved, even after a failed call, so the person can see the partial table.
     if code in (0, 1):
-        grade.main(["--cache", str(cache), "--out-dir", str(results_folder())])
+        # The suite and condition are the ones grade.py uses when no option names them, so the folder matches the tables.
+        suite = core.load_chosen_suite()
+        out_dir = args.out_dir or summary_folder(suite.name, core.NO_SYSTEM_PROMPT)
+        grade.main(["--cache", str(cache), "--out-dir", str(out_dir)])
     return code
 
 
@@ -231,6 +245,12 @@ def build_parser() -> argparse.ArgumentParser:
     test.add_argument("platform", help="platform id")
     test.add_argument("model", help="model id, such as org/name, or a link to its page")
     add_base_url_option(test)
+    test.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="folder for the summary CSV files (default: docs/cli-results/<suite>/<condition>)",
+    )
     test.set_defaults(run=cmd_test)
     return parser
 

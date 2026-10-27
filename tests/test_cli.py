@@ -16,7 +16,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
-from ordeal import cli, grade, keys, model_client, providers, runner
+from ordeal import cli, core, grade, keys, model_client, providers, runner
 from tests.fake_clock import isolated_run
 
 FAKE_KEY = "test-key-123"
@@ -229,6 +229,59 @@ class TestCommandTests(CliTestCase):
         attach.assert_not_called()
         routes = self.runner_main.call_args.kwargs["prebuilt_routes"]
         self.assertEqual(routes["ollama/llama3.1:8b"].api_key, providers.LOCAL_KEY_PLACEHOLDER)
+
+
+class SummaryFolderTests(CliTestCase):
+    """The summary tables of a command-line run go under docs/cli-results, and the raw replies stay in results/.
+
+    The test runs inside a temporary folder, so nothing is written into the real docs/ folder.
+    """
+
+    def setUp(self) -> None:
+        """Give the groq platform a key, stop the runner and grader, and move into a temporary folder."""
+        super().setUp()
+        env_patch = mock.patch.dict(os.environ, {"GROQ_API_KEY": FAKE_KEY})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
+        runner_patch = mock.patch.object(runner, "main", return_value=0)
+        self.runner_main = runner_patch.start()
+        self.addCleanup(runner_patch.stop)
+        grade_patch = mock.patch.object(grade, "main", return_value=0)
+        self.grade_main = grade_patch.start()
+        self.addCleanup(grade_patch.stop)
+        previous_folder = os.getcwd()
+        work_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(work_dir.cleanup)
+        os.chdir(work_dir.name)
+        self.addCleanup(os.chdir, previous_folder)
+        self.work_dir = Path(work_dir.name).resolve()
+
+    def test_summaries_default_to_docs_cli_results_by_suite_and_condition(self) -> None:
+        """The three summary tables go to docs/cli-results/<suite>/<condition>/ by default."""
+        with self.fake_models(GROQ_MODELS):
+            code, _, _ = self.run_cli(["test", "groq", "org/alpha-7b"])
+        self.assertEqual(code, 0)
+        grade_argv = self.grade_main.call_args.args[0]
+        out_dir = Path(grade_argv[grade_argv.index("--out-dir") + 1])
+        suite = core.load_chosen_suite()
+        self.assertEqual(out_dir, self.work_dir / "docs" / "cli-results" / suite.name / core.NO_SYSTEM_PROMPT)
+
+    def test_raw_replies_stay_in_results(self) -> None:
+        """The cache file is still written under results/, not under docs/."""
+        with self.fake_models(GROQ_MODELS):
+            self.run_cli(["test", "groq", "org/alpha-7b"])
+        cache = Path(self.runner_main.call_args.args[0][self.runner_main.call_args.args[0].index("--cache") + 1])
+        self.assertEqual(cache.parent, self.work_dir / "results")
+
+    def test_out_dir_option_chooses_another_folder(self) -> None:
+        """--out-dir sends the summary tables to the folder given, and is not passed on to the runner."""
+        chosen = self.work_dir / "my-tables"
+        with self.fake_models(GROQ_MODELS):
+            code, _, _ = self.run_cli(["test", "groq", "org/alpha-7b", "--out-dir", str(chosen)])
+        self.assertEqual(code, 0)
+        grade_argv = self.grade_main.call_args.args[0]
+        self.assertEqual(grade_argv[grade_argv.index("--out-dir") + 1], str(chosen))
+        self.assertNotIn("--out-dir", self.runner_main.call_args.args[0])
 
 
 class RunnerHookTests(CliTestCase):
