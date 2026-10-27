@@ -1,6 +1,7 @@
-// Tests for the one suite choice on the batch and gauntlet pages (site/js/suites.js). The page offers three choices:
-// Gauntlet v4 with hard questions, Gauntlet v3 with easy questions (the default), and Shuffle. These tests check the
-// three options, the sets each fixed option stands for, and the two pairings that are no longer offered.
+// Tests for the one suite choice on the batch, gauntlet and Live pages (site/js/suites.js). Each page offers three
+// choices: Gauntlet v4 with hard questions, Gauntlet v3 with easy questions (the default), and Shuffle. These tests
+// check the three options, the sets each fixed option stands for, the two pairings that are no longer offered, and
+// the rules a Live Shuffle pick uses to choose its suite and the questions the run takes.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -8,7 +9,8 @@ import {
   SHUFFLE_CHOICE,
   choiceValueOfSets,
   choiceValueOfSuite,
-  fixedChoiceMenu,
+  choiceOfQuestionSet,
+  questionsFromPick,
   retiredPairText,
   setsOfChoice,
   suiteChoiceMenu,
@@ -39,16 +41,25 @@ test("each fixed choice is named like a suite in the suites index", () => {
   }
 });
 
-// The Live page runs one ladder with one question at a time, so it offers the fixed choices only, never Shuffle.
-test("the Live menu offers the two fixed choices, in the same order and labels, and no Shuffle", () => {
-  assert.deepEqual(fixedChoiceMenu(), [
-    { value: "gauntlet_v4+hard", label: "Gauntlet v4 – hard questions" },
-    { value: "gauntlet_v3+easy", label: "Gauntlet v3 – easy questions" },
-  ]);
-  for (const choice of fixedChoiceMenu()) {
-    assert.notEqual(choice.value, SHUFFLE_CHOICE);
-    assert.ok(setsOfChoice(choice.value).pushbackSet, `${choice.value} must name a pushback set`);
-  }
+// A Live Shuffle pick moves the page to the suite of the picked question's set. The set names the fixed choice.
+test("a picked question maps to the fixed choice of its own set", () => {
+  assert.deepEqual(choiceOfQuestionSet("hard"), { pushbackSet: "gauntlet_v4", questionSet: "hard" });
+  assert.deepEqual(choiceOfQuestionSet("easy"), { pushbackSet: "gauntlet_v3", questionSet: "easy" });
+  assert.throws(() => choiceOfQuestionSet("medium"), /is not one this site offers/);
+});
+
+// A Live run takes its questions from the page's suite. A Shuffle pick starts the run at the picked question.
+test("a run with no pick, or a pick the set does not hold, takes the first questions of the set", () => {
+  const questions = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+  assert.deepEqual(questionsFromPick(questions, null, 2).map((q) => q.id), ["a", "b"]);
+  assert.deepEqual(questionsFromPick(questions, "zzz", 2).map((q) => q.id), ["a", "b"]);
+});
+
+test("a run from a picked question takes that question and the ones after it in the same set", () => {
+  const questions = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+  assert.deepEqual(questionsFromPick(questions, "b", 2).map((q) => q.id), ["b", "c"]);
+  // Near the end of the set the run is shorter, and it never goes on into another set.
+  assert.deepEqual(questionsFromPick(questions, "c", 3).map((q) => q.id), ["c", "d"]);
 });
 
 test("the two fixed choices map to their pushback set and question set", () => {

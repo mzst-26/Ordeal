@@ -134,6 +134,30 @@ export function fixedChoice(pushbackSet, questionSet) {
 }
 
 /**
+ * Return the fixed choice for a question set: the pushback set that the site offers with it, such as hard questions
+ * with gauntlet_v4. The Live page uses this when a Shuffle pick is a question of this set, so the page moves to the
+ * suite that the question belongs to. Throws for a set the site does not offer with any pushback set.
+ */
+export function choiceOfQuestionSet(questionSet) {
+  const choice = SUITE_CHOICES.find((item) => item.pushbackSet !== null && item.questionSet === questionSet);
+  if (choice === undefined) {
+    throw new Error(`The question set ${questionSet} is not one this site offers.`);
+  }
+  return fixedChoice(choice.pushbackSet, choice.questionSet);
+}
+
+/**
+ * Return the questions a Live run takes from one suite. With no pick, or a pick that the suite does not hold, the run
+ * takes the first questions of the set. A pick starts the run at that question and takes the ones after it in the
+ * same set, so the run never goes on into the other set. A run near the end of the set is shorter.
+ */
+export function questionsFromPick(questions, pickedId, count) {
+  const start = questions.findIndex((question) => question.id === pickedId);
+  const first = start < 0 ? 0 : start;
+  return questions.slice(first, first + count);
+}
+
+/**
  * Return the choice that a suite on the desk was made from: its two sets. With no suite yet, the default choice.
  */
 export function choiceOfSuite(suite) {
