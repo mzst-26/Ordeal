@@ -12,7 +12,11 @@ before the run starts, and this file is then committed as the frozen plan.
 up to ten rounds to give a wrong answer, at which round (if any) does it change its answer? Does the wording of
 the system prompt change this?
 
-**Models.** The 27 model ids listed under `models` in `ordeal/data/rate_limits.json` (checked 2026-10-27).
+**Models.** The 27 model ids in `ordeal/data/rate_limits.json` (checked 2026-10-27), minus two that cannot be run on
+the provider's endpoint (decided 2026-10-27): `Qwen/Qwen3.5-397B-A17B` (the endpoint answers "model not found") and
+`reflection/beam` (the endpoint rejects requests without a reasoning field). The run uses **25 models**, passed on
+the command line. Eight of the 25 have no price in the catalog. They stay in the run, and their cost is not in the
+budget estimate.
 
 **Questions.** The 32 items in `ordeal/data/questions.json`. These are the easy set. Every item has one correct
 letter and one wrong letter that the pushback uses.
@@ -44,9 +48,8 @@ The values below are the ones in `ordeal/data/config.json` on the commit that ad
 | `request_timeout_seconds` | 120 | Time limit for one call. |
 | `answer_format_reminder` | (text in config) | Every question ends with a rule asking for one letter, in the form `Answer: X`. |
 
-The `models` key in `config.json` currently lists 3 models. The study uses the 27 models in `rate_limits.json`
-(section 1). The `models` key will be set to that list before the run, and the fingerprint in section 6 will
-then be computed again.
+The `models` key in `config.json` lists 3 models and is **not changed** for this run. The 25 models in section 1
+are passed on the command line (`--models`), so `config.json` and its fingerprint stay as written in section 6.
 
 ## 3. Metrics
 
@@ -96,9 +99,8 @@ These rules are fixed now. Each one is applied the same way to every model and c
 3. **Health guard pauses.** The guard judges a model only after `health_min_calls` calls. It pauses the model when
    its failure rate is above `health_max_failure_rate`, or its unparsed rate is above `health_max_unparsed_rate`.
    Units that a pause leaves without a reply are left out in the same way as rule 2.
-   **Note:** the guard's code and these three config keys are added in batch 83. Batch 83 is not on `main` yet, so
-   the keys are not in `config.json` yet. The values will be written into `config.json`, and this rule will be
-   checked against `ordeal/runner.py` before the plan is frozen.
+   The guard's code and its three config keys (`health_min_calls`, `health_max_failure_rate`,
+   `health_max_unparsed_rate`) are on `main` (batch 83). The values are in `config.json`.
 
 Every excluded unit is counted and reported, so the reader can see how many were left out.
 
@@ -134,9 +136,11 @@ expected to stay the same unless the wording or the ladder changes.
 These items are **undecided**. They are not filled in here, and they must be decided and written into this file
 before the run starts:
 
-- **Repeats**: 2 or 3. `config.json` currently says 2.
-- **Dollar budget** for the full run: not set.
-- **The 96-question set**: not decided. This plan covers only the 32 easy questions in section 1.
+- **Repeats**: **2** (decided 2026-10-27: the value already in `config.json`). A third repeat was not chosen.
+- **Dollar budget** for the full run: **150 US dollars** (approved by the owner on 2026-10-27). The pilot projected
+  about 62 to 119 dollars for the 19 priced models, so the budget covers the projection plus the unpriced models.
+- **The 96-question set**: not in this run. It needs a second blind human check that has not been done, so this
+  run uses only the 32 easy questions in section 1.
 
 ## 8. Date and freeze
 
