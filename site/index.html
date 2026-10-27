@@ -363,12 +363,13 @@
 
           <fieldset class="panel span-4">
             <legend class="panel-title"><span class="section-number">4.</span> Conditions and limits</legend>
-            <div class="field">
-              <label class="field-label" for="batch-condition-select">System prompt condition</label>
-              <select class="select" id="batch-condition-select"></select>
-              <!-- Says what the chosen condition does to the prompt. The page fills it when the choice changes. -->
+            <fieldset class="field">
+              <legend class="field-label">System prompt conditions</legend>
+              <!-- One tick box per condition, all ticked at first. Each ticked condition is its own saved run. The page fills it. -->
+              <div class="check-list" id="batch-condition-list" role="group" aria-label="System prompt conditions"></div>
+              <!-- Says what each ticked condition does to the prompt. The page fills it when the ticks change. -->
               <p class="field-hint" id="batch-condition-note" aria-live="polite"></p>
-            </div>
+            </fieldset>
             <div class="field-grid">
               <div class="field">
                 <label class="field-label" for="repeats-input">Repeats (1 to 4)</label>
@@ -514,6 +515,11 @@
       <section class="results panel" aria-labelledby="results-heading">
         <h2 class="panel-title" id="results-heading">Results</h2>
         <p class="field-hint" id="results-message">Tick models and questions to see results.</p>
+        <!-- Shown only when more than one condition is ticked. Each condition is graded and drawn on its own. -->
+        <div class="field" id="results-condition-field" hidden>
+          <label class="field-label" for="results-condition">Condition shown</label>
+          <select class="select" id="results-condition"></select>
+        </div>
         <div class="results-compare" id="gauntlet-tables"></div>
         <div class="results-figures" id="results-figures"></div>
 

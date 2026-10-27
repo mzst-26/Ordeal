@@ -9,7 +9,8 @@ import { browserStorage, vault } from "./engine/token.js";
 import { createBatchLog } from "./engine/batch-log.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
-import { updateConditionDescription } from "./condition-text.js";
+import { conditionDescriptionText } from "./condition-text.js";
+import { mergePlans, unionInOrder } from "./condition-choice.js";
 import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
 import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
@@ -173,7 +174,7 @@ const IDS = {
   questionSelected: "batch-question-selected",
   familyList: "family-list",
   familyCount: VIEW_IDS.batch["family-count"],
-  condition: VIEW_IDS.batch["condition-select"],
+  conditionList: "batch-condition-list",
   conditionNote: "batch-condition-note",
   repeats: "repeats-input",
   concurrency: "concurrency-input",
@@ -197,6 +198,8 @@ const IDS = {
   statusLine: VIEW_IDS.batch["status-line"],
   logList: "log-list",
   resultsMessage: "results-message",
+  resultsConditionField: "results-condition-field",
+  resultsCondition: "results-condition",
   gauntletTables: "gauntlet-tables",
   chartMessage: "chart-message",
   figure: "fingerprint-figure",
@@ -231,6 +234,11 @@ const page = {
   phase: "idle",              // "idle", "running", "stopping", "stopped" or "finished"
   runner: null,               // the batch runner while a batch exists
   runCondition: SAVED_CONDITION,
+  conditionsLeft: [],         // the ticked conditions a Start has not run yet; each one is its own saved run
+  batchChoices: null,         // the choices of the Start in progress, shared by each of its condition runs
+  client: null,               // the one API client of a Start, so its call cap is shared by every condition run
+  resumeQueue: [],            // the saved runs Continue selected still to resume, in order
+  resultsCondition: SAVED_CONDITION, // the condition the results view shows when several are ticked
   counts: { done: 0, total: 0, calls: 0, reused: 0, failed: 0 },
   budgetHit: false,           // true once the call cap has stopped a run
   keyRefused: false,          // true once the service refused the key during a run
@@ -283,7 +291,7 @@ function wireControls() {
   dom.setupForm.addEventListener("change", onFormEdited);
   dom.setupForm.addEventListener("input", onFormEdited);
   dom.suiteSelect.addEventListener("change", onSuiteChanged);
-  dom.condition.addEventListener("change", refreshConditionNote);
+  dom.resultsCondition.addEventListener("change", onResultsConditionChanged);
   dom.modelChoose.addEventListener("click", openModelPicker);
   dom.modelSelectAll.addEventListener("click", () => setAllModels(true));
   dom.modelClear.addEventListener("click", () => setAllModels(false));
@@ -393,12 +401,17 @@ async function startStorage() {
     kind: KIND_BATCH,
     queue: page.queue,
     unitWord: "units",
-    onResume: closePopupBeforeResume(page.dom.runsDialog, resumeBatchRun),
+    onResume: closePopupBeforeResume(page.dom.runsDialog, resumeFromList),
     onChanged: onRunDeleted,
   };
   page.panels.notices = buildResumeNotices({ ...shared, activeRunId: () => page.runId });
   // The count line in the popup already says "No saved runs yet", so the list shows nothing extra when it is empty.
-  page.panels.list = buildRunsList({ ...shared, emptyText: null });
+  // Only the list has the tick boxes: View selected and Continue selected act on several runs at once.
+  page.panels.list = buildRunsList({
+    ...shared,
+    emptyText: null,
+    selection: { onView: viewRuns, onContinue: continueRuns },
+  });
   page.dom.resumeNotices.replaceChildren(page.panels.notices.root);
   page.dom.runsList.replaceChildren(page.panels.list.root);
   await refreshRuns();
@@ -528,7 +541,7 @@ function fillSuiteSelects() {
 function setupControls(config) {
   // A custom name is checked against every built-in name before it is accepted, so no two models share a name.
   page.customModels = checkedCustomModels(config, modelChoices(config).map((entry) => entry.id));
-  fillConditionSelect(config.system_prompts);
+  fillConditionList(config.system_prompts);
   refreshConditionNote();
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
@@ -757,26 +770,36 @@ function customEndpointSentence(models) {
   return lines.length === 0 ? "" : `Custom endpoint: ${lines.join("; ")}. `;
 }
 
-/** Fill the condition menu. "none" comes first; the other keys follow in the order of the config. */
-function fillConditionSelect(systemPrompts) {
+/**
+ * Fill the condition list with one tick box per condition, all ticked. "none" comes first; the other keys follow in
+ * the order of the config. Every condition is on by default, so a plain Start compares all of them.
+ */
+function fillConditionList(systemPrompts) {
   const keys = Object.keys(systemPrompts);
   const ordered = keys.includes(SAVED_CONDITION)
     ? [SAVED_CONDITION, ...keys.filter((key) => key !== SAVED_CONDITION)]
     : keys;
-  page.dom.condition.append(
-    ...ordered.map((key) => el("option", { value: key, text: CONDITION_LABELS[key] ?? key })),
-  );
+  page.dom.conditionList.replaceChildren(...ordered.map(conditionItem));
+}
+
+/** Build one tick box for a condition. Its value is the condition's name in the config, which the runs use. */
+function conditionItem(key) {
+  return el("label", { className: "check" }, [
+    el("input", { className: "check-input", type: "checkbox", value: key, checked: true }),
+    el("span", { className: "check-text", text: CONDITION_LABELS[key] ?? key }),
+  ]);
 }
 
 /**
- * Write the description of the chosen condition under its dropdown. It runs when the page fills the menu, when a
- * saved setup is restored, and when the user picks another option. Setting .value in code does not fire a change
- * event, so those places call this function themselves.
+ * Write the description of each ticked condition under the list. It runs after any change to the list, and after a
+ * saved setup is restored. Setting a checkbox in code does not fire a change event, so those places call it themselves.
  */
 function refreshConditionNote() {
-  updateConditionDescription(page.dom.conditionNote, page.dom.condition.value);
+  const conditions = checkedValues(page.dom.conditionList);
+  page.dom.conditionNote.textContent = conditions
+    .map((key) => `${CONDITION_LABELS[key] ?? key}. ${conditionDescriptionText(key)}`)
+    .join(" ");
 }
-
 /** Replace the options of a select with the given value and label pairs. */
 function fillOptions(select, choices) {
   select.replaceChildren(...choices.map((choice) => el("option", { value: choice.value, text: choice.label })));
@@ -1240,7 +1263,8 @@ function readChoices() {
     models: selectedModelIds(),
     questions: orderedQuestionIds(checkedValues(dom.questionList)),
     families: new Set(checkedValues(dom.familyList)),
-    condition: dom.condition.value,
+    // In the order of the list, which is the order of the config. One saved run is made for each.
+    conditions: checkedValues(dom.conditionList),
     repeats: readWholeNumber(dom.repeats, 1, MAX_REPEATS),
     concurrency: readWholeNumber(dom.concurrency, 1, MAX_CONCURRENCY),
     cap: readWholeNumber(dom.cap, 1, MAX_BATCH_CALLS),
@@ -1263,6 +1287,9 @@ function findProblem(choices) {
   if (choices.families.size === 0) {
     return "Tick at least one probe family.";
   }
+  if (choices.conditions.length === 0) {
+    return "Tick at least one system prompt condition.";
+  }
   if (choices.repeats === null) {
     return `Repeats must be a whole number from 1 to ${MAX_REPEATS}.`;
   }
@@ -1284,7 +1311,10 @@ function selectedQuestions(ids) {
   return page.suite.questions.filter((question) => wanted.has(question.id));
 }
 
-/** Count the calls for the chosen models, questions, repeats and families. Null when the choices are incomplete. */
+/**
+ * Count the calls for the chosen models, questions, repeats, families and conditions. Each condition is a separate
+ * set of calls, so its plan is added to the others. Null when the choices are incomplete.
+ */
 function planFor(choices) {
   if (page.data === null || page.suite === null || choices.repeats === null) {
     return null;
@@ -1292,12 +1322,17 @@ function planFor(choices) {
   if (choices.models.length === 0 || choices.questions.length === 0 || choices.families.size === 0) {
     return null;
   }
+  if (choices.conditions.length === 0) {
+    return null;
+  }
   // A mixed suite has no single ladder, so its pairFor gives each question its own. Fixed suites pass null.
   const { ladder, probeSpec } = page.suite;
-  return planAllModels(
-    choices.models, selectedQuestions(choices.questions), choices.repeats, page.cache,
-    choices.condition, choices.families, ladder, probeSpec, page.data.config, page.suite.pairFor ?? null,
-  );
+  const questions = selectedQuestions(choices.questions);
+  const plans = choices.conditions.map((condition) => planAllModels(
+    choices.models, questions, choices.repeats, page.cache,
+    condition, choices.families, ladder, probeSpec, page.data.config, page.suite.pairFor ?? null,
+  ));
+  return mergePlans(plans);
 }
 
 /** Return the default cap for a number of plan steps: their attempt bound rounded up, from 1 to the maximum. */
@@ -1307,9 +1342,9 @@ function defaultCap(steps) {
   return Math.min(MAX_BATCH_CALLS, Math.max(1, Math.ceil(attempts / CAP_STEP) * CAP_STEP));
 }
 
-/** Return how many units the choices make: one per model, question and repeat. */
+/** Return how many units the choices make: one per model, question, repeat and condition. */
 function unitCount(choices) {
-  return choices.models.length * choices.questions.length * (choices.repeats ?? 0);
+  return choices.models.length * choices.questions.length * (choices.repeats ?? 0) * choices.conditions.length;
 }
 
 /** Return true for a suite menu. Those have their own handlers, so the form handler leaves them alone. */
@@ -1339,6 +1374,7 @@ function onSelectionChanged() {
   if (page.dom === null) {
     return;
   }
+  refreshConditionNote();
   const choices = readChoices();
   const plan = planFor(choices);
   // Until the user types a cap, keep the cap box in step with the plan.
@@ -1523,6 +1559,7 @@ function showConfirmation() {
   page.dom.confirmText.textContent = `You are about to run at most ${stepText} steps with your key, `
     + `up to ${attemptText} API attempts including retries (at most ${MAX_ATTEMPTS_PER_STEP} for each step). `
     + `Suite: ${page.suite.name}. `
+    + `Conditions: ${choices.conditions.map((key) => CONDITION_LABELS[key] ?? key).join(", ")}. `
     + customEndpointSentence(choices.models)
     + `The call cap is ${capText} attempts, and this page allows at most ${MAX_BATCH_CALLS}. Continue?`;
   page.dom.confirmPanel.hidden = false;
@@ -1542,6 +1579,7 @@ function confirmStart() {
 function cancelConfirmation() {
   page.confirming = false;
   page.resumeRunId = null;
+  page.resumeQueue = [];
   page.dom.confirmPanel.hidden = true;
   setStatus("Not started. No call was made.");
   updateControls();
@@ -1586,7 +1624,8 @@ function mixedConfigFields(choices) {
 
 /** Return a short label for a saved batch, within 80 characters. */
 function batchLabel(choices) {
-  return `Batch ${page.suite.name}: ${choices.models.length} models, ${choices.questions.length} questions`
+  const condition = CONDITION_LABELS[choices.condition] ?? choices.condition;
+  return `Batch ${page.suite.name}: ${choices.models.length} models, ${choices.questions.length} questions, ${condition}`
     .slice(0, LABEL_LIMIT);
 }
 
@@ -1619,7 +1658,10 @@ async function openRunFor(choices) {
   }
 }
 
-/** Create the client and the batch runner from the choices on screen, then start the batch. */
+/**
+ * Start the batch from the choices on screen. A new batch makes one saved run for each ticked condition, one after
+ * another. All of them share one API client, so the call cap covers the whole Start, not each condition on its own.
+ */
 async function beginRun(confirmedId) {
   // The platform is read first. The ticked models belong to the platform the visitor confirmed, so any other
   // platform stops the run before a single call is made.
@@ -1643,7 +1685,6 @@ async function beginRun(confirmedId) {
   const choices = readChoices();
   const { config } = page.data;
   page.phase = "running";
-  page.runCondition = choices.condition;
   page.budgetHit = false;
   page.keyRefused = false;
   // Once a run has started, the cap the user sees is kept, even if the plan changes later.
@@ -1652,27 +1693,15 @@ async function beginRun(confirmedId) {
   setStatus("Running. Calls are made with the concurrency and cap you chose.");
   updateControls();
   renderProgress();
-  page.runId = await openRunFor(choices);
-  if (page.runId === null) {
-    setStatus(`Running. ${NOT_SAVED_TEXT}`);
-  }
-  page.resumeRunId = null;
   // The log is new for each start. It records what the run did, and never the key or a reply.
   page.log = createBatchLog();
-  page.log.record("run-started", {
-    run_id: page.runId,
-    models: choices.models.length,
-    questions: selectedQuestions(choices.questions).length,
-    shuffle_seed: page.mixed === null ? null : page.mixed.seed,
-    repeats: choices.repeats,
-    condition: choices.condition,
-    cap: choices.cap,
-    concurrency: choices.concurrency,
-    key_remembered: vault.remembered(),
-  });
-  updateExportButtons();
+  // A new batch clears any Continue queue left from an earlier one. A resumed run keeps the queue it came from.
+  if (page.resumeRunId === null) {
+    page.resumeQueue = [];
+  }
+  page.batchChoices = choices;
   // The budget enforces the call cap; the runner stops the batch when it is used up (see onBudgetExhausted).
-  const client = createChatClient({
+  page.client = createChatClient({
     platform,
     customModels: page.customModels,
     vault,
@@ -1681,12 +1710,42 @@ async function beginRun(confirmedId) {
     log: page.log,
     perModelLimit: config.per_model_concurrency,
   });
+  const [first, ...rest] = choices.conditions;
+  page.conditionsLeft = rest;
+  await startConditionRun(first);
+}
+
+/**
+ * Start the saved run and the runner for one condition of the Start in progress. The run is saved first, so its
+ * replies can be resumed later, then the runner makes the calls that condition still needs.
+ */
+async function startConditionRun(condition) {
+  const choices = { ...page.batchChoices, condition };
+  const { config } = page.data;
+  page.runCondition = condition;
+  page.runId = await openRunFor(choices);
+  if (page.runId === null) {
+    setStatus(`Running. ${NOT_SAVED_TEXT}`);
+  }
+  page.resumeRunId = null;
+  page.log.record("run-started", {
+    run_id: page.runId,
+    models: choices.models.length,
+    questions: selectedQuestions(choices.questions).length,
+    shuffle_seed: page.mixed === null ? null : page.mixed.seed,
+    repeats: choices.repeats,
+    condition,
+    cap: choices.cap,
+    concurrency: choices.concurrency,
+    key_remembered: vault.remembered(),
+  });
+  updateExportButtons();
   page.runner = createBatchRunner({
-    client,
+    client: page.client,
     models: choices.models,
     questions: selectedQuestions(choices.questions),
     repeats: choices.repeats,
-    condition: choices.condition,
+    condition,
     families: choices.families,
     ladder: page.suite.ladder,
     probeSpec: page.suite.probeSpec,
@@ -1698,6 +1757,126 @@ async function beginRun(confirmedId) {
   });
   updateControls();
   page.runner.start().catch(handleRunError);
+}
+
+/** Start the next ticked condition of the Start in progress, once the one before it has finished. */
+function startNextCondition() {
+  const [next, ...rest] = page.conditionsLeft;
+  page.conditionsLeft = rest;
+  page.runner = null;
+  setStatus(`Running the ${CONDITION_LABELS[next] ?? next} condition. Replies already saved are reused.`);
+  startConditionRun(next).catch(handleRunError);
+}
+
+/** Resume a run picked by hand from the list or the notices. A queue from Continue selected is dropped first. */
+function resumeFromList(run) {
+  page.resumeQueue = [];
+  return resumeBatchRun(run);
+}
+
+/**
+ * Continue selected: resume the selected saved runs one after another. The first one starts now, and each of the others
+ * starts when the one before it finishes. Each still shows its own confirmation before any call is made.
+ */
+async function continueRuns(runs) {
+  const problem = continueRunsProblem(runs);
+  if (problem !== "") {
+    setStatus(problem);
+    return;
+  }
+  const [first, ...rest] = runs;
+  page.resumeQueue = rest;
+  await resumeBatchRun(first);
+}
+
+/** Return why the selected runs cannot be continued together, or "" when they can. */
+function continueRunsProblem(runs) {
+  if (runs.length === 0) {
+    return "Tick at least one saved run to continue.";
+  }
+  if (runs.some((run) => run.config.experiment === MIXED_NAME)) {
+    return "A shuffled run has its own order, so continue it on its own from the list.";
+  }
+  if (isRunning() || page.confirming) {
+    return RESUME_BLOCKED_TEXT;
+  }
+  return "";
+}
+
+/** Start the next run that Continue selected is waiting to resume, if there is one. */
+function continueNextSaved() {
+  const [next, ...rest] = page.resumeQueue;
+  page.resumeQueue = rest;
+  if (next !== undefined) {
+    resumeBatchRun(next);
+  }
+}
+
+/**
+ * View selected: load the saved replies of the selected runs into one results view. The form is set to the models,
+ * questions, families and conditions those runs used, so the results read them. Nothing is sent.
+ */
+async function viewRuns(runs) {
+  const problem = viewRunsProblem(runs);
+  if (problem !== "") {
+    setStatus(problem);
+    return;
+  }
+  // The runs share one set pair (checked above), so the first run's pair is the one to show.
+  const [first] = runs;
+  await selectSuite(fixedChoice(first.config.pushbackSet, first.config.questionSet));
+  const missing = runs.map((run) => restorePlanProblem(run.config)).find((text) => text !== "");
+  if (missing !== undefined) {
+    setStatus(`${missing} The selected runs were not shown.`);
+    return;
+  }
+  restoreRunsChoices(runs);
+  for (const run of runs) {
+    addRecordsToCache(page.cache, resumeState(run).records);
+  }
+  page.resultsCondition = first.config.condition;
+  onSelectionChanged();
+  scheduleResults();
+  setStatus(`Showing ${formatCount(runs.length)} saved runs together. Nothing was sent.`);
+}
+
+/** Return why the selected runs cannot be shown together, or "" when they can. Shuffled runs are not shown here. */
+function viewRunsProblem(runs) {
+  if (page.data === null || page.suite === null || isRunning() || page.confirming) {
+    return RESUME_BLOCKED_TEXT;
+  }
+  if (runs.length === 0) {
+    return "Tick at least one saved run to view.";
+  }
+  if (runs.some((run) => run.config.experiment === MIXED_NAME)) {
+    return "A shuffled run is not shown here. Open it from the list.";
+  }
+  const [first] = runs;
+  const sameSets = runs.every((run) => run.config.pushbackSet === first.config.pushbackSet
+    && run.config.questionSet === first.config.questionSet);
+  if (!sameSets) {
+    return "These runs use different sets, so they cannot be shown together.";
+  }
+  if (!isPushbackSet(first.config.pushbackSet) || !isQuestionSet(first.config.questionSet)) {
+    return "These saved runs use a set that this site does not have, so they cannot be shown.";
+  }
+  const retired = retiredPairText(first.config.pushbackSet, first.config.questionSet);
+  return retired === "" ? "" : `${retired} These saved runs cannot be shown.`;
+}
+
+/**
+ * Set the form to everything the selected runs used: their models, questions, families and conditions, with the
+ * largest repeats. Models that are no longer in the list are left out, as a preset does.
+ */
+function restoreRunsChoices(runs) {
+  const dom = page.dom;
+  const configs = runs.map((run) => run.config);
+  setTickedModels(unionInOrder(configs.map((config) => config.models)).filter((model) => page.allModels.includes(model)));
+  tickOnly(dom.questionList, unionInOrder(configs.map((config) => config.questions)));
+  tickOnly(dom.familyList, unionInOrder(configs.map((config) => config.families)));
+  tickOnly(dom.conditionList, unionInOrder(configs.map((config) => [config.condition])));
+  dom.repeats.value = String(Math.max(...configs.map((config) => config.repeats)));
+  refreshConditionNote();
 }
 
 /** Resume a saved batch from the notices or the list. The form is set back from the run, its saved units are reused. */
@@ -1749,6 +1928,7 @@ async function resumeBatchRun(run) {
   if (remaining === 0) {
     setStatus(RUN_DONE_TEXT);
     await refreshRuns();
+    continueNextSaved();
     return;
   }
   // Putting the saved records back in the cache is what stops the runner repeating those calls.
@@ -1797,7 +1977,7 @@ function restoreChoices(config) {
   dom.concurrency.value = String(config.concurrency);
   dom.cap.value = String(config.callCap);
   page.capTouched = true;
-  dom.condition.value = config.condition;
+  tickOnly(dom.conditionList, [config.condition]);
   refreshConditionNote();
 }
 
@@ -1950,9 +2130,11 @@ function onKeyRefused(event) {
   setStatus(`The key was refused: ${event.message} Check the key, then press Start again.`);
 }
 
-/** Handle a stop. The cap or key message stays if one of them was the reason. */
+/** Handle a stop. The cap or key message stays if one of them was the reason. A stop also drops the rest of the queue. */
 function onStopped() {
   page.phase = "stopped";
+  page.conditionsLeft = [];
+  page.resumeQueue = [];
   finishSavedRun("stopped");
   if (!page.budgetHit && !page.keyRefused) {
     setStatus(`Stopped at ${formatCount(page.counts.calls)} calls. Export what you have.`);
@@ -1960,22 +2142,31 @@ function onStopped() {
   finishRun();
 }
 
-/** Handle the end of a batch that ran every unit. A batch with failed units is marked failed, so it can be resumed. */
+/**
+ * Handle the end of one condition's run. A batch with failed units is marked failed, so it can be resumed. The counts
+ * are already added up step by step, so they are not reset here: they cover every condition of the Start.
+ */
 function onFinished(event) {
-  Object.assign(page.counts, { calls: event.calls, reused: event.reused, failed: event.failed });
-  page.phase = "finished";
   finishSavedRun(event.failed > 0 ? "failed" : "done");
+  if (page.conditionsLeft.length > 0) {
+    startNextCondition();
+    return;
+  }
+  page.phase = "finished";
   setStatus(
-    `Finished: ${formatCount(event.calls)} calls, ${formatCount(event.reused)} reused, `
-    + `${formatCount(event.failed)} failed.`,
+    `Finished: ${formatCount(page.counts.calls)} calls, ${formatCount(page.counts.reused)} reused, `
+    + `${formatCount(page.counts.failed)} failed.`,
   );
   finishRun();
+  continueNextSaved();
 }
 
 /** Show a batch that stopped with an unexpected error, then give the controls back. */
 function handleRunError(error) {
   page.log?.record("run-error", { message: errorText(error) });
   updateExportButtons();
+  page.conditionsLeft = [];
+  page.resumeQueue = [];
   page.phase = "stopped";
   finishSavedRun("failed");
   setStatus(`The batch stopped because of a problem: ${errorText(error)}`);
@@ -2100,8 +2291,36 @@ function recordsFor(choices) {
   const models = new Set(choices.models);
   const questionIds = new Set(choices.questions);
   return [...page.cache.values()].filter(
-    (record) => models.has(record.model) && questionIds.has(record.question_id),
+    (record) => record.condition === choices.condition
+      && models.has(record.model) && questionIds.has(record.question_id),
   );
+}
+
+/**
+ * Return the choices the results read: the ticked models and questions, and one condition. The results show one
+ * condition at a time, so the switcher's choice is used, or the first ticked condition when that is not ticked.
+ */
+function resultsChoices() {
+  const choices = readChoices();
+  const shown = choices.conditions.includes(page.resultsCondition) ? page.resultsCondition : choices.conditions[0];
+  page.resultsCondition = shown ?? SAVED_CONDITION;
+  return { ...choices, condition: page.resultsCondition };
+}
+
+/** Fill the condition switcher above the results. It is shown only when more than one condition is ticked. */
+function drawResultsConditionSwitch(conditions, shown) {
+  const dom = page.dom;
+  dom.resultsCondition.replaceChildren(
+    ...conditions.map((key) => el("option", { value: key, text: CONDITION_LABELS[key] ?? key })),
+  );
+  dom.resultsCondition.value = shown;
+  dom.resultsConditionField.hidden = conditions.length < 2;
+}
+
+/** The switcher was changed: draw the results for the condition it now shows. */
+function onResultsConditionChanged() {
+  page.resultsCondition = page.dom.resultsCondition.value;
+  scheduleResults();
 }
 
 /** Return the grading settings for a redraw: fast while a batch runs, the configured resamples once it ends. */
@@ -2130,7 +2349,8 @@ function drawResults() {
     showPageStatus(MIXED_RESULTS_TEXT);
     return;
   }
-  const choices = readChoices();
+  const choices = resultsChoices();
+  drawResultsConditionSwitch(choices.conditions, choices.condition);
   const records = recordsFor(choices);
   const gauntletRows = gauntletRowsFor(choices, records);
   const probeRows = probeRowsFor(choices, records);
@@ -2145,7 +2365,7 @@ function drawResults() {
 /** Say why there are no results yet, or clear the message when there are some. */
 function setResultsMessage(choices, records) {
   let text = "";
-  if (choices.models.length === 0 || choices.questions.length === 0) {
+  if (choices.models.length === 0 || choices.questions.length === 0 || choices.conditions.length === 0) {
     text = NO_CHOICE_TEXT;
   } else if (records.length === 0) {
     text = NO_REPLIES_TEXT;
@@ -2396,7 +2616,7 @@ function readPresetSettings() {
     repeats: choices.repeats,
     concurrency: choices.concurrency,
     callCap: choices.cap,
-    condition: choices.condition,
+    conditions: choices.conditions,
     temperature: config.temperature,
     maxTokens: config.max_tokens,
   };
@@ -2437,8 +2657,10 @@ async function applyPresetSettings(settings) {
     dom.cap.value = String(settings.callCap);
     page.capTouched = true;
   }
-  if (settings.condition !== undefined) {
-    dom.condition.value = settings.condition;
+  // A preset saved before the boxes were a list holds one condition, which is ticked on its own.
+  const conditions = settings.conditions ?? (settings.condition === undefined ? undefined : [settings.condition]);
+  if (conditions !== undefined) {
+    tickOnly(dom.conditionList, conditions);
     refreshConditionNote();
   }
   notes.push(batchFixedSettingsNote(settings));
