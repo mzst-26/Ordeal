@@ -356,11 +356,11 @@ test("a unit that throws emits unit-failed, the other units still finish, and on
   });
 });
 
-test("a concurrency that is not a whole number from 1 to 32 is refused with a clear message", () => {
-  for (const bad of [0, NaN, 33, 1.5]) {
+test("a concurrency that is not a whole number from 1 to 300 is refused with a clear message", () => {
+  for (const bad of [0, NaN, 301, 1.5]) {
     assert.throws(
       () => buildRunner(new FakeClient(), { concurrency: bad }),
-      /whole number from 1 to 32/,
+      /whole number from 1 to 300/,
     );
   }
   assert.doesNotThrow(() => buildRunner(new FakeClient(), { concurrency: 32 }));

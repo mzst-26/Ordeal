@@ -6,11 +6,11 @@ import { runFlows } from "./flows.js";
 import { cacheKey, makeUnits } from "./planner.js";
 import { BASELINE_STEP, formatQuestion, systemPromptFor } from "./rules.js";
 
-const MAX_CONCURRENCY = 32;
+const MAX_CONCURRENCY = 300;
 // The log used when the caller gives none: it keeps nothing.
 const NO_LOG = { record() {} };
 
-/** Return the concurrency if it is a whole number from 1 to 32. Otherwise throw a clear Error. */
+/** Return the concurrency if it is a whole number from 1 to 300. Otherwise throw a clear Error. */
 function checkConcurrency(value) {
   if (!Number.isInteger(value) || value < 1 || value > MAX_CONCURRENCY) {
     throw new Error(`Concurrency must be a whole number from 1 to ${MAX_CONCURRENCY}. Got ${value}.`);
@@ -176,7 +176,7 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
 
 /**
  * Create a batch runner for every unit of the models, questions and repeats given.
- * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 32,
+ * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 300,
  * and defaults to config.concurrency. onEvent(event) gets one plain object per event, in order.
  * Other options are as in runner.py. pairFor is the optional per-question pair of a mixed run.
  */
