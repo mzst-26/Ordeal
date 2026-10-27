@@ -59,7 +59,7 @@ function refused(found) {
  * saved, when the saved key was entered for another platform (that key is never sent there), or when the request
  * fails. Null means the name is accepted as not checked.
  */
-async function platformIdsForCheck(platform) {
+export async function platformIdsForCheck(platform) {
   if (!vault.has() || !keyFitsPlatform(vault.platformId(), platform.id)) {
     return null;
   }

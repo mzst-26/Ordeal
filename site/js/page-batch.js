@@ -3,7 +3,6 @@
 // reload can resume an unfinished run without repeating the calls that are already saved.
 
 import { loadJson } from "./data-cache.js";
-import { askForToken } from "./token-dialog.js";
 import { showToast } from "./toast.js";
 import { initTooltips } from "./tooltip.js";
 import { browserStorage, vault } from "./engine/token.js";
@@ -11,19 +10,20 @@ import { createBatchLog } from "./engine/batch-log.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
 import { VIEW_IDS } from "./view-ids.js";
 import { updateConditionDescription } from "./condition-text.js";
-import { createBudget, createChatClient, fetchModelIds, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
+import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
 import { activePlatform } from "./platform-choice.js";
 import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
 import { CHOICE_EVENT } from "./platform-section.js";
 import { setRunLocked, shuffleControlsState } from "./run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
-  withAddedModel, withoutAddedModel, addedRows, addOutcomeText, refusalText, entryNote, keyFitsPlatform,
-  ticksAfterPlatformChange, resolveNewModel, largeRunWarning, sortModelIds, letterGroups, withCatalogueNumbers,
+  withAddedModel, withoutAddedModel, addedRows, addOutcomeText, entryNote,
+  ticksAfterPlatformChange, largeRunWarning, sortModelIds, letterGroups, withCatalogueNumbers,
   nextAddedNumber, numberAddedModels, readAddedCounter, writeAddedCounter,
 } from "./model-list.js";
 import { buildModelAddArea } from "./model-popup.js";
 import { mountModelCheck } from "./model-check.js";
+import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
 import { csvCell } from "./engine/csv.js";
 import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
@@ -978,14 +978,6 @@ function afterListChange() {
   selectionChanged();
 }
 
-/** Return true when the key saved in this browser was entered for this platform, or once the visitor gives one for it. */
-async function keyReadyFor(platform) {
-  if (vault.has() && keyFitsPlatform(vault.platformId(), platform.id)) {
-    return true;
-  }
-  return askForToken({ vault, platformId: platform.id });
-}
-
 /** Ask for the key of the chosen platform, the same prompt a run uses. False when no platform can be chosen. */
 async function keyForChosenPlatform() {
   if (page.platform === null) return false;
@@ -1011,36 +1003,11 @@ async function addTypedModel(text) {
   if (platform === null) {
     return { message: NO_PLATFORM_ADD_TEXT, added: false, addedModels: page.addedModels };
   }
-  const early = resolveNewModel(platform, text, null);
-  if (!early.ok) {
-    return refusedResult(early);
+  const result = await checkTypedName(platform, text);
+  if (!result.ok) {
+    return { message: result.message, added: false, addedModels: page.addedModels };
   }
-  const found = resolveNewModel(platform, text, await platformIdsForCheck(platform));
-  if (!found.ok) {
-    return refusedResult(found);
-  }
-  return saveNewModel(platform, found.model, found.checked);
-}
-
-/** Return the result for a name that cannot be added: its plain line, and the names the visitor already has. */
-function refusedResult(found) {
-  return { message: refusalText(found.reason, found.suggestions), added: false, addedModels: page.addedModels };
-}
-
-/**
- * Return the platform's own list of ids for the check, or null when the check cannot run. It cannot run when no key is
- * saved, when the saved key was entered for another platform (that key is never sent there), or when the request
- * fails. Null means the name is added as not checked.
- */
-async function platformIdsForCheck(platform) {
-  if (!vault.has() || !keyFitsPlatform(vault.platformId(), platform.id)) {
-    return null;
-  }
-  try {
-    return await fetchModelIds({ platform, token: vault.get() });
-  } catch {
-    return null;
-  }
+  return saveNewModel(platform, result.model, result.checked);
 }
 
 /**
