@@ -162,6 +162,14 @@ export function SiteHeader({ vault, navigate }) {
               </a>
             </li>
           ))}
+          {/* The saved web runs live on their own page (runs.html), not in a view, so this link is a plain link. It
+              does not go through the router, because a full page load is what the runs page needs. */}
+          <li>
+            <a className="site-nav-link" href="/runs.html" title="Saved web runs">
+              <span className="site-nav-full">Saved runs</span>
+              <span className="site-nav-short" aria-hidden="true" hidden>Runs</span>
+            </a>
+          </li>
         </ul>
       </nav>
       <div className="site-tools">
