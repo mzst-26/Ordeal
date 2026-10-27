@@ -39,6 +39,7 @@ export function openEnlargedChart(panel, title) {
       box.addEventListener("change", () => {
         if (box.checked) hidden.delete(name);
         else hidden.add(name);
+        showMode("custom");
         render();
       });
       return el("label", { className: "chart-model-check" }, [box, el("span", { text: name })]);
@@ -73,19 +74,29 @@ export function openEnlargedChart(panel, title) {
     for (const name of modelNames(full)) {
       if (!top.includes(name)) hidden.add(name);
     }
+    showMode(which);
     render();
   }
 
   function keepAll() {
     hidden.clear();
+    showMode("all");
     render();
   }
 
-  const controls = el("div", { className: "button-row chart-dialog-controls" }, [
-    button(`Best ${TOP_COUNT}`, () => keepOnly("best")),
-    button(`Worst ${TOP_COUNT}`, () => keepOnly("worst")),
-    button("All models", keepAll),
-  ]);
+  const bestButton = button(`Best ${TOP_COUNT}`, () => keepOnly("best"));
+  const worstButton = button(`Worst ${TOP_COUNT}`, () => keepOnly("worst"));
+  const allButton = button("All models", keepAll);
+  const controls = el("div", { className: "button-row chart-dialog-controls" }, [bestButton, worstButton, allButton]);
+
+  // Which filter is on: "best", "worst", "all", or "custom" once a model is ticked or unticked by hand. The buttons show
+  // the one that is on as pressed, so the visitor can see which filter is in use.
+  function showMode(next) {
+    bestButton.setAttribute("aria-pressed", String(next === "best"));
+    worstButton.setAttribute("aria-pressed", String(next === "worst"));
+    allButton.setAttribute("aria-pressed", String(next === "all"));
+  }
+  showMode("all");
   dialog.append(heading, controls, checks, host, el("div", { className: "dialog-actions" }, [closeButton]));
 
   // The page redraws the panel after each batch of replies, so the dialog redraws with it while it is open.

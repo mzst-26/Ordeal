@@ -35,6 +35,13 @@
   cursor: pointer;
 }
 
+/* The filter that is on is drawn filled, so the pressed button stands out from the others. */
+.chart-dialog-controls .btn[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
 .chart-dialog-host {
   min-height: 320px;
 }
