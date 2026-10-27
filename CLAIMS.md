@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| probe-coverage-notes | claude-haiku-5-5 (this session) | site/js/page-live.js, js-tests/chart-models.test.js, ordeal/grade.py, ordeal/charts.py, tests/test_charts_map.py, tests/test_grade.py | 2026-10-27 |
