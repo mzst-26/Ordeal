@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/77-finish-usage-jitter | agent-a496b237d988503ae | ordeal/model_client.py, ordeal/runner.py, tests/mock_openai.py, tests/test_model_client.py, tests/test_runner.py, tests/test_e2e.py | 2026-10-27 |

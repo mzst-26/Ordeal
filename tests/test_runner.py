@@ -26,6 +26,7 @@ from ordeal.runner import (
     RunStats,
     backoff_seconds,
     choose_models,
+    jittered_seconds,
     main,
     make_units,
     parse_args,
@@ -203,6 +204,23 @@ class BackoffTests(unittest.TestCase):
         self.assertEqual(backoff_seconds(10), 60)
 
 
+# Guards the rate-limit jitter helper: the extra wait always lands between the base wait and a quarter more,
+# and it is really random, so many parked callers do not all retry at the same moment.
+class RateLimitJitterTests(unittest.TestCase):
+    """jittered_seconds stretches a base wait by a random amount between zero and a quarter of it."""
+
+    def test_jittered_wait_stays_between_the_base_and_a_quarter_more(self) -> None:
+        """Every sample for each base wait is at least the base and at most 1.25 times the base."""
+        for base in (1, 2, 4, 60):
+            samples = [jittered_seconds(base) for _ in range(200)]
+            with self.subTest(base=base):
+                self.assertTrue(all(base <= sample <= base * 1.25 for sample in samples))
+
+    def test_jittered_waits_are_spread_out_not_all_the_same(self) -> None:
+        """Two hundred draws give more than one value, so the wait is not a fixed number."""
+        self.assertGreater(len({jittered_seconds(4) for _ in range(200)}), 1)
+
+
 # Guards the core run loop: one first call per unit, saved replies reused without a call, a wrong first
 # answer skipping the pressure chain, a fatal error recorded once without retries, retryable errors
 # retried with growing waits and then given up on after max_retries, and failed calls never cached.
@@ -278,6 +296,23 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats.calls_made, 1)
         self.assertEqual(len(client.sent), 3)
 
+    async def test_rate_limit_retry_waits_are_jittered_within_a_range(self) -> None:
+        """After 429s with no wait time, each retry waits its base time plus up to a quarter more.
+
+        The base waits are 1, 2 and 4 seconds, so each real wait must fall between the base and 1.25 times the base.
+        At least one of the three must sit above its base, which shows the jitter was actually applied.
+        """
+        client = FakeClient(script=[rate_limit_error({}) for _ in range(3)])
+        waits: list[float] = []
+        settings = replace(make_settings(waits=waits), is_retryable=model_client.is_retryable)
+        stats, _ = await self.run_quietly(client, [make_question("q1")], settings)
+        self.assertEqual(len(waits), 3)
+        for wait, base in zip(waits, [1, 2, 4]):
+            self.assertGreaterEqual(wait, base)
+            self.assertLessEqual(wait, base * 1.25)
+        self.assertTrue(any(wait > base for wait, base in zip(waits, [1, 2, 4])))
+        self.assertEqual(stats.failures, [])
+
     async def test_retries_stop_after_max_retries(self) -> None:
         """With max_retries set to 2, the run tries three times and then records one failure."""
         client = FakeClient(script=[RetryableError("timeout") for _ in range(3)])
@@ -350,7 +385,10 @@ class PacedRunnerTests(unittest.IsolatedAsyncioTestCase):
         client = TimedClient(self.clock, [rate_limit_error({})])
         waits: list[float] = []
         stats = await self.run_once(client, waits=waits)
-        self.assertEqual(waits, [1])
+        # The retry wait after a 429 is jittered, so it is checked as a range: 1 second plus up to a quarter more.
+        self.assertEqual(len(waits), 1)
+        self.assertGreaterEqual(waits[0], 1)
+        self.assertLessEqual(waits[0], 1.25)
         self.assertEqual(stats.calls_made, 1)
         self.assertEqual(self.pacer.snapshot_for(MODEL)["rate_limited"], 0)
         self.assertEqual(self.clock.now, 0.0)
