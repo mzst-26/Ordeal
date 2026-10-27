@@ -786,6 +786,7 @@ function fillConditionList(systemPrompts) {
 function conditionItem(key) {
   return el("label", { className: "check" }, [
     el("input", { className: "check-input", type: "checkbox", value: key, checked: true }),
+    el("span", { className: "check-box" }),
     el("span", { className: "check-text", text: CONDITION_LABELS[key] ?? key }),
   ]);
 }
