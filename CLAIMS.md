@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/86-preregistration | agent-ae61df7e0eb3dbb50 | docs/PREREGISTRATION.md, CLAIMS.md | 2026-10-27 |
