@@ -6,6 +6,7 @@ is shown, and which custom models and test base URLs are allowed.
 """
 
 import hashlib
+import math
 import os
 import re
 from dataclasses import dataclass, field, replace
@@ -15,6 +16,7 @@ from urllib.parse import urlsplit
 import openai
 
 from ordeal import core
+from ordeal import limiter
 
 # Errors that can pass on a later try. Other errors (bad request, bad key, missing model) would fail again.
 RETRYABLE_ERROR_TYPES = (
@@ -52,6 +54,20 @@ class ModelRoute:
     api_key: str = field(default="", repr=False)
 
 
+@dataclass(frozen=True)
+class Reply:
+    """One model reply, with what the pacer needs to learn the provider's limits from it.
+
+    'headers' are the HTTP headers of the reply, with lower-case names, because the rate-limit headers are
+    only sent there. The usage counts come from the reply body and are None when the provider leaves them out.
+    """
+
+    text: str
+    headers: dict[str, str]
+    prompt_tokens: int | None
+    completion_tokens: int | None
+
+
 class TokenFactoryClient:
     """Sends chat requests to one OpenAI-compatible endpoint."""
 
@@ -66,17 +82,29 @@ class TokenFactoryClient:
 
     async def complete(self, model: str, messages: list[dict], temperature: float, max_tokens: int) -> str:
         """Send the messages and return the reply text, or "" if the reply has no content."""
-        response = await self.client.chat.completions.create(
+        reply = await self.complete_detailed(model, messages, temperature, max_tokens)
+        return reply.text
+
+    async def complete_detailed(self, model: str, messages: list[dict], temperature: float, max_tokens: int) -> Reply:
+        """Send the messages and return the reply with its headers and usage, for the pacer.
+
+        The raw-response form is used because the headers are only on the HTTP response. The body is then parsed
+        as usual, so the text and the usage come from the same object as before.
+        """
+        raw = await self.client.chat.completions.with_raw_response.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        # The message content can be None; callers expect a string, so it becomes "".
-        content = response.choices[0].message.content
-        if content is None:
-            return ""
-        return content
+        response = raw.parse()
+        prompt_tokens, completion_tokens = usage_counts(response)
+        return Reply(
+            text=reply_text(response),
+            headers=lower_case_headers(raw.headers),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
 
     async def close(self) -> None:
         """Close the underlying HTTP connections."""
@@ -95,8 +123,13 @@ class ModelRouter:
 
     async def complete(self, model: str, messages: list[dict], temperature: float, max_tokens: int) -> str:
         """Send the messages to the endpoint of the named model and return the reply text."""
+        reply = await self.complete_detailed(model, messages, temperature, max_tokens)
+        return reply.text
+
+    async def complete_detailed(self, model: str, messages: list[dict], temperature: float, max_tokens: int) -> Reply:
+        """Send the messages to the endpoint of the named model and return the reply with its headers and usage."""
         route = self.routes[model]
-        return await self.clients[model].complete(route.api_model, messages, temperature, max_tokens)
+        return await self.clients[model].complete_detailed(route.api_model, messages, temperature, max_tokens)
 
     async def close(self) -> None:
         """Close the connections of every client."""
@@ -104,9 +137,72 @@ class ModelRouter:
             await client.close()
 
 
+def lower_case_headers(headers: Any) -> dict[str, str]:
+    """Return the headers as a plain dict with lower-case names, so one name is always spelled the same way.
+
+    HTTP header names are not case-sensitive, but a plain dict is. Lower-casing here lets callers look up
+    'x-ratelimit-limit-requests' without worrying how the provider capitalised it.
+    """
+    return {str(name).lower(): str(value) for name, value in headers.items()}
+
+
+def reply_text(response: Any) -> str:
+    """Return the text of the first choice. The provider can send no content, which becomes "" so callers get a string."""
+    content = response.choices[0].message.content
+    if content is None:
+        return ""
+    return content
+
+
+def usage_counts(response: Any) -> tuple[int | None, int | None]:
+    """Return (prompt tokens, completion tokens) from the reply body. Both are None when the body has no usage block."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None, None
+    return usage.prompt_tokens, usage.completion_tokens
+
+
 def is_retryable(error: Exception) -> bool:
     """Return True for errors that may pass on a second try: rate limit, timeout, connection or server error."""
     return isinstance(error, RETRYABLE_ERROR_TYPES)
+
+
+def is_rate_limit(error: Exception) -> bool:
+    """Return True only for a rate-limit (429) error. The runner parks a model for these and no other error."""
+    return isinstance(error, openai.RateLimitError)
+
+
+def retry_after_seconds(error: Exception) -> float | None:
+    """Return how many seconds the provider asked us to wait after this error, or None if it did not say.
+
+    The retry-after header is checked first, because it is the plain instruction. Without it, the reset time
+    of the request limit is used. An error with no HTTP response (a timeout, say) has no headers, so gives None.
+    """
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    seconds = retry_after_header_seconds(headers)
+    if seconds is not None:
+        return seconds
+    return limiter.parse_rate_headers(headers).get("reset_requests_seconds")
+
+
+def retry_after_header_seconds(headers: Any) -> float | None:
+    """Return the retry-after header as seconds, or None if it is missing or is not a count of seconds.
+
+    Only the seconds form is read. The date form is rare, and a missing value falls back to the reset header.
+    """
+    for name, value in headers.items():
+        if str(name).lower() != "retry-after":
+            continue
+        try:
+            seconds = float(value)
+        except ValueError:
+            return None
+        # A negative or infinite wait makes no sense, and would park the model forever, so it counts as no wait time.
+        return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    return None
 
 
 def describe_error(error: Exception) -> str:
