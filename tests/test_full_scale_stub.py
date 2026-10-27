@@ -170,8 +170,17 @@ def run_child_until_killed(cache_path: Path) -> int:
     return child.returncode
 
 
+# The full-scale run makes about 23,000 stub calls and takes about two minutes, so the ordinary suite skips it.
+# It runs only when ORDEAL_FULL_SCALE is set to 1, for example: ORDEAL_FULL_SCALE=1 python -m unittest ...
+@unittest.skipUnless(
+    os.environ.get("ORDEAL_FULL_SCALE") == "1",
+    "opt-in: set ORDEAL_FULL_SCALE=1 to run the full-scale stub test (about 23,000 calls, about two minutes)",
+)
 class FullScaleStubTests(unittest.TestCase):
-    """The 96 x 30 x 4 run uses every call slot, saves each unit once, and resumes to the same keys."""
+    """The 96 x 30 x 4 run uses every call slot, saves each unit once, and resumes to the same keys.
+
+    It makes about 23,000 stub calls and takes about two minutes, so it is skipped unless ORDEAL_FULL_SCALE=1.
+    """
 
     def setUp(self) -> None:
         """Create a temporary folder for the cache, so the real cache is never touched."""
