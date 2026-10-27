@@ -222,7 +222,9 @@ class TabStateTests(unittest.TestCase):
                 # Cards show the model name without its provider prefix, so match on the part after the slash.
                 picker.locator(".picker-card", has_text=model_id.split("/")[-1]).first.click()
             picker.get_by_role("button", name="Done").click()
-            page.get_by_role("button", name="Choose questions").click()
+            # Questions sit behind one dropdown: open it, then press its Choose questions button.
+            page.get_by_role("button", name="Select questions").click()
+            page.locator("#question-choose").click()
             picker = page.locator("dialog.picker-dialog")
             expect(picker).to_be_visible(timeout=LONG_MS)
             picker.locator(".picker-card", has_text=SAVED_QUESTION).first.click()
