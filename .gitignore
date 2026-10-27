@@ -73,3 +73,9 @@ map_*.png
 /results.csv
 /probes.csv
 /cache.jsonl
+
+# Local environments and local data copies, not part of the project
+/.venv/
+/ordeal/.venv/
+/docs/small-batch-summary/
+/docs/full-run-summary copy/
