@@ -3,32 +3,60 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  RETENTION_DAYS,
+  RETENTION_HOURS,
+  HOUR_MS,
   DAY_MS,
+  BROWSER_CAP_BYTES,
   isExpired,
   expiredRunIds,
   totalBytes,
+  browserBytes,
+  fitsBrowserCap,
   planSizeCleanup,
 } from "../site/js/run-retention.js";
 
 const NOW = 100 * DAY_MS;
 
-// Retention: a run older than 7 days is expired. A run exactly 7 days old is still kept.
-test("a run older than 7 days is expired, and a run of exactly 7 days is kept", () => {
-  assert.equal(RETENTION_DAYS, 7);
-  assert.equal(isExpired(NOW - 8 * DAY_MS, NOW), true);
-  assert.equal(isExpired(NOW - 7 * DAY_MS, NOW), false);
-  assert.equal(isExpired(NOW - 1 * DAY_MS, NOW), false);
+// Retention: a run older than 24 hours is expired. A run exactly 24 hours old is still kept.
+test("a run older than 24 hours is expired, and a run of exactly 24 hours is kept", () => {
+  assert.equal(RETENTION_HOURS, 24);
+  assert.equal(isExpired(NOW - 25 * HOUR_MS, NOW), true);
+  assert.equal(isExpired(NOW - 24 * HOUR_MS, NOW), false);
+  assert.equal(isExpired(NOW - 1 * HOUR_MS, NOW), false);
 });
 
 // expiredRunIds picks out only the old runs, and keeps the order they were given in.
 test("expiredRunIds returns the ids of the old runs only", () => {
   const runs = [
-    { id: "old", createdAt: NOW - 10 * DAY_MS, bytes: 1 },
-    { id: "new", createdAt: NOW - 1 * DAY_MS, bytes: 1 },
-    { id: "edge", createdAt: NOW - 7 * DAY_MS, bytes: 1 },
+    { id: "old", createdAt: NOW - 2 * DAY_MS, bytes: 1 },
+    { id: "new", createdAt: NOW - 1 * HOUR_MS, bytes: 1 },
+    { id: "edge", createdAt: NOW - 24 * HOUR_MS, bytes: 1 },
   ];
   assert.deepEqual(expiredRunIds(runs, NOW), ["old"]);
+});
+
+// The browser cap is 100 MB, counted in bytes.
+test("the browser cap is 100 MB", () => {
+  assert.equal(BROWSER_CAP_BYTES, 100 * 1024 * 1024);
+});
+
+// browserBytes adds up only the runs that browser saved.
+test("browserBytes counts only the runs owned by that browser", () => {
+  const runs = [
+    { id: "a", createdAt: 1, bytes: 40, owner: "me" },
+    { id: "b", createdAt: 2, bytes: 30, owner: "other" },
+    { id: "c", createdAt: 3, bytes: 20, owner: "me" },
+  ];
+  assert.equal(browserBytes(runs, "me"), 60);
+  assert.equal(browserBytes(runs, "nobody"), 0);
+});
+
+// A save that would take one browser over its cap is refused, even when the whole store has room.
+test("a save over the browser's cap does not fit, and another browser's runs do not count", () => {
+  const runs = [{ id: "a", createdAt: 1, bytes: 90, owner: "me" }, { id: "b", createdAt: 2, bytes: 500, owner: "other" }];
+  assert.equal(fitsBrowserCap(runs, "me", 10, 100), true);
+  assert.equal(fitsBrowserCap(runs, "me", 11, 100), false);
+  assert.equal(fitsBrowserCap(runs, "fresh", 100, 100), true);
 });
 
 // Size cap: the cap is checked against the total of the kept runs plus the new save.

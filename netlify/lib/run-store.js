@@ -37,9 +37,9 @@ export async function listSummaries(store) {
   return summaries;
 }
 
-/** Save a stored record, with its kind, creation time and size kept as metadata. */
+/** Save a stored record, with its kind, creation time, size and owner browser kept as metadata. */
 export async function writeRecord(store, record, bytes) {
-  const metadata = { kind: record.kind, createdAt: record.createdAt, bytes };
+  const metadata = { kind: record.kind, createdAt: record.createdAt, bytes, owner: record.owner };
   await store.setJSON(keyFor(record.id), record, { metadata });
 }
 

@@ -1,36 +1,19 @@
-// Tests for the pure logic of the web run functions: the write password check and the rules for a saved run.
+// Tests for the pure logic of the web run functions: the rules for a saved run and the browser that saved it.
 // They use plain objects and strings only. Nothing calls Netlify, Netlify Blobs or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { passwordMatches } from "../netlify/lib/write-password.js";
-import { KINDS, checkNewRun, runIdIsValid, buildRecord, summaryOf } from "../netlify/lib/run-rules.js";
+import {
+  KINDS,
+  checkNewRun,
+  runIdIsValid,
+  browserIdIsValid,
+  buildRecord,
+  summaryOf,
+  toRetentionRuns,
+} from "../netlify/lib/run-rules.js";
 
-const EXPECTED = "example-write-password";
 const VALID_ID = "3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f";
-
-// The write password must come as "Authorization: Bearer <password>". The scheme word is not case sensitive.
-test("passwordMatches accepts the right password in a Bearer header", () => {
-  assert.equal(passwordMatches(`Bearer ${EXPECTED}`, EXPECTED), true);
-  assert.equal(passwordMatches(`bearer ${EXPECTED}`, EXPECTED), true);
-});
-
-// A wrong password, a missing header, another scheme, or a header with no password all get false.
-test("passwordMatches refuses a wrong, missing or differently shaped header", () => {
-  assert.equal(passwordMatches(`Bearer ${EXPECTED}x`, EXPECTED), false);
-  assert.equal(passwordMatches(`Bearer wrong`, EXPECTED), false);
-  assert.equal(passwordMatches(undefined, EXPECTED), false);
-  assert.equal(passwordMatches("", EXPECTED), false);
-  assert.equal(passwordMatches(`Basic ${EXPECTED}`, EXPECTED), false);
-  assert.equal(passwordMatches("Bearer", EXPECTED), false);
-});
-
-// When WRITE_PASSWORD is not set, nothing can be written, even by a request with an empty bearer value.
-test("passwordMatches refuses every request when no password is configured", () => {
-  assert.equal(passwordMatches("Bearer ", undefined), false);
-  assert.equal(passwordMatches("Bearer ", ""), false);
-  assert.equal(passwordMatches(`Bearer ${EXPECTED}`, undefined), false);
-  assert.equal(passwordMatches(`Bearer ${EXPECTED}`, ""), false);
-});
+const BROWSER = "9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a";
 
 // Only the two kinds of run the pages make may be saved.
 test("the saved kinds are batch and gauntlet", () => {
@@ -47,7 +30,7 @@ test("checkNewRun accepts a known kind with a run object, and refuses the rest",
   assert.equal(checkNewRun("text").ok, false);
 });
 
-// Ids are made by the server as UUIDs. Anything else is refused, so a request cannot pick a strange storage key.
+// Run ids are made by the server as UUIDs. Anything else is refused, so a request cannot pick a strange storage key.
 test("runIdIsValid only accepts a lower-case UUID", () => {
   assert.equal(runIdIsValid(VALID_ID), true);
   assert.equal(runIdIsValid("../etc"), false);
@@ -55,31 +38,33 @@ test("runIdIsValid only accepts a lower-case UUID", () => {
   assert.equal(runIdIsValid(undefined), false);
 });
 
-// The stored record keeps the id, kind, creation time and run. The summary shown in a list is read from the metadata.
-test("buildRecord and summaryOf give the same kind, size and creation time", () => {
-  const record = buildRecord(VALID_ID, { kind: "batch", run: { label: "one" } }, 1000);
-  assert.deepEqual(record, { id: VALID_ID, kind: "batch", createdAt: 1000, run: { label: "one" } });
-  const metadata = { kind: "batch", createdAt: 1000, bytes: 52 };
-  assert.deepEqual(summaryOf(VALID_ID, metadata), { id: VALID_ID, kind: "batch", createdAt: 1000, size: 52 });
+// A browser id has the same shape. A missing or made-up id is refused before anything is counted against it.
+test("browserIdIsValid only accepts a lower-case UUID", () => {
+  assert.equal(browserIdIsValid(BROWSER), true);
+  assert.equal(browserIdIsValid("me"), false);
+  assert.equal(browserIdIsValid(null), false);
 });
 
-// The handler refuses a save or delete with 401 before it opens storage, so these checks never reach Netlify.
-// The password variable is set for one test and put back afterwards.
-test("the runs handler answers 401 to a save or delete with a wrong or missing password", async () => {
+// The stored record keeps the id, kind, creation time, owner and run.
+test("buildRecord keeps the owner browser with the run", () => {
+  const record = buildRecord(VALID_ID, { kind: "batch", run: { label: "one" } }, 1000, BROWSER);
+  assert.deepEqual(record, { id: VALID_ID, kind: "batch", createdAt: 1000, owner: BROWSER, run: { label: "one" } });
+});
+
+// The summary read from the metadata carries the size, and the owner for the server to check against.
+test("summaryOf and toRetentionRuns carry the size and the owner", () => {
+  const metadata = { kind: "batch", createdAt: 1000, bytes: 52, owner: BROWSER };
+  const summary = summaryOf(VALID_ID, metadata);
+  assert.deepEqual(summary, { id: VALID_ID, kind: "batch", createdAt: 1000, size: 52, owner: BROWSER });
+  assert.deepEqual(toRetentionRuns([summary]), [{ id: VALID_ID, createdAt: 1000, bytes: 52, owner: BROWSER }]);
+});
+
+// A save or delete with no browser id is refused with 400, before any storage is opened.
+test("the runs handler answers 400 to a save or delete that names no browser", async () => {
   const { default: handler } = await import("../netlify/functions/runs.js");
-  const saved = process.env.WRITE_PASSWORD;
   const url = `https://example.test/api/runs?id=${VALID_ID}`;
-  try {
-    process.env.WRITE_PASSWORD = EXPECTED;
-    const wrong = await handler(new Request(url, { method: "DELETE", headers: { authorization: "Bearer nope" } }));
-    const none = await handler(new Request(url, { method: "POST", body: "{}" }));
-    assert.equal(wrong.status, 401);
-    assert.equal(none.status, 401);
-    delete process.env.WRITE_PASSWORD;
-    const unset = await handler(new Request(url, { method: "DELETE", headers: { authorization: "Bearer " } }));
-    assert.equal(unset.status, 401);
-  } finally {
-    if (saved === undefined) delete process.env.WRITE_PASSWORD;
-    else process.env.WRITE_PASSWORD = saved;
-  }
+  const deleted = await handler(new Request(url, { method: "DELETE" }));
+  const saved = await handler(new Request("https://example.test/api/runs", { method: "POST", body: "{}" }));
+  assert.equal(deleted.status, 400);
+  assert.equal(saved.status, 400);
 });
