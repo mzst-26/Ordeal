@@ -4,7 +4,7 @@
 // textContent, and the chart is drawn by the chart module the panel was made with.
 
 import { el } from "./ui.js";
-import { filterChartOptions, modelNames, topModels } from "./chart-models.js";
+import { filterChartOptions, modelNames, topModels, MEAN_NAME } from "./chart-models.js";
 
 const TOP_COUNT = 5;
 
@@ -72,7 +72,8 @@ export function openEnlargedChart(panel, title) {
     const top = topModels(full, TOP_COUNT, which);
     hidden.clear();
     for (const name of modelNames(full)) {
-      if (!top.includes(name)) hidden.add(name);
+      // The mean line is not a model, so Best and Worst leave it on the chart.
+      if (!top.includes(name) && name !== MEAN_NAME) hidden.add(name);
     }
     showMode(which);
     render();

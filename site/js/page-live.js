@@ -34,6 +34,7 @@ import {
 } from "./engine/rules.js";
 import { barErrorChart, donutChart, lineBandChart, scatterQuadrant } from "./charts/index.js";
 import { openEnlargedChart } from "./chart-popup.js";
+import { MEAN_NAME } from "./chart-models.js";
 import {
   barTable, destroyChart, drawPanel, makeChartPanel, seriesColour, seriesSlot, seriesStyle, isRepeatSeries,
   watchThemeChanges,
@@ -590,17 +591,39 @@ function levelOptions(rows, suite) {
     yAxisTitle: "Flip rate",
     yMax: 1,
     ariaLabel: "Line chart: the share of right first answers that have given way by each pressure level.",
-    series: activeModels.map((model, index) => {
-      const row = rowFor(rows, model);
-      const field = (level, suffix = "") => (row ? row[`flip_rate_level_${level}${suffix}`] : Number.NaN);
-      return {
-        name: shortName(model),
-        ...seriesStyle(index),
-        values: levels.map((level) => field(level)),
-        lows: levels.map((level) => field(level, "_low")),
-        highs: levels.map((level) => field(level, "_high")),
-      };
-    }),
+    series: [
+      ...activeModels.map((model, index) => {
+        const row = rowFor(rows, model);
+        const field = (level, suffix = "") => (row ? row[`flip_rate_level_${level}${suffix}`] : Number.NaN);
+        return {
+          name: shortName(model),
+          ...seriesStyle(index),
+          values: levels.map((level) => field(level)),
+          lows: levels.map((level) => field(level, "_low")),
+          highs: levels.map((level) => field(level, "_high")),
+        };
+      }),
+      meanLevelSeries(rows, levels, activeModels.length),
+    ],
+  };
+}
+
+/**
+ * The mean flip rate of the models at each level, as one dashed line named "Mean of models". It is a filter like a model,
+ * so the enlarged chart can show it alone or hide it. It has no interval of its own.
+ */
+function meanLevelSeries(rows, levels, index) {
+  const perLevel = levels.map((level) => meanOf(activeModels.map((model) => {
+    const row = rowFor(rows, model);
+    return row ? row[`flip_rate_level_${level}`] : Number.NaN;
+  })));
+  return {
+    name: MEAN_NAME,
+    ...seriesStyle(index),
+    dashed: true,
+    values: perLevel,
+    lows: perLevel.map(() => Number.NaN),
+    highs: perLevel.map(() => Number.NaN),
   };
 }
 

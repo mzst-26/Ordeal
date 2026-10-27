@@ -1,6 +1,9 @@
 // Which models an enlarged chart shows, and how the models rank. Nothing here reads the DOM, so the tests run it in Node.
 // The enlarged chart in chart-popup.js uses these to filter the models out, and to keep the best or the worst few.
 
+/** The name of the mean line on the level curve. It is a filter like a model, but it is not a model, so it is never ranked. */
+export const MEAN_NAME = "Mean of models";
+
 /** The name of each model a chart shows, in the order it is drawn. A scatter chart names its models by label. */
 export function modelNames(options) {
   if (Array.isArray(options.series)) return options.series.map((item) => item.name);
@@ -47,10 +50,12 @@ function scoreOf(item, options) {
 export function rankedModels(options) {
   const items = Array.isArray(options.series) ? options.series : Array.isArray(options.points) ? options.points : [];
   const lowerIsBetter = options.lowerIsBetter === true;
-  const named = items.map((item) => ({
-    name: Array.isArray(options.series) ? item.name : item.label,
-    score: scoreOf(item, options),
-  }));
+  const named = items
+    .filter((item) => (Array.isArray(options.series) ? item.name : item.label) !== MEAN_NAME)
+    .map((item) => ({
+      name: Array.isArray(options.series) ? item.name : item.label,
+      score: scoreOf(item, options),
+    }));
   return named.sort((a, b) => {
     if (Number.isNaN(a.score) && Number.isNaN(b.score)) return 0;
     if (Number.isNaN(a.score)) return 1;
