@@ -183,6 +183,8 @@ export async function savedRunRows(adapter, kind) {
       planned: run.plannedUnits.length,
       createdAt: run.createdAt,
       resumable: canResume(run),
+      // A complete run has every planned unit saved. It is opened, not resumed, because nothing is left to send.
+      complete: run.plannedUnits.length > 0 && Object.keys(run.results).length >= run.plannedUnits.length,
     }));
 }
 

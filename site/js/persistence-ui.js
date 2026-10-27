@@ -239,9 +239,12 @@ export function buildRunsList({ adapter, kind, queue, unitWord, onResume, onChan
 
   /** Build one row of the list. */
   function rowItem(row) {
-    const resume = button("Resume");
-    resume.setAttribute("aria-label", `Resume ${row.label}`);
-    resume.disabled = !row.resumable;
+    // A complete run has nothing left to send, so its button says Open and works for any status. Any other run keeps
+    // Resume, which is offered only when the run can be resumed.
+    const action = row.complete ? "Open" : "Resume";
+    const resume = button(action);
+    resume.setAttribute("aria-label", `${action} ${row.label}`);
+    resume.disabled = !row.complete && !row.resumable;
     resume.addEventListener("click", () => resumeRow(row.id));
     const exportButton = button("Export");
     exportButton.setAttribute("aria-label", `Export ${row.label}`);
