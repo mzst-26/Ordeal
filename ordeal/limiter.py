@@ -318,11 +318,17 @@ class Pacer:
         table: dict[str, dict[str, int]] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Any] = asyncio.sleep,
+        paced: bool = True,
     ) -> None:
-        """Use the given table of limits, or the shipped one when none is given."""
+        """Use the given table of limits, or the shipped one when none is given.
+
+        With paced=False every call is admitted at once. A stub run uses this, because its replies never reach a
+        provider, so waiting for a provider's limits would only add minutes to a run that has nothing to limit.
+        """
         self.table = load_rate_table() if table is None else table
         self.clock = clock
         self.sleep = sleep
+        self.paced = paced
         self.states: dict[str, ModelState] = {}
 
     def state_for(self, model: str) -> ModelState:
@@ -338,6 +344,12 @@ class Pacer:
         """
         state = self.state_for(model)
         estimate = input_tokens + state.output_tokens
+        if not self.paced:
+            # Nothing is limited, so the call goes now. It still counts as in flight, so finish_call stays balanced,
+            # and it still counts as a call, so the snapshot shows what the run did.
+            state.in_flight += 1
+            state.calls += 1
+            return estimate
         while True:
             wait = state.seconds_until_free(estimate)
             if wait <= 0 and state.in_flight < state.in_flight_cap():

@@ -9,6 +9,7 @@ from typing import Any
 
 from ordeal import core
 from ordeal import flows
+from ordeal import limiter
 from ordeal import model_client
 from ordeal.runner import RunSettings, plan_model_calls, run_all
 
@@ -117,6 +118,7 @@ class TempCacheTestCase(unittest.IsolatedAsyncioTestCase):
                 1,
                 make_settings(families),
                 max_calls,
+                pacer=limiter.Pacer(paced=False),
             )
 
 

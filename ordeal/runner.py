@@ -844,7 +844,8 @@ def main(
     if run_record is not None:
         core.write_run_record(run_record, record_path)
     # One pacer for the whole run, so the snapshot written below shows what the run itself learned about each model.
-    pacer = limiter.Pacer()
+    # A stub run never reaches a provider, so it is not paced. Pacing it would add minutes of waiting for nothing.
+    pacer = limiter.Pacer(paced=not args.stub)
     stats = asyncio.run(
         run_all(
             client, cache, cache_path, plan.questions, models, args.repeats, settings, args.max_calls,
