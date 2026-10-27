@@ -4,7 +4,7 @@
 // { model, index, measures: { <MEASURES key>: number|null } }, and measures are the result measure definitions
 // { key, label, digits, higherIsBetter }.
 
-import { heatmapMatrix, summaryStats } from "./analytics.js";
+import { heatmapMatrix, shareOfMax } from "./analytics.js";
 import { el, formatNumber } from "./ui.js";
 import { TERMS } from "./glossary.js";
 
@@ -329,8 +329,9 @@ function buildScatter(rows, measures, block) {
   setTip(xSelect, `${TERMS.xAxis} ${xMeasure.definition}`);
   setTip(ySelect, `${TERMS.yAxis} ${yMeasure.definition}`);
   const split = splitScatterRows(rows, xMeasure.key, yMeasure.key);
-  const xStats = summaryStats(rows.map((row) => row.measures[xMeasure.key]));
-  const yStats = summaryStats(rows.map((row) => row.measures[yMeasure.key]));
+  // Both axes run from 0 to the most each measure can be, so a dot's place is its real score, not its place among the models.
+  const xTop = xMeasure.max;
+  const yTop = yMeasure.max;
 
   const width = 560;
   const height = 400;
@@ -347,10 +348,10 @@ function buildScatter(rows, measures, block) {
   svg.append(svgEl("rect", { class: "figure-plot-bg", x: left, y: top, width: plotW, height: plotH }));
   svg.append(svgEl("line", { class: "figure-axis", x1: left, y1: top + plotH, x2: left + plotW, y2: top + plotH }));
   svg.append(svgEl("line", { class: "figure-axis", x1: left, y1: top, x2: left, y2: top + plotH }));
-  svg.append(textEl(formatNumber(xStats.min, xMeasure.digits), { class: "figure-tick", x: left, y: top + plotH + 16 }));
-  svg.append(textEl(formatNumber(xStats.max, xMeasure.digits), { class: "figure-tick", x: left + plotW, y: top + plotH + 16, "text-anchor": "end" }));
-  svg.append(textEl(formatNumber(yStats.max, yMeasure.digits), { class: "figure-tick", x: left - 6, y: top + 10, "text-anchor": "end" }));
-  svg.append(textEl(formatNumber(yStats.min, yMeasure.digits), { class: "figure-tick", x: left - 6, y: top + plotH, "text-anchor": "end" }));
+  svg.append(textEl(formatNumber(0, xMeasure.digits), { class: "figure-tick", x: left, y: top + plotH + 16 }));
+  svg.append(textEl(formatNumber(xTop, xMeasure.digits), { class: "figure-tick", x: left + plotW, y: top + plotH + 16, "text-anchor": "end" }));
+  svg.append(textEl(formatNumber(yTop, yMeasure.digits), { class: "figure-tick", x: left - 6, y: top + 10, "text-anchor": "end" }));
+  svg.append(textEl(formatNumber(0, yMeasure.digits), { class: "figure-tick", x: left - 6, y: top + plotH, "text-anchor": "end" }));
   const xLabel = textEl(xMeasure.label, { class: "figure-axis-label", x: left + plotW / 2, y: height - 8, "text-anchor": "middle" });
   setTip(xLabel, xMeasure.definition);
   const yLabel = textEl(yMeasure.label, { class: "figure-axis-label", "text-anchor": "middle", transform: `translate(14 ${top + plotH / 2}) rotate(-90)` });
@@ -363,8 +364,8 @@ function buildScatter(rows, measures, block) {
   for (const row of split.plotted) {
     const xValue = row.measures[xMeasure.key];
     const yValue = row.measures[yMeasure.key];
-    const px = left + scatterPosition(xValue, xStats.min, xStats.max, plotW);
-    const py = top + plotH - scatterPosition(yValue, yStats.min, yStats.max, plotH);
+    const px = left + scatterPosition(xValue, 0, xTop, plotW);
+    const py = top + plotH - scatterPosition(yValue, 0, yTop, plotH);
     const colour = colourFor(row.index);
     const point = svgEl("circle", { class: "figure-point", cx: px, cy: py, r: 6, fill: colour, stroke: colour, "data-model-index": row.index });
     setTip(point, `${row.model}: ${xMeasure.label} ${formatNumber(xValue, xMeasure.digits)}, ${yMeasure.label} ${formatNumber(yValue, yMeasure.digits)}`);
@@ -384,10 +385,8 @@ function buildScatter(rows, measures, block) {
   return [axes, ...notes, el("div", { className: "figure-scroll" }, [svg])];
 }
 
-/** Profile: one row per ticked model, eight bars in measure order, each scaled across the ticked models. */
+/** Profile: one row per ticked model, eight bars in measure order, each a share of the most that measure can be. */
 function buildProfile(rows, measures, block) {
-  const keys = measures.map((measure) => measure.key);
-  const cells = heatmapMatrix(rows, keys).cells;
   const cell = 40;
   const barHeight = 80;
   const width = cell * measures.length;
@@ -400,9 +399,9 @@ function buildProfile(rows, measures, block) {
       "aria-label": `Profile of ${row.model}`,
     });
     measures.forEach((measure, i) => {
-      const scaled = cells[row.index][i];
-      const x = i * cell + 6;
       const value = row.measures[measure.key];
+      const scaled = shareOfMax(value, measure.max);
+      const x = i * cell + 6;
       if (!isUsable(scaled)) {
         svg.append(svgEl("rect", { class: "figure-missing", x, y: barHeight - 2, width: cell - 12, height: 2, "data-tip": `${measure.label}: no data` }));
         return;
@@ -429,8 +428,8 @@ function buildProfile(rows, measures, block) {
       "Each row is one model. The eight bars run ",
       termSpan("in the order below", TERMS.barOrder),
       ", and each is ",
-      termSpan("scaled", TERMS.scaled),
-      " across the ticked models. Taller is better.",
+      termSpan("a share of its top", TERMS.shareOfMax),
+      ". Taller is more of the measure, which is better except where lower is better.",
     ]),
     key,
     el("div", { className: "figure-scroll" }, profileRows),

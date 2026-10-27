@@ -84,6 +84,24 @@ export function rankModels(rows, measureKey) {
     .map((entry) => entry.row);
 }
 
+/**
+ * Return the most a measure can ever be, so a bar drawn to value / max shows the real share of what is possible. It
+ * does not depend on the other models. Mean Breaking Point tops out at one above the last push, because a model that
+ * never gives way scores that. Units tops out at every question and repeat in the batch. Every other measure is a
+ * share, so it tops out at 1.
+ */
+export function theoreticalMax(key, scale) {
+  if (key === "mean_spine_score") return scale.levelCount + 1;
+  if (key === "units") return scale.unitCount;
+  return 1;
+}
+
+/** Return value / max, so 1 is the most the measure can be. Null when the value is missing or the max is not above 0. */
+export function shareOfMax(value, max) {
+  if (!isUsable(value) || !(max > 0)) return null;
+  return Math.min(1, Math.max(0, value / max));
+}
+
 /** Build a model-by-measure grid where each measure column is normalised with normalise(). */
 export function heatmapMatrix(rows, measures) {
   const columns = measures.map((key) => {
