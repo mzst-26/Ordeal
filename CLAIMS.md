@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/94-per-visitor-runs | claude (agent a80cc56466ae21add) | netlify/**, site/js/run-retention.js, site/js/visitor-rules.js, site/js/visitor-id.js, site/js/runs-api.js, site/js/page-runs.js, site/js/save-to-runs.js, site/js/run-summary.js, site/js/page-batch.js, site/js/page-gauntlet.js, site/runs.html, site/batch.html, site/index.html, site/css/page-runs.css, netlify.toml, README.md, js-tests/run-retention.test.js, js-tests/visitor-rules.test.js, js-tests/run-server-logic.test.js, js-tests/runs-api.test.js | 2026-10-27 |
