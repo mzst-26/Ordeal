@@ -888,14 +888,19 @@ function buildReplayItems(records, questions) {
     const question = questionsById[ref.questionId];
     const baselineRight = baseline && question && parseAnswer(baseline.reply) === question.correct;
     items.push({ kind: "start", ref });
+    // Steps the theatre does not play (the probes of a unit whose baseline was wrong) still count for the charts. They
+    // are handed over when the unit ends, so the probe charts get the same numbers as the batch page.
+    const hidden = [];
     for (const record of unitRecords) {
       // A unit whose baseline reply is wrong plays only its baseline and correction steps. The rest are skipped.
       const playsWhenWrong = record.step === BASELINE_STEP || record.step.startsWith("corr_");
       if (baselineRight || playsWhenWrong) {
         items.push({ kind: "reply", ref, record });
+      } else {
+        hidden.push(record);
       }
     }
-    items.push({ kind: "end", ref });
+    items.push({ kind: "end", ref, hidden });
   }
   return items;
 }
@@ -925,6 +930,16 @@ function applyReplayItem(item) {
   } else if (item.kind === "reply") {
     revealReply(item.ref, item.record.step, item.record.reply);
   } else {
+    for (const record of item.hidden ?? []) {
+      run.seen.push({
+        condition: CONDITION,
+        model: record.model,
+        question_id: record.question_id,
+        repeat: record.repeat,
+        step: record.step,
+        reply: record.reply,
+      });
+    }
     finishUnit(item.ref);
   }
 }
