@@ -9,13 +9,15 @@ results/cache.sqlite. The JSONL file is still the format that grade and the othe
 export_jsonl writes the same lines that core.load_cache reads.
 """
 
+import hashlib
 import json
 import sqlite3
 import sys
 from pathlib import Path
 
 # The table holds one row per saved reply. The primary key is the reply's identity, and SQLite builds an
-# index for it, so a lookup by key does not scan the table. 'record' is the whole saved record as JSON text.
+# index for it, so a lookup by key does not scan the table. 'record' is the saved record as JSON text, without
+# its messages. 'messages_hash' names the message list in message_lists, which holds each list only once.
 CREATE_REPLIES_SQL = """
 CREATE TABLE IF NOT EXISTS replies (
     experiment TEXT NOT NULL,
@@ -24,8 +26,18 @@ CREATE TABLE IF NOT EXISTS replies (
     question_id TEXT NOT NULL,
     repeat INTEGER NOT NULL,
     step TEXT NOT NULL,
+    messages_hash TEXT,
     record TEXT NOT NULL,
     PRIMARY KEY (experiment, condition, model, question_id, repeat, step)
+)
+"""
+
+# One row per distinct message list. Many replies send the same messages (every model gets the same question),
+# so the list is stored here once, and the hash is its name.
+CREATE_MESSAGE_LISTS_SQL = """
+CREATE TABLE IF NOT EXISTS message_lists (
+    hash TEXT PRIMARY KEY,
+    messages TEXT NOT NULL
 )
 """
 
@@ -44,6 +56,28 @@ class ImportMismatch(Exception):
 
     The import is then rolled back, so a half-copied store is never kept.
     """
+
+
+def messages_text_and_hash(messages: list) -> tuple[str, str]:
+    """Return the canonical JSON text of a message list, and the SHA-256 hash of that text.
+
+    Sorted keys and no spaces mean the same messages give the same text, however their dicts were built, so
+    the same list always gets the same hash and is stored once.
+    """
+    text = json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return digest, text
+
+
+def full_record(record_text: str, messages_text: str | None) -> dict:
+    """Join a stored reply row and its message list back into one record, with the same fields as when it was added.
+
+    A record saved with no messages field has no message list (messages_text is None), so none is added back.
+    """
+    record = json.loads(record_text)
+    if messages_text is not None:
+        record["messages"] = json.loads(messages_text)
+    return record
 
 
 def store_path_for(cache_path: Path) -> Path:
@@ -77,6 +111,7 @@ class ReplyStore:
         # WAL mode lets a reader (such as grade) look at the file while a run is still writing a reply.
         self.connection.execute("PRAGMA journal_mode=WAL")
         self.connection.execute(CREATE_REPLIES_SQL)
+        self.connection.execute(CREATE_MESSAGE_LISTS_SQL)
         self.connection.execute(CREATE_META_SQL)
 
     def __enter__(self) -> "ReplyStore":
@@ -92,21 +127,57 @@ class ReplyStore:
         self.connection.close()
 
     def add(self, record: dict) -> None:
-        """Save one reply. A reply with the same key replaces the earlier one, as the JSONL cache did."""
-        # The record is stored as text so export_jsonl can write back exactly the line that was saved.
-        text = json.dumps(record, ensure_ascii=False)
+        """Save one reply. A reply with the same key replaces the earlier one, as the JSONL cache did.
+
+        The message list goes into message_lists (only if it is new), and the reply row points to it. Both
+        writes are one transaction, so a reply is never saved without its message list.
+        """
+        self.connection.execute("BEGIN")
+        try:
+            self.write_record(record)
+            self.connection.execute("COMMIT")
+        except BaseException:
+            self.connection.execute("ROLLBACK")
+            raise
+
+    def write_record(self, record: dict) -> None:
+        """Write one reply and its message list, without starting or committing a transaction.
+
+        The caller must already be inside a transaction. add uses this for one reply; the one-time import uses
+        it for many replies, so the whole import commits or rolls back as one.
+        """
+        # The record is saved without its messages, because they are already in message_lists.
+        slim = {name: value for name, value in record.items() if name != "messages"}
+        digest = None
+        if "messages" in record:
+            digest, messages_text = messages_text_and_hash(record["messages"])
+            self.connection.execute(
+                "INSERT OR IGNORE INTO message_lists (hash, messages) VALUES (?, ?)", (digest, messages_text)
+            )
         self.connection.execute(
-            "INSERT OR REPLACE INTO replies (experiment, condition, model, question_id, repeat, step, record) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (*key_values(record), text),
+            "INSERT OR REPLACE INTO replies "
+            "(experiment, condition, model, question_id, repeat, step, messages_hash, record) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (*key_values(record), digest, json.dumps(slim, ensure_ascii=False)),
         )
+
+    def joined_rows(self, where_sql: str = "", params: tuple = ()) -> list[tuple[str, str | None]]:
+        """Return (record text, messages text) for the matching replies, in the order they were saved.
+
+        The join is a LEFT JOIN, so a reply saved with no message list still comes back (with None for its messages).
+        """
+        return self.connection.execute(
+            "SELECT replies.record, message_lists.messages FROM replies "
+            "LEFT JOIN message_lists ON message_lists.hash = replies.messages_hash "
+            + where_sql
+            + " ORDER BY replies.rowid",
+            params,
+        ).fetchall()
 
     def records_for_experiment(self, experiment: str) -> list[dict]:
         """Return every saved reply for one experiment code, in the order they were saved."""
-        rows = self.connection.execute(
-            "SELECT record FROM replies WHERE experiment = ? ORDER BY rowid", (experiment,)
-        ).fetchall()
-        return [json.loads(row[0]) for row in rows]
+        rows = self.joined_rows("WHERE replies.experiment = ?", (experiment,))
+        return [full_record(record_text, messages_text) for record_text, messages_text in rows]
 
     def count_rows(self) -> int:
         """Return how many replies the store holds, across all experiment codes."""
@@ -136,10 +207,11 @@ class ReplyStore:
 
         The lines are the same ones core.load_cache reads, so grade and the other readers can use the export.
         """
-        rows = self.connection.execute("SELECT record FROM replies ORDER BY rowid").fetchall()
+        rows = self.joined_rows()
         with open(out_path, "w", encoding="utf-8") as file:
-            for row in rows:
-                file.write(row[0] + "\n")
+            for record_text, messages_text in rows:
+                line = json.dumps(full_record(record_text, messages_text), ensure_ascii=False)
+                file.write(line + "\n")
         return len(rows)
 
 
@@ -182,7 +254,7 @@ def copy_jsonl_into(db: ReplyStore, jsonl_path: Path) -> None:
         return
     records = read_jsonl_records(jsonl_path)
     for record in records:
-        db.add(record)
+        db.write_record(record)
     verify_import(db, {key_values(record) for record in records})
     print(f"Imported {db.count_rows()} saved replies from {jsonl_path.name} into {db.path.name}.", file=sys.stderr)
 

@@ -254,5 +254,77 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(other_count, 1)
 
 
+def count_table_rows(db_path: Path, table: str) -> int:
+    """Count the rows of one table with a plain SQLite connection, so the test does not rely on store code."""
+    connection = sqlite3.connect(db_path)
+    try:
+        return connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    finally:
+        connection.close()
+
+
+class MessageDedupeTests(unittest.TestCase):
+    """A message list that many replies share is stored once, and each reply points to it."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+        self.db_path = self.folder / "cache.sqlite"
+
+    def test_repeated_message_list_is_stored_once(self) -> None:
+        """Three replies that sent the same messages leave one message list and three reply rows."""
+        messages = [{"role": "system", "content": "Shared prompt"}, {"role": "user", "content": "Question"}]
+        with store.ReplyStore(self.db_path) as db:
+            for model in ("model-a", "model-b", "model-c"):
+                record = make_reply()
+                record["model"] = model
+                record["messages"] = messages
+                db.add(record)
+        self.assertEqual(count_table_rows(self.db_path, "message_lists"), 1)
+        self.assertEqual(count_table_rows(self.db_path, "replies"), 3)
+
+    def test_different_message_lists_are_stored_separately(self) -> None:
+        """Two different message lists leave two rows, even when they are only one word apart."""
+        with store.ReplyStore(self.db_path) as db:
+            first = make_reply(question_id="q1")
+            second = make_reply(question_id="q2")
+            second["messages"] = [{"role": "user", "content": "A different question"}]
+            db.add(first)
+            db.add(second)
+        self.assertEqual(count_table_rows(self.db_path, "message_lists"), 2)
+
+    def test_same_messages_with_fields_in_another_order_are_still_stored_once(self) -> None:
+        """The key is taken from the JSON with sorted keys, so field order does not make a second copy."""
+        with store.ReplyStore(self.db_path) as db:
+            first = make_reply(question_id="q1")
+            second = make_reply(question_id="q2")
+            second["messages"] = [{"content": "Question", "role": "user"}]
+            first["messages"] = [{"role": "user", "content": "Question"}]
+            db.add(first)
+            db.add(second)
+        self.assertEqual(count_table_rows(self.db_path, "message_lists"), 1)
+
+    def test_record_without_messages_comes_back_without_a_messages_field(self) -> None:
+        """A record saved with no messages field has no message list, and reads back with no messages field."""
+        record = make_reply(question_id="q1")
+        del record["messages"]
+        with store.ReplyStore(self.db_path) as db:
+            db.add(record)
+            self.assertEqual(db.records_for_experiment("exp-a"), [record])
+        self.assertEqual(count_table_rows(self.db_path, "message_lists"), 0)
+
+    def test_reads_and_exports_give_back_the_full_messages(self) -> None:
+        """Reading a reply back, or exporting it, still gives the whole record with its messages."""
+        reply = make_reply(question_id="q1")
+        reply["messages"] = [{"role": "user", "content": "Question"}, {"role": "assistant", "content": "Answer"}]
+        out_path = self.folder / "export.jsonl"
+        with store.ReplyStore(self.db_path) as db:
+            db.add(reply)
+            self.assertEqual(db.records_for_experiment("exp-a"), [reply])
+            db.export_jsonl(out_path)
+        self.assertEqual([json.loads(line) for line in out_path.read_text(encoding="utf-8").splitlines()], [reply])
+
+
 if __name__ == "__main__":
     unittest.main()
