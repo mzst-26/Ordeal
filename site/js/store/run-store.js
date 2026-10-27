@@ -225,6 +225,42 @@ export async function saveResult(adapter, runId, unitKey, record) {
 }
 
 /**
+ * Save a run that was loaded from a file, in one write. Saving unit by unit (saveResult) would rewrite the whole run
+ * for every unit, which is far too slow for a full run of about 1,700 units. Each saved unit must be one of the planned
+ * units, and the run gets a new id, the same as createRun gives. The status is set as given, so a loaded run can be
+ * opened with Resume. Returns the saved run.
+ */
+export async function importRunDocument(adapter, { label, config, status, plannedUnits, results }) {
+  const plainConfig = toPlainData(config);
+  if (!isPlainObject(plainConfig)) throw new Error(NOT_PLAIN_MESSAGE);
+  if (serialisedBytes(plainConfig) > MAX_RECORD_BYTES) throw new Error(RECORD_SIZE_MESSAGE);
+  const units = checkUnits(plannedUnits);
+  const plannedSet = new Set(units);
+  const savedKeys = Object.keys(results);
+  if (savedKeys.length > MAX_RESULTS || savedKeys.some((key) => !plannedSet.has(key))) {
+    throw new Error(UNKNOWN_UNIT_MESSAGE);
+  }
+  const now = nextTimestamp();
+  const run = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+    status,
+    label: checkLabel(label),
+    config: plainConfig,
+    plannedUnits: units,
+    results: {},
+  };
+  for (const key of savedKeys) {
+    // defineProperty keeps a unit key such as "__proto__" as an ordinary entry, as saveResult does.
+    Object.defineProperty(run.results, key, { value: checkedRecord(results[key]), enumerable: true, writable: true, configurable: true });
+  }
+  assertNoSecrets(run);
+  await adapter.put(RUNS_STORE, run);
+  return run;
+}
+
+/**
  * Change the status of a run. Only the transitions in ALLOWED_TRANSITIONS are made; any other change throws
  * TRANSITION_MESSAGE and nothing is saved. Returns the run.
  */

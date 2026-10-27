@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/summary-in-batch-runs | Claude (this session) | site/js/page-batch.js, site/js/persistence-ui.js, site/js/full-run-summary.js, site/js/full-run-upload.js (new), site/js/store/run-store.js, site/index.html, vite.config.js, site/runs.html, site/js/page-runs.js, js-tests/full-run-upload.test.js (new) | 2026-10-27 |

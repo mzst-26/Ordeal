@@ -54,6 +54,8 @@ import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices, downloadText,
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
 } from "./persistence-ui.js";
+import { readRepliesByCondition, importFullRuns } from "./full-run-upload.js";
+import { FULL_RUN_SUITE } from "./full-run-summary.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",
@@ -144,6 +146,7 @@ const IDS = {
   runsButton: "batch-runs-button",
   runsDialog: "batch-runs-dialog",
   runsDone: "batch-runs-done",
+  fullRunFile: "batch-full-run-file",
   unfinishedCount: "batch-unfinished-count",
   savedCount: "batch-saved-count",
   fixedSettings: "fixed-settings",
@@ -305,6 +308,7 @@ function wireControls() {
   dom.confirmContinue.addEventListener("click", confirmStart);
   dom.confirmCancel.addEventListener("click", cancelConfirmation);
   wireRunsPopup({ button: dom.runsButton, dialog: dom.runsDialog, done: dom.runsDone });
+  dom.fullRunFile.addEventListener("change", (event) => loadFullRunFile(event.target));
   dom.exportReplies.addEventListener("click", exportRepliesJson);
   dom.exportBatchLog.addEventListener("click", exportBatchLog);
 }
@@ -424,6 +428,38 @@ async function showLatestBatchRun() {
     `Loaded your last batch from ${runDateText(run)}: ${formatCount(savedKeys.length)} of ${formatCount(run.plannedUnits.length)} units saved. `
     + "Nothing was sent. Press Start to run what is left, or see the results below.",
   );
+}
+
+/**
+ * Load the four conditions of a full run from the replies file picked in the Runs popup. Each condition is saved as a
+ * run, so the Saved list shows it, and Resume opens its results and charts. Nothing is sent to a model, because every
+ * planned unit already has its reply.
+ */
+async function loadFullRunFile(input) {
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (page.storage === null || page.data === null) {
+    setStatus("Saved runs are not available in this window, so the full run cannot be loaded.");
+    return;
+  }
+  setStatus(`Reading ${file.name}. A large file can take a minute.`);
+  try {
+    const byCondition = await readRepliesByCondition(file);
+    const settings = {
+      ...setsOfChoice(FULL_RUN_SUITE),
+      callCap: MAX_BATCH_CALLS,
+      temperature: page.data.config.temperature,
+      maxTokens: page.data.config.max_tokens,
+    };
+    const { saved, skipped } = await importFullRuns(page.storage.adapter, byCondition, settings);
+    await refreshRuns();
+    const savedText = saved.length > 0 ? `Saved: ${saved.join(", ")}.` : "Nothing new was saved.";
+    const skippedText = skipped.length > 0 ? ` Not saved: ${skipped.join("; ")}.` : "";
+    setStatus(savedText + skippedText);
+  } catch (error) {
+    setStatus(errorText(error));
+  }
 }
 
 /**
