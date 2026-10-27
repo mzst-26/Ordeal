@@ -29,7 +29,7 @@ import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
 import { createBatchRunner } from "./engine/runner.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
 import { gradeCondition, gradeProbes } from "./engine/grade.js";
-import { MEASURES, heatmapMatrix, normalise, rankModels } from "./analytics.js";
+import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "./analytics.js";
 import { renderResultsFigures } from "./batch-figures.js";
 import { mountFingerprintFigure } from "./fingerprint-figure.js";
 import { clear, el, formatNumber } from "./ui.js";
@@ -2352,7 +2352,7 @@ function drawResults() {
   const gauntletRows = gauntletRowsFor(choices, records);
   const probeRows = probeRowsFor(choices, records);
   renderGauntletTables(choices.models, gauntletRows);
-  const figureMeasures = resultMeasures(page.suite.levelCount);
+  const figureMeasures = resultMeasures(measureScale());
   renderResultsFigures(document.getElementById("results-figures"), analyticsRows(choices.models, gauntletRows, figureMeasures), figureMeasures);
   drawFingerprint(choices.models, probeRows);
   setResultsMessage(choices, records);
@@ -2379,13 +2379,23 @@ let resultsShell = null;
 let lastGauntlet = { models: [], rows: [] };
 
 /** Return the analytics measures for this suite: MEASURES keys, with the label and digits of each gauntlet field. */
-function resultMeasures(levelCount) {
-  const fields = gauntletMeasures(levelCount);
+function resultMeasures(scale) {
+  const fields = gauntletMeasures(scale.levelCount);
   return MEASURES.map((measure) => {
-    const field = measure.key === FLIP_MEASURE_KEY ? `flip_rate_level_${levelCount}` : measure.key;
+    const field = measure.key === FLIP_MEASURE_KEY ? `flip_rate_level_${scale.levelCount}` : measure.key;
     const [label, , digits] = fields.find(([, name]) => name === field);
-    return { key: measure.key, field, label, digits, higherIsBetter: measure.higherIsBetter, definition: measure.definition };
+    const max = theoreticalMax(measure.key, scale);
+    return { key: measure.key, field, label, digits, higherIsBetter: measure.higherIsBetter, definition: measure.definition, max };
   });
+}
+
+/**
+ * Return what the most of each measure can be on this page: the suite's levels, and every question and repeat of the
+ * ticked choices. The bars and the scatter axes are drawn against these tops, not against the best model.
+ */
+function measureScale() {
+  const choices = readChoices();
+  return { levelCount: page.suite.levelCount, unitCount: choices.questions.length * choices.repeats };
 }
 
 /** Turn the grade rows into analytics rows: one per ticked model, with null for any missing or unusable value. */
@@ -2410,7 +2420,7 @@ function renderGauntletTables(models, rows) {
     return;
   }
   const levelCount = page.suite.levelCount;
-  const measures = resultMeasures(levelCount);
+  const measures = resultMeasures(measureScale());
   if (resultsShell === null || !host.contains(resultsShell.root)) {
     resultsShell = buildResultsShell();
     host.replaceChildren(resultsShell.root);
@@ -2459,18 +2469,19 @@ function linkModelHover(node, index) {
   node.addEventListener("mouseleave", () => setModelHighlight(index, false));
 }
 
-/** Build the ranked bar list for the chosen measure. Bars are scaled with normalise; null values show "No data". */
+/**
+ * Build the ranked bar list for the chosen measure. Each bar is the value as a share of the most the measure can be
+ * (measure.max), so a full bar is the top of the scale, not the best model. Null values show "No data".
+ */
 function buildRankBlock(ranked, measure) {
   const values = ranked.map((row) => row.measures[measure.key]);
-  const scaled = normalise(values, measure.higherIsBetter);
-  // normalise gives every value 0.5 when they are all equal, so a single ticked model would get a half-width bar.
-  const usableCount = values.filter((value) => typeof value === "number" && Number.isFinite(value)).length;
   const items = ranked.map((row, position) => {
-    const missing = values[position] === null;
+    const share = shareOfMax(values[position], measure.max);
+    const missing = share === null;
     const track = el("span", { className: "rank-track", "aria-hidden": "true" });
     if (!missing) {
       const bar = el("span", { className: "rank-bar" });
-      bar.style.width = usableCount === 1 ? "100%" : `${Math.round(scaled[position] * 100)}%`;
+      bar.style.width = `${Math.round(share * 100)}%`;
       track.append(bar);
     }
     const item = el("li", { className: missing ? "rank-row is-missing" : "rank-row", "data-model-index": row.index }, [

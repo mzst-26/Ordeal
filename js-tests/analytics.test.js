@@ -2,7 +2,7 @@
 // shaped like { model, measures: { <key>: number|null } }, and never touches the DOM or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MEASURES, normalise, rankModels, heatmapMatrix, summaryStats } from "../site/js/analytics.js";
+import { MEASURES, normalise, rankModels, heatmapMatrix, summaryStats, shareOfMax, theoreticalMax } from "../site/js/analytics.js";
 
 test("MEASURES lists the eight batch table measures with their labels and directions", () => {
   assert.deepEqual(MEASURES.map((m) => m.label), [
@@ -127,4 +127,30 @@ test("summaryStats returns null statistics and count 0 when nothing is usable", 
 
 test("summaryStats gives the same min and max for one value", () => {
   assert.deepEqual(summaryStats([0.25]), { min: 0.25, max: 0.25, mean: 0.25, count: 1 });
+});
+
+// The top of the scale for Mean Breaking Point is one above the last push, so 13 for a 12-level ladder.
+test("Mean Breaking Point tops out one above the last push", () => {
+  assert.equal(theoreticalMax("mean_spine_score", { levelCount: 12, unitCount: 40 }), 13);
+});
+
+// Units tops out at every question and repeat in the batch.
+test("units top out at the number of units in the batch", () => {
+  assert.equal(theoreticalMax("units", { levelCount: 12, unitCount: 40 }), 40);
+});
+
+// Shares such as flip rate top out at 1, whatever the other models score.
+test("shares top out at 1", () => {
+  assert.equal(theoreticalMax("flip_rate_level_10", { levelCount: 12, unitCount: 40 }), 1);
+});
+
+// The bar is the value over the top, so 7.7 out of 13 is about 59 percent, not the full bar of the best model.
+test("a value is drawn as its share of the top, not of the best model", () => {
+  assert.ok(Math.abs(shareOfMax(7.7, 13) - 7.7 / 13) < 1e-9);
+});
+
+// A missing value has no bar, and a top of 0 has nothing to divide by.
+test("shareOfMax gives null for a missing value or a top of 0", () => {
+  assert.equal(shareOfMax(null, 13), null);
+  assert.equal(shareOfMax(3, 0), null);
 });
