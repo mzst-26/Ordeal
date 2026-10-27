@@ -37,7 +37,8 @@ import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model
 import { rateLimitRowFor } from "./rate-limits.js";
 import { updateSelectionCount } from "./selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
-import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits } from "./store/run-store.js";
+import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, getRun } from "./store/run-store.js";
+import { buildSavePanel } from "./web-save-panel.js";
 import { createPresetStore } from "./presets.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
@@ -141,6 +142,7 @@ const IDS = {
   resumeNotices: VIEW_IDS.batch["resume-notices"],
   runsList: VIEW_IDS.batch["runs-list"],
   storageNote: VIEW_IDS.batch["storage-note"],
+  saveHost: "batch-save-host",
   runsButton: "batch-runs-button",
   runsDialog: "batch-runs-dialog",
   runsDone: "batch-runs-done",
@@ -241,6 +243,7 @@ const page = {
   queue: createSerialQueue(), // run writes, one at a time
   runId: null,                // the saved run of the batch on screen, or null
   resumeRunId: null,          // the saved run the next Start continues, or null
+  savePanel: null,            // the "save to the web store" panel, shown once the batch has ended
   unitSteps: new Map(),       // the step records of each unit still running, by unit key
   mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
@@ -251,6 +254,10 @@ const page = {
  */
 export function mountBatch(root) {
   page.dom = findElements(root);
+  // The save panel is built once and placed in its host. It reads the finished run from this browser's storage when
+  // the visitor presses the button, so it does not need the storage to be open when it is built.
+  page.savePanel = buildSavePanel({ idPrefix: "batch", kind: KIND_BATCH, loadRun: loadSavedRun });
+  page.dom.saveHost.replaceChildren(page.savePanel.root);
   // The "not in the list" field uses the same add path as "Add another model name" (addTypedModel), and the same key
   // prompt for the chosen platform as a run (keyReadyFor).
   mountModelCheck(root.querySelector("#model-check"), {
@@ -1605,6 +1612,8 @@ async function beginRun(confirmedId) {
   setStatus("Running. Calls are made with the concurrency and cap you chose.");
   updateControls();
   renderProgress();
+  // A new batch replaces the finished one on screen, so its save panel goes away until the new batch ends.
+  page.savePanel.hide();
   page.runId = await openRunFor(choices);
   if (page.runId === null) {
     setStatus(`Running. ${NOT_SAVED_TEXT}`);
@@ -1932,6 +1941,11 @@ function handleRunError(error) {
   finishRun();
 }
 
+/** Read one saved run from this browser's storage, for the save panel. Returns null when the store has no such run. */
+function loadSavedRun(runId) {
+  return getRun(page.storage.adapter, runId);
+}
+
 /**
  * Write the final status of the saved run, after its last unit is saved, then refresh the lists. The status
  * is queued behind the saves, so the run is never marked done before its last unit is in storage.
@@ -1944,8 +1958,12 @@ function finishSavedRun(status) {
     return;
   }
   const { adapter } = page.storage;
+  // The panel appears only after the final status is in storage, so the save reads the finished run.
   page.queue.run(() => setRunStatus(adapter, runId, status))
-    .then(() => refreshRuns())
+    .then(() => {
+      page.savePanel.show(runId);
+      return refreshRuns();
+    })
     .catch(() => addLogEntry("Note", SAVE_PROBLEM_TEXT));
 }
 

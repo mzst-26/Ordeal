@@ -17,7 +17,7 @@ import { el } from "./ui.js";
 import { openPicker } from "./picker-dialog.js";
 import { mountModelCheck } from "./model-check.js";
 import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
-import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
+import { createRun, saveResult, setStatus, resumeRun, getRun } from "./store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import { modelOptionLabel, sortByRank } from "./model-details.js";
 import {
@@ -28,6 +28,7 @@ import { PUSHBACK_FOR_SET, buildMixedSuite } from "./mixed-order.js";
 import {
   createSerialQueue, gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, KIND_GAUNTLET,
 } from "./saved-runs.js";
+import { buildSavePanel } from "./web-save-panel.js";
 import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices,
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
@@ -123,6 +124,7 @@ function createPageState() {
     queue: createSerialQueue(), // run writes, one at a time
     presets: null,     // the preset store
     panels: {},        // the preset panel, the notices and the Saved runs list
+    savePanel: null,   // the "save to the web store" panel, shown once a live run has finished
   };
 }
 
@@ -136,6 +138,10 @@ export function mountGauntlet(root) {
   page.root = root;
   page.dom = findElements(root);
   addCapNote();
+  // The save panel is built once and placed in its host. It reads the finished run from this browser's storage when
+  // the visitor presses the button, so it does not need the storage to be open when it is built.
+  page.savePanel = buildSavePanel({ idPrefix: "gauntlet", kind: KIND_GAUNTLET, loadRun: loadSavedRun });
+  page.dom.saveHost.replaceChildren(page.savePanel.root);
   page.dom.start.addEventListener("click", startRun);
   page.dom.stop.addEventListener("click", stopStep);
   page.dom.confession.addEventListener("click", askConfession);
@@ -187,6 +193,7 @@ function findElements(root) {
     spine: byId(root, "spine"),
     spineMessage: byId(root, "spine-message"),
     status: byId(root, VIEW_IDS.gauntlet["status-line"]),
+    saveHost: byId(root, "gauntlet-save-host"),
     conversation: byId(root, "conversation"),
     presetHost: byId(root, VIEW_IDS.gauntlet["preset-panel"]),
     notices: byId(root, VIEW_IDS.gauntlet["resume-notices"]),
@@ -293,11 +300,29 @@ async function refreshRuns() {
   }
 }
 
+/** Read one saved run from this browser's storage, for the save panel. Returns null when the store has no such run. */
+function loadSavedRun(runId) {
+  return getRun(page.storage.adapter, runId);
+}
+
+/**
+ * Show the save panel only when the live run on screen has finished, so the visitor can keep it on the server.
+ * A saved replay, an unfinished run or no run at all keeps the panel hidden.
+ */
+function syncSavePanel() {
+  if (page.runFinished && page.runId !== null) {
+    page.savePanel.show(page.runId);
+  } else {
+    page.savePanel.hide();
+  }
+}
+
 /** After a saved run is deleted, the conversation on screen is no longer saved, and both lists are drawn again. */
 function onRunDeleted(runId) {
   if (runId === page.runId) {
     page.runId = null;
     page.runFinished = false;
+    syncSavePanel();
     showStatus("The saved run for this conversation was deleted. The conversation stays on screen, unsaved.");
   }
   refreshRuns();
@@ -643,6 +668,7 @@ function buildLevelCard(entry) {
 
 /** Redraw everything that depends on the run: the meter, the conversation and the controls. */
 function renderAll() {
+  syncSavePanel();
   syncChoiceButtons();
   renderSpine();
   renderConversation();
@@ -1051,6 +1077,7 @@ async function persistStep(run, payload) {
       if (payload.step === `level_${run.suite.levelCount}`) {
         await setStatus(adapter, page.runId, "done");
         page.runFinished = true;
+        syncSavePanel();
       }
     });
   } catch {

@@ -175,6 +175,8 @@
           <p class="spine-message" id="spine-message">No pressure yet</p>
 
           <p class="status-line" id="gauntlet-status-line" data-loading-status>Loading the data files.</p>
+          <!-- The "save this run to the web store" panel sits here. The script fills it once a live run has finished. -->
+          <div id="gauntlet-save-host"></div>
 
           <div class="conversation" id="conversation" tabindex="0" role="region" aria-label="Conversation"></div>
         </section>
@@ -453,6 +455,8 @@
               <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
                 Loading the data files.
               </p>
+              <!-- The "save this run to the web store" panel sits here. The script fills it once the batch has ended. -->
+              <div id="batch-save-host"></div>
 
               <h3 class="label sub-heading">Log</h3>
               <ol class="log-list" id="log-list" aria-live="off" aria-label="Log of calls, newest first"
