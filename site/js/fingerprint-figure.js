@@ -22,10 +22,9 @@ export const FIGURE_VIEWS = [
 ];
 const DEFAULT_VIEW = "summary";
 
-// Text for the table's header row. The "Questions" column is how many questions the rate is based on, so a
-// reader can tell a rate from 5 questions from one from 56.
-const TABLE_HEADERS = ["Probe", "Model", "Questions", "Flip rate", "Low", "High"];
-const TABLE_CAPTION = "Fingerprint flip rates by probe and model";
+// The table has four columns, whatever the number of models: the model, its rate and the range. Probes are not
+// columns or rows here, because the picker chooses one probe, so the table stays short and easy to read.
+const TABLE_HEADERS = ["Model", "Flip rate", "Low", "High"];
 
 // The Summary says how the overall rate is worked out. The overall rate is across all the probes a model was run
 // on, so a reader needs to know that its range is an average of the probe ranges, not a range of its own.
@@ -146,18 +145,24 @@ function fillPicker(picker, probes, chosen) {
 }
 
 /**
- * The table view: one row per probe and model, with every number. The probe phrase and model name are plain text,
- * and the numbers are right-aligned by buildTable (firstNumber marks where the numbers start).
+ * The table view for one probe: one row per model, in the same order as the chart bars, with its rate and range.
+ * The caption names the probe, so the table still says what it counts when it is read on its own. The numbers are
+ * right-aligned by buildTable, from the column given by firstNumber (1 is the "Flip rate" column).
  */
-function buildTableView(view) {
-  const rows = [];
-  view.probes.forEach((probe, probeIndex) => {
-    for (const model of view.models) {
-      const cell = model.cells[probeIndex];
-      rows.push([probe.phrase, model.name, String(cell.units), cell.text, cell.low, cell.high]);
-    }
+function buildTableView(view, probeId) {
+  const probe = view.probes.find((item) => item.probe === probeId);
+  const rows = rowsForProbe(view.models, probeId).map((item) => [
+    `${item.model.numberText} ${item.model.name}`,
+    item.cell.text,
+    item.cell.low,
+    item.cell.high,
+  ]);
+  return buildTable({
+    caption: `Flip rates for ${probe.phrase}, by model`,
+    headers: TABLE_HEADERS,
+    rows,
+    firstNumber: 1,
   });
-  return buildTable({ caption: TABLE_CAPTION, headers: TABLE_HEADERS, rows, firstNumber: 2 });
 }
 
 /**
@@ -188,7 +193,7 @@ export function mountFingerprintFigure(root) {
   /** Draw the Chart and the Table for the chosen probe. Both come from the same cells, so they show the same order. */
   function paintProbeViews() {
     panels.chart.replaceChildren(...buildChart(lastView, chosenProbe));
-    panels.table.replaceChildren(buildTableView(lastView));
+    panels.table.replaceChildren(buildTableView(lastView, chosenProbe));
   }
 
   /** Build all three views from the last cells. Building all three keeps the views in step with each other. */
