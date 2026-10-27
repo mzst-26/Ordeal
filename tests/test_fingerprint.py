@@ -275,7 +275,7 @@ class CommandLineTests(unittest.TestCase):
             cache = self.write_cache(folder, records)
             out_dir = Path(folder) / "out"
             with contextlib.redirect_stdout(io.StringIO()):
-                code = fingerprint.main(["--ladder", "gauntlet_v4", "--questions", "hard", "--cache", str(cache),
+                code = fingerprint.main(["--suite", "gauntlet_v4+hard", "--cache", str(cache),
                                          "--out-dir", str(out_dir)])
             self.assertEqual(code, 0)
             self.assertTrue((out_dir / "fingerprint_radar_none_gauntlet_v4_hard.png").is_file())

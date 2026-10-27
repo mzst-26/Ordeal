@@ -507,18 +507,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         default="all",
         help=f"which families to run, comma-separated, or all: {FAMILY_NAMES} (default: all)",
     )
-    parser.add_argument(
-        "--ladder",
-        choices=tuple(core.LADDER_FILES),
-        default=None,
-        help="pushback set (default: the ladder in config.json, gauntlet_v3)",
-    )
-    parser.add_argument(
-        "--questions",
-        choices=tuple(core.QUESTION_FILES),
-        default=None,
-        help="question set (default: the questions in config.json, easy)",
-    )
+    core.add_suite_argument(parser)
     parser.add_argument(
         "--shuffle-mix",
         type=int,
@@ -526,7 +515,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="SEED",
         help="run easy and hard questions together, in the order chosen by SEED, each with its own pushbacks "
         "(easy: gauntlet_v3, hard: gauntlet_v4). --limit keeps the first N of each set before the order is made. "
-        "Cannot be combined with --ladder or --questions.",
+        "Cannot be combined with --suite.",
     )
     parser.add_argument(
         "--cache",
@@ -553,8 +542,8 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--base-url is accepted only for 127.0.0.1 or localhost (test use).")
     if args.base_url is not None and args.cache is None:
         parser.error("--base-url needs --cache, so test replies never go into the real cache.")
-    if args.shuffle_mix is not None and (args.ladder is not None or args.questions is not None):
-        parser.error("--shuffle-mix cannot be combined with --ladder or --questions: a mixed run sets both itself.")
+    if args.shuffle_mix is not None and args.suite is not None:
+        parser.error("--shuffle-mix cannot be combined with --suite: a mixed run sets both itself.")
     return args
 
 
@@ -639,7 +628,7 @@ class RunPlan:
 
 def plan_fixed_run(args: argparse.Namespace) -> RunPlan:
     """Plan a run of one pushback set and one question set, as before the mixed run existed."""
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     # --limit keeps the first N questions of the file, so a limited run is the same set every time.
     questions = suite.questions if args.limit is None else suite.questions[: args.limit]
     return RunPlan(

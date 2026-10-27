@@ -159,7 +159,7 @@ def print_leaderboard(rows: list[dict[str, str]], suite: core.Suite | None = Non
 def main() -> int:
     """Draw the map for one suite and condition and print the leaderboard. Returns 0 on success."""
     args = parse_args()
-    suite = core.load_suite(ladder=args.ladder, questions=args.questions)
+    suite = core.load_chosen_suite(args.suite)
     rows = grade.read_condition_rows(grade.results_csv_path(args.out_dir), args.condition, suite.name)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     output_path = grade.picture_path(args.out_dir, "map", args.condition, suite)

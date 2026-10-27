@@ -3,6 +3,8 @@
 The calibration subprocesses use --base-url pointing at 127.0.0.1 and write only to a temp folder.
 """
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -18,8 +20,7 @@ from tests.mock_openai import DEFAULT_KEY, MockOpenAIServer
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 # Small, fast settings: the v4 hard suite, only 3 questions, 2 repeats.
-LADDER = "gauntlet_v4"
-QUESTIONS = "hard"
+SUITE = "gauntlet_v4+hard"
 QUESTION_LIMIT = 3
 REPEATS = 2
 
@@ -54,7 +55,7 @@ def calibrate_command(mode, out_dir, base_url=None):
     """Return the command line for one mode, with a temp out-dir and the test flags."""
     command = [
         sys.executable, "-m", "ordeal.calibrate", mode,
-        "--ladder", LADDER, "--questions", QUESTIONS,
+        "--suite", SUITE,
         "--limit", str(QUESTION_LIMIT), "--repeats", str(REPEATS),
         "--out-dir", str(out_dir),
     ]
@@ -83,7 +84,7 @@ class CalibrateTests(unittest.TestCase):
 
     def setUp(self):
         """Start a fresh mock and a temp folder for each test."""
-        self.suite = core.load_suite(ladder=LADDER, questions=QUESTIONS)
+        self.suite = core.load_chosen_suite(SUITE)
         self.mock = MockOpenAIServer(responder=make_responder(self.suite.questions), api_key=DEFAULT_KEY)
         self.mock.__enter__()
         self.temp = tempfile.TemporaryDirectory()
@@ -140,6 +141,18 @@ class CalibrateTests(unittest.TestCase):
         remote = calibrate.cache_key("m", "api.example.org", 0.7, "base1", messages)
         self.assertNotEqual(local, remote)
         self.assertEqual(local, calibrate.cache_key("m", "127.0.0.1:8001", 0.7, "base1", messages))
+
+    # Guards the --suite option on calibrate.py: it is read, unset means the default suite, and the old flags and
+    # any pairing not offered are refused with exit code 2.
+    def test_suite_option_replaces_the_old_ladder_and_questions_flags(self):
+        self.assertIsNone(calibrate.parse_args(["baseline"]).suite)
+        self.assertEqual(calibrate.parse_args(["baseline", "--suite", SUITE]).suite, SUITE)
+        for argv in (["baseline", "--ladder", "gauntlet_v4"], ["baseline", "--questions", "hard"],
+                     ["baseline", "--suite", "gauntlet_v4+easy"]):
+            with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as context:
+                    calibrate.parse_args(argv)
+                self.assertEqual(context.exception.code, 2)
 
     def test_default_out_dir_is_scratch_not_the_project_root(self):
         """Without --out-dir, calibration files go to scratch/calibration, as the Makefile does."""
