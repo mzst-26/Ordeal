@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/79-sqlite-cache | agent-a1525466 | ordeal/store.py, ordeal/core.py (load_cache), ordeal/grade.py (read_cache_by_experiment), ordeal/runner.py (get_reply only), tests/test_store.py | 2026-10-27 |
