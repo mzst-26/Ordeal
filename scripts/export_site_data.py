@@ -2,8 +2,8 @@
 
 The website never reads the project's private files. This script copies the
 pressure ladder and the probe spec as they are, writes the questions and a
-public part of config.json, and turns the saved sample replies and the result
-CSV files into JSON. It also writes a manifest with the size and SHA-256 hash
+public part of config.json, and turns the saved sample replies and the probe
+CSV file into JSON. It also writes a manifest with the size and SHA-256 hash
 of each file, so the site can show what was exported.
 
 The script makes no network calls, never reads .env files and never reads
@@ -195,7 +195,6 @@ def build_outputs():
         ("config.json", public_config(config)),
         ("version.json", build_version()),
         ("sample_run.json", build_sample_run()),
-        ("results.json", read_csv_rows(core.RESULTS_CSV_PATH)),
         ("probes.json", read_csv_rows(core.PROBES_CSV_PATH)),
     ]
 
