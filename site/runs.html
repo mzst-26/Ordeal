@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Saved web runs</title>
+  <meta name="description" content="The runs kept on the server: how long they are kept, the size limit, and how to delete one.">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/page-runs.css">
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <p class="section-label">Runs</p>
+      <h1>Saved web runs</h1>
+    </header>
+
+    <section class="runs-section">
+      <p class="standfirst" id="runs-note"></p>
+
+      <div class="field">
+        <label class="field-label" for="runs-password">Write password, needed to delete a run</label>
+        <input class="text-input" id="runs-password" type="password" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="button-row">
+        <button class="btn" id="runs-refresh" type="button">Refresh</button>
+      </div>
+
+      <p class="field-hint" id="runs-status" role="status" aria-live="polite"></p>
+      <div id="runs-list"></div>
+    </section>
+  </main>
+  <script type="module" src="/js/page-runs.js"></script>
+</body>
+</html>

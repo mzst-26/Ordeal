@@ -43,6 +43,7 @@ export default defineConfig({
         batch: resolve(SITE_DIR, "batch.html"),
         live: resolve(SITE_DIR, "live.html"),
         pacing: resolve(SITE_DIR, "pacing.html"),
+        runs: resolve(SITE_DIR, "runs.html"),
       },
     },
   },

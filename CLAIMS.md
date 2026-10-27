@@ -6,4 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/90-web-storage | 2ea9abb2-89d2-4bca-940a-6a862d061bee | site/js/run-retention.js, site/js/runs-api.js, site/js/page-runs.js, site/js/store/run-store.js, site/runs.html, site/css/page-runs.css, netlify/, netlify.toml, vite.config.js, package.json, package-lock.json, README.md, js-tests/run-retention.test.js, js-tests/runs-api.test.js, js-tests/runs-page.test.js, js-tests/run-server-logic.test.js, CLAIMS.md | 2026-10-27 |
+| batch/90-web-storage | 2ea9abb2-89d2-4bca-940a-6a862d061bee | site/js/run-retention.js, site/js/runs-api.js, site/js/page-runs.js, site/js/store/run-store.js, site/runs.html, site/css/page-runs.css, netlify/, netlify.toml, vite.config.js, package.json, package-lock.json, README.md, js-tests/run-retention.test.js, js-tests/runs-api.test.js, js-tests/run-server-logic.test.js, CLAIMS.md | 2026-10-27 |

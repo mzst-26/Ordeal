@@ -1,0 +1,34 @@
+/*
+ * The runs page: the note, the password box and the list of saved runs. It uses the shared tokens and base styles,
+ * and only adds the layout for one row per run, with the Delete button on the right.
+ */
+
+.runs-section {
+  margin-top: var(--space-6);
+}
+
+.run-list {
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.run-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.run-meta {
+  margin: 0;
+  color: var(--ink-mute);
+  font-size: var(--size-sm);
+}

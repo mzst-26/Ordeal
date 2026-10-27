@@ -267,6 +267,15 @@ export async function getRun(adapter, runId) {
   return adapter.get(RUNS_STORE, runId);
 }
 
+/**
+ * Keep a copy of a run in this browser, replacing any copy with the same id. It is used for runs fetched from the
+ * server, so the run is checked first: it must be a plain object with an id, and nothing is saved otherwise.
+ */
+export async function keepRunCopy(adapter, run) {
+  if (!isPlainObject(run) || typeof run.id !== 'string') throw new Error(NOT_PLAIN_MESSAGE);
+  await adapter.put(RUNS_STORE, run);
+}
+
 /** Delete one run and its results. Deleting an id that is not there does nothing. */
 export async function deleteRun(adapter, runId) {
   if (typeof runId !== 'string') return;
