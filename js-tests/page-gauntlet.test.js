@@ -21,3 +21,25 @@ test("importing the Gauntlet page does not fetch or build the page, and exports 
     globalThis.fetch = realFetch;
   }
 });
+
+// A model that the visitor added with "Add a model that is not in the list" is an option of the desk's model menu,
+// so a saved run that used it can be resumed from that menu. A model with no option cannot be resumed.
+test("a saved run whose model is on the desk menu can be resumed", async () => {
+  const { resumeModelProblem } = await import("../site/js/page-gauntlet.js");
+  assert.equal(resumeModelProblem("org/custom", ["org/catalogue", "org/custom"]), "");
+});
+
+test("a saved run whose model is not on the desk menu is refused, and says how to proceed", async () => {
+  const { resumeModelProblem } = await import("../site/js/page-gauntlet.js");
+  const text = resumeModelProblem("org/custom", ["org/catalogue"]);
+  assert.match(text, /The model org\/custom is not in the list/);
+  assert.match(text, /Add a model that is not in the list, then press Resume again\./);
+});
+
+test("modelOnDesk finds a catalogue model and a model the visitor added, and not a missing one", async () => {
+  const { modelOnDesk } = await import("../site/js/page-gauntlet.js");
+  const menu = ["org/catalogue", "org/custom"];
+  assert.equal(modelOnDesk("org/catalogue", menu), true);
+  assert.equal(modelOnDesk("org/custom", menu), true);
+  assert.equal(modelOnDesk("org/missing", menu), false);
+});

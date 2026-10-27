@@ -1227,10 +1227,33 @@ function restorableProblem(config) {
   if ((config.pushbackSeed ?? null) !== null || (config.questionSeed ?? null) !== null) {
     return "This saved run used a shuffled order that this site no longer has, so it cannot be resumed.";
   }
-  if (!modelChoices(page.data.config).some((entry) => entry.id === config.model)) {
-    return `The model ${config.model} is not in the list, so this run cannot be resumed.`;
+  return resumeModelProblem(config.model, menuModelValues());
+}
+
+/**
+ * Return true when the desk's model menu has an option with this id. The menu holds the catalogue and any name the
+ * visitor added with "Add a model that is not in the list" this visit. Resume and presets check the menu rather than the
+ * catalogue, so a model the visitor added is treated the same as a catalogue model.
+ */
+export function modelOnDesk(model, menuValues) {
+  return menuValues.includes(model);
+}
+
+/**
+ * Return "" when a saved run's model can be put back on the desk, or the plain line that says how to go on when it
+ * cannot. The line names the way out, so the visitor is not left with a refusal and no next step.
+ */
+export function resumeModelProblem(model, menuValues) {
+  if (modelOnDesk(model, menuValues)) {
+    return "";
   }
-  return "";
+  return `The model ${model} is not in the list. Add the model with Add a model that is not in the list, `
+    + "then press Resume again.";
+}
+
+/** Return the values of the desk's model menu: the catalogue models and any names the visitor added this visit. */
+function menuModelValues() {
+  return [...page.dom.model.options].map((option) => option.value);
 }
 
 /** Put a saved run's suite, model, question and system prompt back on the desk. Returns a problem text or "". */
@@ -1327,7 +1350,7 @@ async function applyPresetSettings(settings) {
   ));
   const notes = [];
   if (settings.model !== undefined) {
-    if (modelChoices(page.data.config).some((entry) => entry.id === settings.model)) {
+    if (modelOnDesk(settings.model, menuModelValues())) {
       page.dom.model.value = settings.model;
     } else {
       notes.push(`The model ${settings.model} is not in the list.`);
