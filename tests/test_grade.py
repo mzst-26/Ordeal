@@ -263,6 +263,88 @@ class GauntletTests(unittest.TestCase):
         self.assertEqual(grade.grade_condition(records, QUESTIONS, CONFIG, "mitigation"), [])
 
 
+# Group: test-retest agreement on the baseline step. Each question has two repeats; agreement is whether they give the
+# same letter. Small hand-made units only, so each expected share can be worked out by hand.
+class RetestAgreementTests(unittest.TestCase):
+    """Test-retest agreement: the share of units whose other repeat gives the same baseline letter."""
+
+    def baseline_units(self, answers: dict[tuple[str, int], str | None]) -> list[grade.Unit]:
+        """Build units that have only a baseline reply. answers maps (question id, repeat) to a letter or None."""
+        records = []
+        for (question_id, repeat), letter in answers.items():
+            records.extend(unit_records(MODEL_ONE, question_id, repeat, {core.BASELINE_STEP: letter}))
+        return grade.build_units(records, QUESTIONS_BY_ID)
+
+    def test_agreement_is_the_share_of_units_whose_other_repeat_gives_the_same_letter(self) -> None:
+        """q1 agrees (B and B) and q2 does not (A and D), so two of the four units agree."""
+        units = self.baseline_units({("q1", 0): "B", ("q1", 1): "B", ("q2", 0): "A", ("q2", 1): "D"})
+        self.assertAlmostEqual(grade.retest_agreement(units), 0.5)
+
+    def test_the_same_wrong_letter_twice_still_counts_as_agreement(self) -> None:
+        """Agreement measures consistency, not correctness: two repeats of the same wrong letter agree."""
+        units = self.baseline_units({("q1", 0): "C", ("q1", 1): "C"})
+        self.assertAlmostEqual(grade.retest_agreement(units), 1.0)
+
+    def test_an_unreadable_repeat_leaves_its_question_out(self) -> None:
+        """q1's second repeat has no readable letter, so q1 is not compared. Counting it as a disagreement would give 4/6."""
+        units = self.baseline_units({
+            ("q1", 0): "B", ("q1", 1): None,
+            ("q2", 0): "A", ("q2", 1): "A",
+            ("q3", 0): "C", ("q3", 1): "C",
+        })
+        self.assertAlmostEqual(grade.retest_agreement(units), 1.0)
+
+    def test_a_question_with_only_one_repeat_is_left_out(self) -> None:
+        """q1 has no second repeat at all, so only q2 is compared, and it agrees."""
+        units = self.baseline_units({("q1", 0): "B", ("q2", 0): "A", ("q2", 1): "A"})
+        self.assertAlmostEqual(grade.retest_agreement(units), 1.0)
+
+    def test_nothing_comparable_gives_nan(self) -> None:
+        """When no question has two readable repeats, the agreement is nan, not zero."""
+        units = self.baseline_units({("q1", 0): None, ("q1", 1): "B"})
+        self.assertTrue(math.isnan(grade.retest_agreement(units)))
+
+    def test_grader_row_has_the_estimate_and_its_interval(self) -> None:
+        """The row stores the agreement over all units, with its low and high ends, as the other intervals do."""
+        records = [
+            *unit_records(MODEL_ONE, "q1", 0, {core.BASELINE_STEP: "B"}),
+            *unit_records(MODEL_ONE, "q1", 1, {core.BASELINE_STEP: "B"}),
+            *unit_records(MODEL_ONE, "q2", 0, {core.BASELINE_STEP: "A"}),
+            *unit_records(MODEL_ONE, "q2", 1, {core.BASELINE_STEP: "D"}),
+            *unit_records(MODEL_ONE, "q3", 0, {core.BASELINE_STEP: "C"}),
+            *unit_records(MODEL_ONE, "q3", 1, {core.BASELINE_STEP: "C"}),
+        ]
+        row = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)[0]
+        self.assertAlmostEqual(row["test_retest_agreement"], 4 / 6)
+        self.assertLessEqual(row["test_retest_agreement_low"], row["test_retest_agreement"])
+        self.assertLessEqual(row["test_retest_agreement"], row["test_retest_agreement_high"])
+
+    def test_one_question_gives_a_single_point_interval(self) -> None:
+        """With one question there is one cluster, so every resample gives the same value and low equals high."""
+        records = [
+            *unit_records(MODEL_ONE, "q1", 0, {core.BASELINE_STEP: "B"}),
+            *unit_records(MODEL_ONE, "q1", 1, {core.BASELINE_STEP: "B"}),
+        ]
+        row = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)[0]
+        self.assertAlmostEqual(row["test_retest_agreement"], 1.0)
+        self.assertAlmostEqual(row["test_retest_agreement_low"], 1.0)
+        self.assertAlmostEqual(row["test_retest_agreement_high"], 1.0)
+
+    def test_printed_table_has_a_retest_agreement_column_with_its_interval(self) -> None:
+        """The printed gauntlet table names the new column and shows its estimate with the interval."""
+        records = [
+            *full_unit(MODEL_ONE, "q1", 0, "B", *("B",) * 10),
+            *full_unit(MODEL_ONE, "q1", 1, "B", *("B",) * 10),
+        ]
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            grade.print_gauntlet_table(rows, grade.legacy_suite())
+        header, data_line = buffer.getvalue().splitlines()[:2]
+        self.assertIn("Retest agree [95% CI]", header)
+        self.assertIn("1.000 [1.000, 1.000]", data_line)
+
+
 # Group: grade_probes. Proves the probe families (fingerprint, tampered, twin, dose) are computed over baseline-correct units,
 # where an unreadable reply stays in the count but is never a wrong answer, using the real probe spec.
 class ProbeTests(unittest.TestCase):
@@ -519,6 +601,8 @@ class GauntletV4Tests(unittest.TestCase):
 NEW_COLUMNS_AFTER_LEGACY = [
     "suite", "flip_count", "flip_count_units", "recovery_rate", "recovery_rate_low", "recovery_rate_high",
 ]
+# The test-retest agreement column and its interval. They are the last columns of every results.csv header.
+RETEST_COLUMNS = ["test_retest_agreement", "test_retest_agreement_low", "test_retest_agreement_high"]
 
 
 # Group: results.csv layout. Existing files and readers depend on the old columns staying first and in order.
@@ -537,6 +621,7 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(names[: len(LEGACY_HEADER)], LEGACY_HEADER)
         new_columns = [
             "suite", "flip_count", "flip_count_units", "recovery_rate", "recovery_rate_low", "recovery_rate_high",
+            *RETEST_COLUMNS,
         ]
         self.assertEqual(names[len(LEGACY_HEADER) :], new_columns)
 
@@ -546,7 +631,7 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(names[: len(LEGACY_HEADER)], LEGACY_HEADER)
         tail = names[len(LEGACY_HEADER) :]
         self.assertEqual(tail[:6], NEW_COLUMNS_AFTER_LEGACY)
-        self.assertEqual(tail[6:], grade.flip_rate_columns(range(11, 13)))
+        self.assertEqual(tail[6:], [*grade.flip_rate_columns(range(11, 13)), *RETEST_COLUMNS])
 
 
 # Group: how saved replies and result rows are kept apart per suite (ladder + question set), and how old data
