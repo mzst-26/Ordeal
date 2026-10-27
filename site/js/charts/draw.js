@@ -47,6 +47,17 @@ export function svgText(content, attributes = {}) {
   return element;
 }
 
+/**
+ * Gives an SVG shape a hover label. A <title> child is shown by the browser when the pointer rests on the shape, so the
+ * visitor can see which model a line, bar or dot belongs to. The text goes in as textContent, never as markup.
+ */
+export function addTitle(element, text) {
+  const title = svgElement("title");
+  title.textContent = String(text);
+  element.appendChild(title);
+  return element;
+}
+
 /** Reads one CSS token (a custom property) from the host. Returns the fallback when the token is empty. */
 function readToken(host, name, fallback) {
   const value = globalThis.getComputedStyle(host).getPropertyValue(name).trim();

@@ -3,7 +3,7 @@
 import { linearScale, packSeries, seriesBlocks, axisTicks, topOf } from "./scale.js";
 import {
   svgElement, svgText, seriesColours, legendFor, labelFor, startFrame, drawValueAxis, drawBaseline,
-  drawXLabels, drawAxisTitles, createChart, FADED_OPACITY,
+  drawXLabels, drawAxisTitles, createChart, FADED_OPACITY, addTitle,
 } from "./draw.js";
 
 // All in px: chart height, gap between neighbouring bars in a group, widest a bar may be,
@@ -78,6 +78,11 @@ function drawNoDataLabel(frame, x, baseY) {
   }));
 }
 
+/** A bar's value for its hover label: three decimals, or "no data" when there is no value. */
+function formatBarValue(value) {
+  return Number.isFinite(value) ? value.toFixed(3) : "no data";
+}
+
 /** Draws one bar from zero to its value, with its error bar. */
 function drawBar(frame, bar) {
   const baseY = bar.yScale(0);
@@ -88,9 +93,9 @@ function drawBar(frame, bar) {
   const topY = bar.yScale(bar.value);
   // A bar of zero height (value 0, or still at 0 at the start of the grow-in) draws no shape.
   if (baseY - topY > 0) {
-    frame.svg.appendChild(svgElement("path", {
+    frame.svg.appendChild(addTitle(svgElement("path", {
       d: barPath(bar.x, topY, bar.width, baseY), fill: bar.colour, "fill-opacity": bar.fillOpacity,
-    }));
+    }), bar.title));
   }
   if (hasErrorBar(bar)) {
     drawErrorBar(frame, bar.x + bar.width / 2, bar.yScale(bar.low), bar.yScale(bar.high));
@@ -99,7 +104,7 @@ function drawBar(frame, bar) {
 
 /** Draws every bar of one series, one per group, each offset so the series sit side by side. */
 function drawSeriesBars(frame, drawing) {
-  const { series, seriesIndex, numbers, count, centres, barWidth, yScale, colour } = drawing;
+  const { series, seriesIndex, numbers, count, centres, barWidth, yScale, colour, groups } = drawing;
   const blocks = seriesBlocks(numbers, seriesIndex, count);
   // Shift from the group centre so the whole set of bars in a group is centred on it.
   const offset = (seriesIndex - (series.length - 1) / 2) * (barWidth + BAR_GAP);
@@ -113,6 +118,8 @@ function drawSeriesBars(frame, drawing) {
       value: blocks.values[groupIndex],
       low: blocks.lows[groupIndex],
       high: blocks.highs[groupIndex],
+      // The hover label names the model, the group it is in, and its value.
+      title: `${series[seriesIndex].name}, ${groups[groupIndex]}: ${formatBarValue(blocks.values[groupIndex])}`,
     });
   });
 }
@@ -140,7 +147,7 @@ function buildBars(host, options, numbers) {
   drawXLabels(frame, centres, groups);
   series.forEach((item, seriesIndex) => {
     drawSeriesBars(frame, {
-      series, seriesIndex, numbers, count, centres, barWidth, yScale, colour: colours[seriesIndex],
+      series, seriesIndex, numbers, count, centres, barWidth, yScale, colour: colours[seriesIndex], groups,
     });
   });
   drawAxisTitles(frame, options.xAxisTitle, options.yAxisTitle);

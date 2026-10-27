@@ -3,7 +3,7 @@
 import { linearScale, niceTicks, formatTick, clamp01 } from "./scale.js";
 import {
   svgElement, svgText, resolveColour, labelFor, startFrame, drawValueAxis, drawBaseline, drawXLabels,
-  drawAxisTitles, createChart, FADED_OPACITY,
+  drawAxisTitles, createChart, FADED_OPACITY, addTitle,
 } from "./draw.js";
 import { cornerBoxes, cornerSpots, placeDotLabels } from "./labels.js";
 
@@ -70,10 +70,11 @@ function drawCornerLabels(frame, names) {
 
 /** Draws one dot. */
 function drawDot(frame, dot) {
-  frame.svg.appendChild(svgElement("circle", {
+  // The hover label names the model the dot stands for.
+  frame.svg.appendChild(addTitle(svgElement("circle", {
     cx: dot.x, cy: dot.y, r: DOT_RADIUS, fill: dot.colour, stroke: frame.theme.paper, "stroke-width": 2,
     "fill-opacity": dot.faded ? FADED_OPACITY : 1,
-  }));
+  }), dot.label));
 }
 
 /** Draws a dot's label at the spot chosen for it. Text stays in ink. */

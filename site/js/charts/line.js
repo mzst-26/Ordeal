@@ -5,7 +5,7 @@ import {
 } from "./scale.js";
 import {
   svgElement, svgText, seriesColours, legendFor, labelFor, startFrame, drawValueAxis, drawBaseline,
-  drawXLabels, drawAxisTitles, createChart, DASH_PATTERN,
+  drawXLabels, drawAxisTitles, createChart, DASH_PATTERN, addTitle,
 } from "./draw.js";
 
 // Total chart height in px, marker radius in px, and the fill opacity of the low-to-high band.
@@ -89,18 +89,18 @@ function drawBands(frame, xs, yScale, blocks, colour, reveal) {
 
 /** Draws the line, as one polyline for each run of points with a value. The gaps are left empty. */
 function drawLines(frame, drawing) {
-  const { xs, yScale, blocks, colour, reveal, dashed } = drawing;
+  const { xs, yScale, blocks, colour, reveal, dashed, name } = drawing;
   const hasValue = blocks.values.map((value) => Number.isFinite(value));
   for (const run of validRuns(hasValue)) {
     const points = run.map((index) => ({ x: xs[index], y: yScale(blocks.values[index]) }));
     const line = polylineFor(points, colour);
     applyLineStyle(line, polylineLength(points), reveal, dashed);
-    frame.svg.appendChild(line);
+    frame.svg.appendChild(addTitle(line, name));
   }
 }
 
 /** Draws a marker, and its value label when the chart is not narrow, at each point that has a value. */
-function drawMarkers(frame, xs, yScale, blocks, colour) {
+function drawMarkers(frame, xs, yScale, blocks, colour, name, labels) {
   const { svg, theme, narrow } = frame;
   blocks.values.forEach((value, index) => {
     if (!Number.isFinite(value)) {
@@ -108,9 +108,10 @@ function drawMarkers(frame, xs, yScale, blocks, colour) {
     }
     const x = xs[index];
     const y = yScale(value);
-    svg.appendChild(svgElement("circle", {
+    // The hover label names the model, the level it is at, and its value.
+    svg.appendChild(addTitle(svgElement("circle", {
       cx: x, cy: y, r: MARKER_RADIUS, fill: colour, stroke: theme.paper, "stroke-width": 1.5,
-    }));
+    }), `${name}, ${labels[index] ?? index + 1}: ${formatTick(value)}`));
     if (!narrow) {
       svg.appendChild(svgText(formatTick(value), {
         x, y: y - 10, "text-anchor": "middle", "font-family": theme.sans, "font-size": 12, fill: theme.inkSoft,
@@ -121,12 +122,12 @@ function drawMarkers(frame, xs, yScale, blocks, colour) {
 
 /** Draws one series of a line chart: the bands, the lines, then the markers and value labels. */
 function drawLineSeries(frame, drawing) {
-  const { xs, yScale, colour, blocks, reveal } = drawing;
+  const { xs, yScale, colour, blocks, reveal, name, labels } = drawing;
   drawBands(frame, xs, yScale, blocks, colour, reveal);
   drawLines(frame, drawing);
   // Markers wait until the line has finished drawing in, so they do not float ahead of it.
   if (reveal >= 1) {
-    drawMarkers(frame, xs, yScale, blocks, colour);
+    drawMarkers(frame, xs, yScale, blocks, colour, name, labels);
   }
 }
 
@@ -158,7 +159,7 @@ function buildLineBand(host, options, numbers, reveal) {
   series.forEach((item, index) => {
     drawLineSeries(frame, {
       xs, yScale, colour: colours[index], blocks: seriesBlocks(numbers, index, count), reveal,
-      dashed: item.dashed === true,
+      dashed: item.dashed === true, name: item.name, labels: options.xLabels || [],
     });
   });
   return frame.svg;

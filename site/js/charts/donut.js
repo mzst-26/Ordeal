@@ -2,7 +2,7 @@
 // A segment with a missing or NaN value draws no slice, and its row says "no data".
 import { cleanNumber, roundPx, formatTick } from "./scale.js";
 import {
-  svgElement, svgText, seriesColours, labelFor, measureWidth, readTheme, createSvg, createChart,
+  svgElement, svgText, seriesColours, labelFor, measureWidth, readTheme, createSvg, createChart, addTitle,
 } from "./draw.js";
 
 const TWO_PI = Math.PI * 2;
@@ -70,7 +70,7 @@ function ringSlicePath(ring, startAngle, endAngle) {
 }
 
 /** Draws the ring slices. The shares accumulate, so the ring sweeps round as they grow. */
-function drawSlices(svg, ring, shares, colours) {
+function drawSlices(svg, ring, shares, colours, segments) {
   let cumulative = 0;
   shares.forEach((share, index) => {
     if (!Number.isFinite(share) || share <= 0) {
@@ -80,7 +80,8 @@ function drawSlices(svg, ring, shares, colours) {
     cumulative += share;
     const path = ringSlicePath(ring, startAngle, cumulative * TWO_PI);
     if (path) {
-      svg.appendChild(svgElement("path", { d: path, fill: colours[index] }));
+      // The hover label names the segment and its value.
+      svg.appendChild(addTitle(svgElement("path", { d: path, fill: colours[index] }), `${segments[index].label}: ${formatTick(segments[index].value)}`));
     }
   });
 }
@@ -138,7 +139,7 @@ function buildDonut(host, options, shares) {
   const height = rowsTop + segments.length * DONUT_ROW_HEIGHT + 8;
   const svg = createSvg(width, height, labelFor(host, options));
   const colours = seriesColours(host, segments);
-  drawSlices(svg, ring, shares, colours);
+  drawSlices(svg, ring, shares, colours, segments);
   if (options.centreLabel) {
     svg.appendChild(svgText(options.centreLabel, {
       x: ring.cx, y: ring.cy + 6, "text-anchor": "middle", "font-family": theme.serif,
