@@ -20,6 +20,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ordeal import mix
+from ordeal import store
 
 # All paths hang off the project folder (the one above this package), so scripts work from any current directory.
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -539,33 +540,21 @@ def record_key(record):
 def load_cache(path=CACHE_PATH, experiment=None):
     """Read the saved replies of one experiment into a dict keyed by make_key(...).
 
-    'experiment' is a version code from current_experiment(suite). Without it, the
-    default suite's code is used. A missing file is an empty cache. A damaged line (for example one cut off
-    by a crash) is reported and skipped, so the call is simply made again.
-    Replies saved under another experiment version are left out, and counted.
+    'path' names the JSONL cache; its replies live in the store beside it (store.open_store), which copies an
+    old JSONL file in the first time it is opened. 'experiment' is a version code from current_experiment(suite).
+    Without it, the default suite's code is used. A missing cache is an empty cache. Replies saved under another
+    experiment version are left out, and counted.
     """
-    cache = {}
-    ignored_count = 0
-    if not path.exists():
-        return cache
+    if not store.has_saved_replies(path):
+        return {}
     version = experiment if experiment is not None else current_experiment()
-    with open(path, encoding="utf-8") as file:
-        for line_number, line in enumerate(file, start=1):
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                print(f"Skipping damaged cache line {line_number} in {path.name}", file=sys.stderr)
-                continue
-            # If a key appears twice, the later line replaces the earlier one in the dict below.
-            if record.get("experiment") != version:
-                ignored_count += 1
-                continue
-            cache[record_key(record)] = record
+    with store.open_store(path) as db:
+        records = db.records_for_experiment(version)
+        ignored_count = db.count_other_experiments(version)
     if ignored_count:
         print(f"Ignored {ignored_count} saved replies from other experiment versions.", file=sys.stderr)
-    return cache
+    # The store allows one row per key for each experiment, so no key appears twice here.
+    return {record_key(record): record for record in records}
 
 
 def append_record(record, path=CACHE_PATH):

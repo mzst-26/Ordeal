@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ordeal import store
+from ordeal import core, grade, store
 
 
 def make_reply(question_id="q1", repeat=0, step="baseline", reply="Answer: A", experiment="exp-a"):
@@ -222,6 +222,36 @@ class ImportTests(unittest.TestCase):
         """A new cache with no JSONL file opens as an empty store and nothing is imported."""
         with store.open_store(self.jsonl_path) as db:
             self.assertEqual(db.count_rows(), 0)
+
+
+class ReaderTests(unittest.TestCase):
+    """The readers (core.load_cache and grade.read_cache_by_experiment) read replies from the store."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+        self.cache_path = self.folder / "cache.jsonl"
+
+    def test_load_cache_reads_replies_that_are_only_in_the_store(self) -> None:
+        """With no JSONL file on disk, load_cache still finds the replies saved in the store."""
+        reply = make_reply(experiment=core.current_experiment())
+        with store.open_store(self.cache_path) as db:
+            db.add(reply)
+        self.assertFalse(self.cache_path.exists())
+        loaded = core.load_cache(self.cache_path)
+        self.assertEqual(list(loaded.values()), [reply])
+
+    def test_grade_reads_each_experiment_from_the_store(self) -> None:
+        """grade.read_cache_by_experiment groups the store's replies by experiment code and counts the rest."""
+        with store.open_store(self.cache_path) as db:
+            db.add(make_reply(experiment="exp-a"))
+            db.add(make_reply(experiment="exp-b", question_id="q2"))
+            db.add(make_reply(experiment="exp-c", question_id="q3"))
+        replies, other_count = grade.read_cache_by_experiment(self.cache_path, {"exp-a", "exp-b"})
+        self.assertEqual(len(replies["exp-a"]), 1)
+        self.assertEqual(len(replies["exp-b"]), 1)
+        self.assertEqual(other_count, 1)
 
 
 if __name__ == "__main__":

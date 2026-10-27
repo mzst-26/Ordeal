@@ -9,7 +9,6 @@ python -m ordeal.grade --condition none --suite gauntlet_v4+hard
 
 import argparse
 import csv
-import json
 import math
 import os
 import re
@@ -24,6 +23,7 @@ import numpy as np
 
 from ordeal import core
 from ordeal import mix
+from ordeal import store
 
 # The two wordings of the correction test (variant A and variant B); acceptance is reported for each.
 CORRECTION_STEP_A, CORRECTION_STEP_B = core.CORRECTION_STEPS
@@ -714,22 +714,15 @@ def read_cache_by_experiment(path: Path, experiments: set[str]) -> tuple[dict[st
     replies: dict[str, dict] = {experiment: {} for experiment in experiments}
     # other_count is replies from experiment codes not asked for; the caller reports it.
     other_count = 0
-    if not path.exists():
+    if not store.has_saved_replies(path):
         return replies, other_count
-    with open(path, encoding="utf-8") as file:
-        for line_number, line in enumerate(file, start=1):
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                print(f"Skipping damaged cache line {line_number} in {path.name}", file=sys.stderr)
-                continue
-            # Later lines overwrite earlier ones with the same key, so the newest saved reply wins.
-            if record.get("experiment") in replies:
-                replies[record["experiment"]][core.record_key(record)] = record
-            else:
-                other_count += 1
+    with store.open_store(path) as db:
+        wanted_count = 0
+        for experiment in experiments:
+            for record in db.records_for_experiment(experiment):
+                replies[experiment][core.record_key(record)] = record
+                wanted_count += 1
+        other_count = db.count_rows() - wanted_count
     return replies, other_count
 
 

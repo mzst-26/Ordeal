@@ -206,6 +206,14 @@ def import_jsonl_once(db: ReplyStore, jsonl_path: Path) -> None:
         raise
 
 
+def has_saved_replies(cache_path: Path) -> bool:
+    """Return True when a store or an old JSONL file exists for this cache path.
+
+    Readers check this first, so reading an empty cache does not create an empty database file.
+    """
+    return store_path_for(cache_path).exists() or cache_path.exists()
+
+
 def open_store(cache_path: Path) -> ReplyStore:
     """Open the store that goes with a JSONL cache path, copying the old file in on the first open.
 
