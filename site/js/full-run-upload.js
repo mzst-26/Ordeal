@@ -79,15 +79,24 @@ function conditionLabel(condition) {
   return known === undefined ? condition : known.label;
 }
 
+/** Return how many units a group holds: distinct model, question and repeat combinations under one condition. */
+export function unitCount(group) {
+  return new Set(group.replies.map((reply) => unitKeyFor(reply.model, reply.question_id, reply.repeat))).size;
+}
+
 /**
  * Return the label of a group's run. The full run keeps its name, such as "Full run: Control". Any other experiment is
- * named by its suite, its condition and the start of its experiment id, so two experiments never share a label.
+ * named by its suite, its condition and the start of its experiment id. Every label ends with the unit count, so a
+ * file with more replies for the same experiment and condition gets its own run, and loading the same file again is
+ * still recognised by its label.
  */
 export function groupLabel(group) {
+  const count = unitCount(group);
+  const units = count === 1 ? "1 unit" : `${count} units`;
   if (group.experiment === FULL_RUN_EXPERIMENT && group.suite === FULL_RUN_SUITE) {
-    return `Full run: ${conditionLabel(group.condition)}`;
+    return `Full run: ${conditionLabel(group.condition)} · ${units}`;
   }
-  return `${group.suite} ${conditionLabel(group.condition)} (${group.experiment.slice(0, 6)})`;
+  return `${group.suite} ${conditionLabel(group.condition)} (${group.experiment.slice(0, 6)}) · ${units}`;
 }
 
 /**

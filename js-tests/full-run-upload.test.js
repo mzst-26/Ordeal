@@ -82,16 +82,27 @@ test("runShape lists the models and questions in order and takes the largest rep
   assert.deepEqual(shape, { models: ["M2", "M1"], questions: ["q2", "q1"], repeats: 2 });
 });
 
-test("groupLabel keeps the full run's name, and names any other experiment by suite, condition and experiment", () => {
-  assert.equal(groupLabel({ experiment: FULL_RUN_EXPERIMENT, suite: FULL_RUN_SUITE, condition: "third_person" }), "Full run: Third person");
-  assert.equal(groupLabel({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none" }), "gauntlet_v4+hard None (96efc1)");
+test("groupLabel keeps the full run's name, names any other experiment, and ends with the unit count", async () => {
+  const [full] = await groupsOf([replyLine({ condition: "third_person" }), replyLine({ condition: "third_person", repeat: 2 })]);
+  assert.equal(groupLabel(full), "Full run: Third person · 2 units");
+  const [other] = await groupsOf([replyLine({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none" })]);
+  assert.equal(groupLabel(other), "gauntlet_v4+hard None (96efc1) · 1 unit");
+});
+
+test("a file with more units for the same experiment and condition gets a different label", async () => {
+  const [small] = await groupsOf([replyLine({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none" })]);
+  const [large] = await groupsOf([
+    replyLine({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none" }),
+    replyLine({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none", model: "M2" }),
+  ]);
+  assert.notEqual(groupLabel(small), groupLabel(large));
 });
 
 test("buildRunInput plans only the units that have replies, and saves each unit's steps", async () => {
   const [group] = await groupsOf([replyLine({ step: "level_0" }), replyLine({ step: "level_1" })]);
   const run = buildRunInput(group, { ...COMMON, pushbackSet: "v3", questionSet: "easy" });
   const key = unitKeyFor("M1", "q1", 1);
-  assert.equal(run.label, "Full run: Control");
+  assert.equal(run.label, "Full run: Control · 1 unit");
   assert.equal(run.status, "stopped");
   assert.deepEqual(run.plannedUnits, [key]);
   assert.equal(run.results[key].steps.length, 2);
@@ -110,7 +121,7 @@ test("importReplyGroups saves each group, a second load makes no duplicates, and
     replyLine({ experiment: "bad", suite: "gauntlet_v9+nope", condition: "none" }),
   ]);
   const first = await importReplyGroups(adapter, groups, COMMON);
-  assert.deepEqual(first.saved, ["Full run: Control", "Full run: None"]);
+  assert.deepEqual(first.saved, ["Full run: Control · 1 unit", "Full run: None · 1 unit"]);
   assert.ok(first.skipped.some((text) => text.includes("gauntlet_v9+nope is not one this site offers")));
   assert.equal((await listRuns(adapter)).length, 2);
 
@@ -119,11 +130,11 @@ test("importReplyGroups saves each group, a second load makes no duplicates, and
   assert.equal((await listRuns(adapter)).length, 2);
 });
 
-test("a second experiment on a suite the site offers is saved as its own runs", async () => {
+test("a second experiment on a suite the site offers is saved as its own runs, with the suite's sets", async () => {
   const adapter = createMemoryAdapter();
   const groups = await groupsOf([replyLine({ experiment: OTHER_EXPERIMENT, suite: "gauntlet_v4+hard", condition: "none" })]);
   const result = await importReplyGroups(adapter, groups, COMMON);
-  assert.deepEqual(result.saved, ["gauntlet_v4+hard None (96efc1)"]);
+  assert.deepEqual(result.saved, ["gauntlet_v4+hard None (96efc1) · 1 unit"]);
   const [saved] = await listRuns(adapter);
   const sets = setsOfChoice("gauntlet_v4+hard");
   assert.equal(saved.config.pushbackSet, sets.pushbackSet);
