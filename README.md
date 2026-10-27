@@ -242,13 +242,19 @@ The website (`site/`) has two pages that run the experiment in the browser: The 
 The website has a small server part: Netlify functions in `netlify/functions/`. They keep saved web runs in Netlify
 Blobs, and the runs page (`/runs.html`) lists them.
 
-- **What is stored:** each run's id, kind (batch or gauntlet), save time, size and run record. The key is never stored.
-- **7-day rule:** a run is kept for 7 days. A scheduled function runs once a day and removes runs older than that.
+- **What is stored:** each run's id, kind (batch or gauntlet), save time, size, the id of the browser that saved it,
+  and the run record. The key is never stored.
+- **Anyone can save:** no password is needed. Each browser keeps a random browser id in its own storage and sends it
+  with each save. The id is not a login: clearing storage gives a browser a new id.
+- **100 MB per browser:** a browser may hold up to 100 MB of saved runs. A save that would take it over is refused,
+  and nothing is removed. Other browsers' runs do not count towards it.
+- **Only your own runs can be deleted:** a browser may delete the runs it saved. Other runs show "Saved from another
+  browser" and have no delete button. The list never shows another browser's id.
+- **24-hour rule:** a run is kept for 24 hours. A scheduled function runs every hour and removes runs older than that.
 - **1.5 GB cap:** the whole store holds up to 1.5 GB. When a save would go over, the oldest runs are removed first
   until it fits. A run too big for the whole cap is refused.
-- **Password:** saving and deleting need the write password. Set it in the Netlify dashboard as the environment
-  variable `WRITE_PASSWORD` (Site configuration, then Environment variables). It is never written into the code. If it
-  is not set, no run can be saved or deleted. Reading the list needs no password.
+- **Limit of the browser id:** anyone can clear their storage or make a new id and get a fresh 100 MB. The cap stops
+  ordinary over-use, not a determined visitor. Counting saves per IP address would be needed to block that.
 - **Browser copies:** gauntlet runs also keep a copy in the browser's IndexedDB. Batch runs are not copied.
 
 ## Where the key comes from

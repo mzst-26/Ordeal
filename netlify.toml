@@ -5,8 +5,9 @@
   command = "npm ci && npm run build"
   publish = "dist"
 
-# Server functions for saved web runs (netlify/functions/): /api/runs and the daily prune. They keep runs for 7 days
-# in Netlify Blobs; the write password comes from the WRITE_PASSWORD variable set in the Netlify dashboard.
+# Server functions for saved web runs (netlify/functions/): /api/runs and the hourly prune. They keep runs for 24 hours
+# in Netlify Blobs. Anyone may save a run; each browser is capped at 100 MB, and it may delete only its own runs.
+# No secret is needed.
 [functions]
   directory = "netlify/functions"
 

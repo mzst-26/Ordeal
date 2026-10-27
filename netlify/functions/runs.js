@@ -1,10 +1,10 @@
-// The saved-runs API, served at /api/runs. GET lists the runs (or returns one when ?id= is given). Anyone may read.
-// POST saves a run and DELETE removes one; both need the write password in the Authorization header. A save first
-// makes room under the 1.5 GB cap by removing the oldest runs. Every rule used here is in netlify/lib.
+// The saved-runs API, served at /api/runs. Anyone may read the list or one run. Anyone may save a run, and the browser
+// that saves it is named by the X-Browser-Id header. A browser may hold up to 100 MB of runs, and it may delete only
+// the runs it saved. A save first makes room under the 1.5 GB store cap by removing the oldest runs. Every rule used
+// here is in netlify/lib and site/js/run-retention.js.
 
 import { randomUUID } from "node:crypto";
-import { passwordMatches } from "../lib/write-password.js";
-import { checkNewRun, buildRecord, runIdIsValid, toRetentionRuns } from "../lib/run-rules.js";
+import { checkNewRun, buildRecord, runIdIsValid, browserIdIsValid, toRetentionRuns } from "../lib/run-rules.js";
 import {
   openRunStore,
   listSummaries,
@@ -12,10 +12,13 @@ import {
   readRecord,
   removeRecord,
 } from "../lib/run-store.js";
-import { planSizeCleanup } from "../../site/js/run-retention.js";
+import { planSizeCleanup, fitsBrowserCap } from "../../site/js/run-retention.js";
 
 // Netlify reads this to route the address /api/runs to this function.
 export const config = { path: "/api/runs" };
+
+// The request header that names the browser making a save or delete.
+const BROWSER_HEADER = "x-browser-id";
 
 /** Build a JSON response. Responses are never cached, because the list changes with every save and delete. */
 function jsonResponse(status, body) {
@@ -30,38 +33,53 @@ function idFromUrl(request) {
   return new URL(request.url).searchParams.get("id");
 }
 
-/** Return the 401 response for a request without the right write password. It does not say which part was wrong. */
-function unauthorised() {
-  return jsonResponse(401, { error: "The write password is missing or wrong." });
+/** Return the browser id from the request header, or null when it is missing or not a valid id. */
+function browserIdFrom(request) {
+  const id = request.headers.get(BROWSER_HEADER);
+  return browserIdIsValid(id) ? id : null;
 }
 
-/** Return true when the request carries the write password. An unset WRITE_PASSWORD means no write is allowed. */
-function isWriter(request) {
-  return passwordMatches(request.headers.get("authorization"), process.env.WRITE_PASSWORD);
+/** Return the 400 response for a save or delete that did not say which browser it is from. */
+function noBrowserId() {
+  return jsonResponse(400, { error: "The request must name the browser it comes from." });
+}
+
+/**
+ * Remove the owner from a summary, and say whether the browser asking owns it. The owner's id is never sent back,
+ * so one browser cannot read another browser's id from the list.
+ */
+function shownSummary(summary, viewer) {
+  const { owner, ...rest } = summary;
+  return { ...rest, mine: viewer !== null && owner === viewer };
 }
 
 /** List every run, or return one run when an id is given. Reading needs no password. */
 async function handleGet(request) {
   const store = openRunStore();
+  const viewer = browserIdFrom(request);
   const id = idFromUrl(request);
   if (id === null) {
-    return jsonResponse(200, { runs: await listSummaries(store) });
+    const summaries = await listSummaries(store);
+    return jsonResponse(200, { runs: summaries.map((summary) => shownSummary(summary, viewer)) });
   }
   if (!runIdIsValid(id)) {
     return jsonResponse(400, { error: "The run id is not valid." });
   }
   const record = await readRecord(store, id);
-  return record === null
-    ? jsonResponse(404, { error: "No run has that id." })
-    : jsonResponse(200, record);
+  if (record === null) {
+    return jsonResponse(404, { error: "No run has that id." });
+  }
+  return jsonResponse(200, shownSummary(record, viewer));
 }
 
 /**
- * Save a run. The size is measured on the stored record. If the store would go over the cap, the oldest runs are
- * removed first. A run too big for the whole cap is refused with 413, and nothing is removed for it.
+ * Save a run for the browser that sent it. The browser's runs are capped at 100 MB, and a save over that is refused
+ * with nothing removed. The whole store is capped at 1.5 GB: when a save would go over, the oldest runs are removed
+ * first. A run too big for the whole store is refused with 413, and nothing is removed for it.
  */
 async function handlePost(request) {
-  if (!isWriter(request)) return unauthorised();
+  const owner = browserIdFrom(request);
+  if (owner === null) return noBrowserId();
   let body;
   try {
     body = await request.json();
@@ -72,10 +90,14 @@ async function handlePost(request) {
   if (!check.ok) return jsonResponse(400, { error: check.error });
 
   const id = randomUUID();
-  const record = buildRecord(id, body, Date.now());
+  const record = buildRecord(id, body, Date.now(), owner);
   const bytes = Buffer.byteLength(JSON.stringify(record), "utf8");
   const store = openRunStore();
-  const plan = planSizeCleanup(toRetentionRuns(await listSummaries(store)), bytes);
+  const runs = toRetentionRuns(await listSummaries(store));
+  if (!fitsBrowserCap(runs, owner, bytes)) {
+    return jsonResponse(413, { error: "This browser has used its 100 MB. Delete one of its runs to make room." });
+  }
+  const plan = planSizeCleanup(runs, bytes);
   if (!plan.fits) {
     return jsonResponse(413, { error: "This run is too large for the 1.5 GB store." });
   }
@@ -86,14 +108,23 @@ async function handlePost(request) {
   return jsonResponse(201, { id, kind: record.kind, createdAt: record.createdAt, size: bytes });
 }
 
-/** Delete one run. It needs the write password and a valid id. */
+/** Delete one run. Only the browser that saved it may delete it. */
 async function handleDelete(request) {
-  if (!isWriter(request)) return unauthorised();
+  const owner = browserIdFrom(request);
+  if (owner === null) return noBrowserId();
   const id = idFromUrl(request);
   if (!runIdIsValid(id)) {
     return jsonResponse(400, { error: "The run id is not valid." });
   }
-  await removeRecord(openRunStore(), id);
+  const store = openRunStore();
+  const record = await readRecord(store, id);
+  if (record === null) {
+    return jsonResponse(404, { error: "No run has that id." });
+  }
+  if (record.owner !== owner) {
+    return jsonResponse(403, { error: "You can only delete runs saved from this browser." });
+  }
+  await removeRecord(store, id);
   return jsonResponse(200, { deleted: id });
 }
 
