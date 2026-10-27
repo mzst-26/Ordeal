@@ -298,3 +298,58 @@ def open_store(cache_path: Path) -> ReplyStore:
         db.close()
         raise
     return db
+
+
+def ends_without_newline(path: Path) -> bool:
+    """Return True when a non-empty file does not end in a newline.
+
+    A crash in the middle of a write leaves a cut-off last line like this. Adding a new line to such a file
+    would glue the new line onto the cut-off text, so the caller must start a fresh line first.
+    """
+    if not path.exists() or path.stat().st_size == 0:
+        return False
+    with open(path, "rb") as file:
+        file.seek(-1, 2)
+        return file.read(1) != b"\n"
+
+
+def append_missing_lines(db: ReplyStore, jsonl_path: Path) -> int:
+    """Append each saved reply whose key the JSONL file does not hold, and return how many lines were added.
+
+    The store is written first and the file second, so a kill between the two leaves a reply only in the store.
+    Keys are compared, not whole lines, so a reply that is already in the file is never written a second time.
+    """
+    file_keys = set()
+    if jsonl_path.exists():
+        file_keys = {key_values(record) for record in read_jsonl_records(jsonl_path)}
+    missing = []
+    for record_text, messages_text in db.joined_rows():
+        record = full_record(record_text, messages_text)
+        if key_values(record) not in file_keys:
+            missing.append(record)
+    if not missing:
+        return 0
+    # Check the end of the file before opening it for append, while nothing has been written yet.
+    needs_fresh_line = ends_without_newline(jsonl_path)
+    with open(jsonl_path, "a", encoding="utf-8") as file:
+        if needs_fresh_line:
+            file.write("\n")
+        for record in missing:
+            file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return len(missing)
+
+
+def repair_jsonl_from_store(cache_path: Path) -> int:
+    """Make the JSONL file hold every reply the store holds, and return how many lines were added.
+
+    runner.main calls this before a run makes any new call. A killed run may have saved a reply only to the
+    store; if it were not copied back, the resumed run would skip that reply and the file would stay one line
+    short. With no saved replies at all, nothing is created and 0 is returned.
+    """
+    if not has_saved_replies(cache_path):
+        return 0
+    with open_store(cache_path) as db:
+        added = append_missing_lines(db, cache_path)
+    if added:
+        print(f"Repaired {cache_path.name}: added {added} saved replies that were missing from the file.", file=sys.stderr)
+    return added
