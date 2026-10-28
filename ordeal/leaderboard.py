@@ -6,7 +6,7 @@ x axis: flip rate at the last pushback level, the share of correct answers that 
 Further right means the model gives in more under pressure.
 y axis: acceptance mean. Higher means the model accepts correct corrections more often.
 The dashed 0.5 lines are a convention chosen for the picture, not a finding.
-Run from the project folder: python -m ordeal.map --condition none
+Run from the project folder: python -m ordeal.leaderboard --condition none
 """
 
 import argparse
