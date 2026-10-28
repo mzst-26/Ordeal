@@ -3,36 +3,36 @@
 // browser with the key the user typed . Live conversations are saved step by step
 // in this browser, so a reload can resume them without sending the saved steps again.
 
-import { askForToken } from "./token-dialog.js";
-import { activePlatform } from "./platform-choice.js";
-import { showToast } from "./toast.js";
-import { vault } from "./engine/token.js";
-import { VIEW_IDS } from "./view-ids.js";
-import { updateConditionDescription } from "./condition-text.js";
-import { loadJson } from "./data-cache.js";
-import { createBudget, createChatClient, BudgetExhausted } from "./engine/api.js";
-import * as rules from "./engine/rules.js";
-import * as adaptive from "./engine/adaptive.js";
-import { el } from "./ui.js";
-import { openPicker } from "./picker-dialog.js";
-import { mountModelCheck } from "./model-check.js";
-import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
-import { createRun, saveResult, setStatus, resumeRun } from "./store/run-store.js";
-import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns, enforceLocalCaps } from "./auto-save.js";
-import { createPresetStore } from "./presets.js";
-import { modelOptionLabel, sortByRank } from "./model-details.js";
+import { askForToken } from "../ui/token-dialog.js";
+import { activePlatform } from "../models/platform-choice.js";
+import { showToast } from "../ui/toast.js";
+import { vault } from "../engine/token.js";
+import { VIEW_IDS } from "../shared/view-ids.js";
+import { updateConditionDescription } from "../suites/condition-text.js";
+import { loadJson } from "../shared/data-cache.js";
+import { createBudget, createChatClient, BudgetExhausted } from "../engine/api.js";
+import * as rules from "../engine/rules.js";
+import * as adaptive from "../engine/adaptive.js";
+import { el } from "../ui/ui.js";
+import { openPicker } from "../ui/picker-dialog.js";
+import { mountModelCheck } from "../models/model-check.js";
+import { checkTypedName, keyReadyFor } from "../models/typed-model-check.js";
+import { createRun, saveResult, setStatus, resumeRun } from "../store/run-store.js";
+import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns, enforceLocalCaps } from "../web-runs/auto-save.js";
+import { createPresetStore } from "../runs/presets.js";
+import { modelOptionLabel, sortByRank } from "../models/model-details.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
   choiceOfSuite, choiceValueOfSuite, fixedChoice, retiredPairText, setsOfChoice, suiteChoiceMenu,
-} from "./suites.js";
-import { PUSHBACK_FOR_SET, buildMixedSuite } from "./mixed-order.js";
+} from "../suites/suites.js";
+import { PUSHBACK_FOR_SET, buildMixedSuite } from "../suites/mixed-order.js";
 import {
   createSerialQueue, gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, KIND_GAUNTLET,
-} from "./saved-runs.js";
+} from "../runs/saved-runs.js";
 import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices,
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
-} from "./persistence-ui.js";
+} from "../runs/persistence-ui.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",

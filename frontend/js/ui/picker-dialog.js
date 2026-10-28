@@ -3,7 +3,7 @@
 // Short lists keep the original path, where every card is built and then filtered by its text.
 
 import { el } from "./ui.js";
-import { pageOf } from "./model-list.js";
+import { pageOf } from "../models/model-list.js";
 
 const TITLE_ID = "picker-dialog-title";
 const SEARCH_ID = "picker-dialog-search";

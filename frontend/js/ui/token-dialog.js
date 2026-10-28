@@ -3,9 +3,9 @@
 import { el } from "./ui.js";
 import {
   isPlausibleToken, KEY_CHARACTERS_PATTERN, MIN_KEY_LENGTH, MAX_KEY_LENGTH, browserStorage,
-} from "./engine/token.js";
-import { readChoice, loadPlatforms, platformIdFor, DEFAULT_PLATFORM_ID } from "./platforms.js";
-import { loadJson } from "./data-cache.js";
+} from "../engine/token.js";
+import { readChoice, loadPlatforms, platformIdFor, DEFAULT_PLATFORM_ID } from "../models/platforms.js";
+import { loadJson } from "../shared/data-cache.js";
 
 const TITLE_ID = "token-dialog-title";
 const FIELD_ID = "token-dialog-field";

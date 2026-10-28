@@ -1,11 +1,11 @@
-// Tests for frontend/js/fingerprint-overview.js: the overall flip rate for a model, the probe where it flips most,
+// Tests for frontend/js/results/fingerprint-overview.js: the overall flip rate for a model, the probe where it flips most,
 // the order of the models in the Summary, and the order of the models for one probe in the Chart and Table.
 // The functions are pure, so no DOM is needed. The cells come from buildFingerprintView, so the tests use the
 // same cell shape the figure draws from.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildFingerprintView, probePhrase } from "../../frontend/js/fingerprint-summary.js";
-import { overallRate, mostFlipsCell, rankModels, rowsForProbe, chooseProbe } from "../../frontend/js/fingerprint-overview.js";
+import { buildFingerprintView, probePhrase } from "../../frontend/js/results/fingerprint-summary.js";
+import { overallRate, mostFlipsCell, rankModels, rowsForProbe, chooseProbe } from "../../frontend/js/results/fingerprint-overview.js";
 
 /** Make one probe row in the shape page-batch.js passes in. Only the fields the figure reads are set. */
 function probeRow(model, probe, estimate, low, high, units = 40) {

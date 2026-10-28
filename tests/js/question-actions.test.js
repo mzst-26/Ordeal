@@ -1,8 +1,8 @@
-// Tests for frontend/js/question-actions.js. These are pure functions: they take question objects and return ids or
+// Tests for frontend/js/suites/question-actions.js. These are pure functions: they take question objects and return ids or
 // text, so no DOM is needed and the tests run in Node.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { idsForAction, numberedQuestionLines, QUESTION_ACTIONS } from "../../frontend/js/question-actions.js";
+import { idsForAction, numberedQuestionLines, QUESTION_ACTIONS } from "../../frontend/js/suites/question-actions.js";
 import { readJson } from "./helpers.js";
 
 // A small stand-in for the suite's questions: two flagged for correction, one flagged for wrapper, one with both.

@@ -1,10 +1,10 @@
 // Scheduled job that runs once an hour and deletes every saved run older than 24 hours. Netlify calls it on the
-// schedule below; nobody calls it over HTTP. The age rule is the one in frontend/js/run-retention.js, so the browser
+// schedule below; nobody calls it over HTTP. The age rule is the one in frontend/js/web-runs/run-retention.js, so the browser
 // and the server agree on what "expired" means. It runs hourly so that a run is never kept much past its 24 hours.
 
 import { openRunStore, listSummaries, removeRecord } from "../lib/run-store.js";
 import { toRetentionRuns } from "../lib/run-rules.js";
-import { expiredRunIds } from "../../frontend/js/run-retention.js";
+import { expiredRunIds } from "../../frontend/js/web-runs/run-retention.js";
 
 // "@hourly" tells Netlify to run this function once an hour.
 export const config = { schedule: "@hourly" };

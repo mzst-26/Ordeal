@@ -1,8 +1,8 @@
-// Tests for frontend/js/analytics.js. The module is pure: it takes plain per-model measure objects,
+// Tests for frontend/js/results/analytics.js. The module is pure: it takes plain per-model measure objects,
 // shaped like { model, measures: { <key>: number|null } }, and never touches the DOM or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MEASURES, normalise, rankModels, heatmapMatrix, summaryStats, shareOfMax, theoreticalMax } from "../../frontend/js/analytics.js";
+import { MEASURES, normalise, rankModels, heatmapMatrix, summaryStats, shareOfMax, theoreticalMax } from "../../frontend/js/results/analytics.js";
 
 test("MEASURES lists the eight batch table measures with their labels and directions", () => {
   assert.deepEqual(MEASURES.map((m) => m.label), [

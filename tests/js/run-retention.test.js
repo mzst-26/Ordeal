@@ -1,4 +1,4 @@
-// Tests for the retention and size rules of the web run store (frontend/js/run-retention.js). The rules are pure
+// Tests for the retention and size rules of the web run store (frontend/js/web-runs/run-retention.js). The rules are pure
 // functions on small plain objects, so these tests need no network, no browser and no Netlify.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import {
   browserBytes,
   fitsBrowserCap,
   planSizeCleanup,
-} from "../../frontend/js/run-retention.js";
+} from "../../frontend/js/web-runs/run-retention.js";
 
 const NOW = 100 * DAY_MS;
 

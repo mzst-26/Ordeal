@@ -1,8 +1,8 @@
 // Draws the limits table on the pacing page (frontend/pacing.html). The numbers come from /data/rate_limits.json, which
 // the export writes from the console table and from the backend's observed values. The page only reads that file.
 // It never calls a model platform, and it says so when the file cannot be read, instead of showing an empty table.
-import { loadJson } from "./data-cache.js";
-import { pacingRows } from "./rate-limits.js";
+import { loadJson } from "../shared/data-cache.js";
+import { pacingRows } from "../shared/rate-limits.js";
 
 // The file the export writes. The page reads it once when it opens.
 const RATE_LIMITS_PATH = "/data/rate_limits.json";

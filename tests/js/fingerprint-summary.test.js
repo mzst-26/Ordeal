@@ -1,11 +1,11 @@
-// Tests for frontend/js/fingerprint-summary.js: the plain sentences, the "not run yet" choice and the cells
+// Tests for frontend/js/results/fingerprint-summary.js: the plain sentences, the "not run yet" choice and the cells
 // that the Batch fingerprint figure draws from. The functions are pure, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   NOT_RUN_TEXT, probePhrase, percentText, isNotRun, summarySentence, buildFingerprintView,
-} from "../../frontend/js/fingerprint-summary.js";
+} from "../../frontend/js/results/fingerprint-summary.js";
 
 // The two probe specs the batch page can load. The fingerprint probes are every single-shot axis except
 // tampered_history, which grade.js puts in its own family. Reading the real files means a new probe with no

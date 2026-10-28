@@ -8,7 +8,7 @@ import {
   fetchModelIds,
   platformAddressFor,
 } from '../../frontend/js/engine/api.js';
-import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/platforms.js';
+import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
 
 // A fake key used only by these tests. Tests never print it.

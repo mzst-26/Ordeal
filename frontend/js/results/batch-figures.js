@@ -5,7 +5,7 @@
 // { key, label, digits, higherIsBetter }.
 
 import { heatmapMatrix, shareOfMax } from "./analytics.js";
-import { el, formatNumber } from "./ui.js";
+import { el, formatNumber } from "../ui/ui.js";
 import { TERMS } from "./glossary.js";
 
 export const FIGURE_VIEWS = [

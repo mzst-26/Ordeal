@@ -8,7 +8,7 @@
 // from the same cells, so they cannot disagree. The chart and the table share one probe picker, because a picker
 // for each would make the two views easy to read out of step.
 
-import { el } from "./ui.js";
+import { el } from "../ui/ui.js";
 import { buildTable } from "./chart-panel.js";
 import { buildFingerprintView, NOT_RUN_TEXT, percentText } from "./fingerprint-summary.js";
 import { rankModels, rowsForProbe, chooseProbe } from "./fingerprint-overview.js";

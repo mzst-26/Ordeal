@@ -115,9 +115,9 @@ export function createRouter({ views, mounts, document, window }) {
 export function startApp({ renderHeader }) {
   const views = Object.fromEntries(VIEWS.map((view) => [view, document.querySelector(`[data-view="${view}"]`)]));
   const mounts = {
-    gauntlet: (root) => import("./page-gauntlet.js").then((page) => page.mountGauntlet(root)),
-    batch: (root) => import("./page-batch.js").then((page) => page.mountBatch(root)),
-    live: (root) => import("./page-live.js").then((page) => page.mountLive(root)),
+    gauntlet: (root) => import("./pages/page-gauntlet.js").then((page) => page.mountGauntlet(root)),
+    batch: (root) => import("./pages/page-batch.js").then((page) => page.mountBatch(root)),
+    live: (root) => import("./pages/page-live.js").then((page) => page.mountLive(root)),
   };
   const router = createRouter({ views, mounts, document, window });
   renderHeader((view) => router.navigate(view));

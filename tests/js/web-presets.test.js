@@ -1,8 +1,8 @@
-// Tests for the preset store (frontend/js/presets.js) on the memory adapter. Nothing touches a browser or the network.
+// Tests for the preset store (frontend/js/runs/presets.js) on the memory adapter. Nothing touches a browser or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createMemoryAdapter } from "../../frontend/js/store/memory-adapter.js";
-import { createPresetStore, isPresetId, normaliseSettings, PRESET_PREFIX } from "../../frontend/js/presets.js";
+import { createPresetStore, isPresetId, normaliseSettings, PRESET_PREFIX } from "../../frontend/js/runs/presets.js";
 import { RUNS_STORE, createRun } from "../../frontend/js/store/run-store.js";
 
 const SECRET_MESSAGE = "The data holds a key or a token, so it was refused and not saved.";

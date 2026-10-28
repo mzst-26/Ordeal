@@ -1,8 +1,8 @@
-// Tests for frontend/js/data-cache.js. The fetch is a fake that counts its calls and returns canned responses,
+// Tests for frontend/js/shared/data-cache.js. The fetch is a fake that counts its calls and returns canned responses,
 // so no network is used and the number of requests is exact.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createDataCache } from "../../frontend/js/data-cache.js";
+import { createDataCache } from "../../frontend/js/shared/data-cache.js";
 
 /** A fake fetch that answers each call with the next canned result and records the paths it was asked for. */
 function fakeFetch(...results) {

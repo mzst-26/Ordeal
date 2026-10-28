@@ -7,8 +7,8 @@
 // Saving a separate choice here would be a second add path, and nothing reads that choice, so a found name would
 // never reach the run. This module therefore keeps no state of its own and does not save anything.
 
-import { isRunLocked } from "./run-lock.js";
-import { el } from "./ui.js";
+import { isRunLocked } from "../runs/run-lock.js";
+import { el } from "../ui/ui.js";
 import { RUN_LOCKED_MESSAGE, keyChanged } from "./platform-section.js";
 
 const NO_KEY_HINT = "Add your key first, then check the model.";

@@ -3,10 +3,10 @@
 // run that changes every few seconds is sent about once every SAVE_EVERY_MS, and sends never overlap. The page shows
 // the words from onSaveStatus, so the visitor always knows whether a run is on the server or only in this browser.
 
-import { getRun, listRuns, deleteRun } from "./store/run-store.js";
+import { getRun, listRuns, deleteRun } from "../store/run-store.js";
 import { saveRunOnServer, keepBrowserCopies, fetchRunList } from "./runs-api.js";
 import { getBrowserId } from "./browser-id.js";
-import { localRunsToRemove, LOCAL_GAUNTLET_KEEP } from "./run-housekeeping.js";
+import { localRunsToRemove, LOCAL_GAUNTLET_KEEP } from "../runs/run-housekeeping.js";
 
 // Changes made within this many milliseconds of one another are sent together, in one save.
 export const SAVE_EVERY_MS = 10000;

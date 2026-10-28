@@ -1,4 +1,4 @@
-// Tests for frontend/js/run-housekeeping.js. These rules decide three things: which saved run a new Start carries on
+// Tests for frontend/js/runs/run-housekeeping.js. These rules decide three things: which saved run a new Start carries on
 // with (so a run is never saved twice), which gauntlet copies to keep in the browser, and which runs come back from
 // the server. They are pure functions on plain objects, so no storage or network is needed.
 import { test } from "node:test";
@@ -9,7 +9,7 @@ import {
   findResumableRun,
   localRunsToRemove,
   planRestore,
-} from "../../frontend/js/run-housekeeping.js";
+} from "../../frontend/js/runs/run-housekeeping.js";
 
 const CONFIG = {
   kind: "batch",

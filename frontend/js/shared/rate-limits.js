@@ -6,7 +6,7 @@
 // limits per model. The observed values (the "observed" key of the same file) are what the backend recorded from
 // real replies, and they say where each number came from. An observed entry always wins over the table.
 
-import { formatContext } from "./model-details.js";
+import { formatContext } from "../models/model-details.js";
 
 const UNKNOWN = "unknown";
 const NO_PUBLISHED_LIMIT = "no published limit";

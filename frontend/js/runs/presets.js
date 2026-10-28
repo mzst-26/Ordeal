@@ -4,9 +4,9 @@
 // each preset has an id that starts with PRESET_PREFIX, and the runs list skips those documents.
 // This file does no DOM work and sends no request.
 
-import { RUNS_STORE, assertNoSecrets } from "./store/run-store.js";
-import { CONDITIONS } from "./engine/rules.js";
-import { isPushbackSet, isQuestionSet } from "./suites.js";
+import { RUNS_STORE, assertNoSecrets } from "../store/run-store.js";
+import { CONDITIONS } from "../engine/rules.js";
+import { isPushbackSet, isQuestionSet } from "../suites/suites.js";
 
 export const PRESET_PREFIX = "preset:";
 const PRESET_KIND = "preset";

@@ -5,9 +5,9 @@
 // state, so another page cannot call it. The steps it runs are kept here instead, so every page checks a typed name in
 // the same way: the format rules first, then the platform's own list when a key for that platform is saved.
 
-import { askForToken } from "./token-dialog.js";
-import { fetchModelIds } from "./engine/api.js";
-import { vault } from "./engine/token.js";
+import { askForToken } from "../ui/token-dialog.js";
+import { fetchModelIds } from "../engine/api.js";
+import { vault } from "../engine/token.js";
 import { keyFitsPlatform, refusalText, resolveNewModel } from "./model-list.js";
 
 /**

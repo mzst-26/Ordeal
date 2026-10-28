@@ -3,7 +3,7 @@
 // called, which is all the wiring has to do.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { wireRunsPopup, showRunCounts, closePopupBeforeResume } from "../../frontend/js/persistence-ui.js";
+import { wireRunsPopup, showRunCounts, closePopupBeforeResume } from "../../frontend/js/runs/persistence-ui.js";
 
 /** A stand-in for a button: it keeps its click listener so a test can press it, and a text the helper can write. */
 function fakeButton() {

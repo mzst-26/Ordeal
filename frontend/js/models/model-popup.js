@@ -3,7 +3,7 @@
 // The page does the work (checks, saving, ticking). This module only draws the part and reports what was typed or
 // clicked. All text is put in as text, never as markup, so a name from the platform is never run as HTML.
 
-import { el } from "./ui.js";
+import { el } from "../ui/ui.js";
 
 // The note shown when the chosen platform has no saved model list. It points to the field below it.
 export const NO_LIST_NOTE = "No saved model list for this platform yet. Add a model name below, or check the platform's own model page.";

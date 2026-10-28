@@ -2,8 +2,8 @@
 // The pages call activePlatform() just before they make a request, so every request goes to the platform that is
 // chosen at that moment, and no page keeps its own copy of the address.
 
-import { loadJson } from "./data-cache.js";
-import { browserStorage } from "./engine/token.js";
+import { loadJson } from "../shared/data-cache.js";
+import { browserStorage } from "../engine/token.js";
 import { currentPlatform, loadPlatforms, readChoice } from "./platforms.js";
 
 // The message a page shows when no platform can be chosen. It is plain text, so it is safe to show as it is.

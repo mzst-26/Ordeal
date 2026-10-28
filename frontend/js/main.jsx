@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { startApp } from "./app.js";
 import { vault } from "./engine/token.js";
 import { SiteHeader } from "./react/SiteHeader.jsx";
-import { mountPlatformSection } from "./platform-section.js";
+import { mountPlatformSection } from "./models/platform-section.js";
 
 startApp({
   renderHeader(navigate) {

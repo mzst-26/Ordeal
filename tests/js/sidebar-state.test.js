@@ -1,8 +1,8 @@
-// Tests for frontend/js/sidebar-state.js: the collapsed or expanded sidebar choice and how it is saved.
+// Tests for frontend/js/ui/sidebar-state.js: the collapsed or expanded sidebar choice and how it is saved.
 // Storage is a small stand-in with getItem and setItem, so no browser is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SIDEBAR_STORAGE_KEY, nextSidebarState, readStoredSidebar, writeStoredSidebar } from "../../frontend/js/sidebar-state.js";
+import { SIDEBAR_STORAGE_KEY, nextSidebarState, readStoredSidebar, writeStoredSidebar } from "../../frontend/js/ui/sidebar-state.js";
 
 /** A stand-in for localStorage that keeps values in a Map. */
 function fakeStorage(initial = {}) {

@@ -5,9 +5,9 @@
 // offer is reported and not saved. The file is read in pieces, so a large file is not held as one string. This file
 // does no DOM work.
 
-import { importRunDocument, listRuns } from "./store/run-store.js";
-import { KIND_BATCH, unitKeyFor, unitPayload } from "./saved-runs.js";
-import { setsOfChoice } from "./suites.js";
+import { importRunDocument, listRuns } from "../store/run-store.js";
+import { KIND_BATCH, unitKeyFor, unitPayload } from "../runs/saved-runs.js";
+import { setsOfChoice } from "../suites/suites.js";
 import { CONDITIONS, FULL_RUN_EXPERIMENT, FULL_RUN_SUITE } from "./full-run-summary.js";
 
 /**

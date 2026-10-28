@@ -3,7 +3,7 @@
 // panel, so it is redrawn each time the page draws the chart, and a live run keeps it up to date. Text is set with
 // textContent, and the chart is drawn by the chart module the panel was made with.
 
-import { el } from "./ui.js";
+import { el } from "../ui/ui.js";
 import { filterChartOptions, modelNames, topModels, MEAN_NAME } from "./chart-models.js";
 
 const TOP_COUNT = 5;

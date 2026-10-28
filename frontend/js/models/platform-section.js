@@ -6,10 +6,10 @@
 // The panel is drawn once on the batch page and once on the gauntlet page. The two copies share one saved choice:
 // each save is announced on the window, and every copy redraws itself from that announcement.
 
-import { loadJson } from "./data-cache.js";
-import { askForToken } from "./token-dialog.js";
-import { browserStorage, vault } from "./engine/token.js";
-import { openPicker } from "./picker-dialog.js";
+import { loadJson } from "../shared/data-cache.js";
+import { askForToken } from "../ui/token-dialog.js";
+import { browserStorage, vault } from "../engine/token.js";
+import { openPicker } from "../ui/picker-dialog.js";
 import {
   currentPlatform,
   loadPlatforms,
@@ -18,8 +18,8 @@ import {
   signupLink,
   writeChoice,
 } from "./platforms.js";
-import { el } from "./ui.js";
-import { isRunLocked } from "./run-lock.js";
+import { el } from "../ui/ui.js";
+import { isRunLocked } from "../runs/run-lock.js";
 
 // The name of the window event sent after a choice is saved. Its detail holds the platform id, the model, and the
 // id of the copy that saved it. Every copy of the panel, and the model check, listen for it and redraw.
