@@ -258,6 +258,7 @@ const page = {
   counts: { done: 0, total: 0, calls: 0, reused: 0, failed: 0 },
   budgetHit: false,           // true once the call cap has stopped a run
   keyRefused: false,          // true once the service refused the key during a run
+  rateLimited: false,         // true once the provider asked for a pause too long to wait out
   capTouched: false,          // true once the user types a cap, so the plan stops changing it
   confirming: false,          // true while the key dialog or the confirmation line is open
   fingerprint: null,          // the fingerprint figure (its views and drawing), made at start-up
@@ -1854,6 +1855,7 @@ async function beginRun(confirmedId) {
   page.phase = "running";
   page.budgetHit = false;
   page.keyRefused = false;
+  page.rateLimited = false;
   // Once a run has started, the cap the user sees is kept, even if the plan changes later.
   page.capTouched = true;
   resetCounts(unitCount(choices));
@@ -2243,6 +2245,9 @@ function handleEvent(event) {
     case "key-refused":
       onKeyRefused(event);
       break;
+    case "rate-limited":
+      onRateLimited();
+      break;
     case "stopped":
       onStopped();
       break;
@@ -2354,13 +2359,29 @@ function onKeyRefused(event) {
   setStatus(`The key was refused: ${event.message} Check the key, then press Start again.`);
 }
 
-/** Handle a stop. The cap or key message stays if one of them was the reason. A stop also drops the rest of the queue. */
+/**
+ * Handle a long rate-limit pause: the provider asked for more than five minutes, so the run stops rather than wait.
+ * The saved replies are kept, so Start again later reuses them. The stopped event follows.
+ */
+function onRateLimited() {
+  page.rateLimited = true;
+  addLogEntry("Note", "The provider asked for a long pause.");
+  setStatus(
+    "The provider asked for a pause longer than five minutes, so the run stopped. "
+    + "Start again later; saved replies are reused.",
+  );
+}
+
+/**
+ * Handle a stop. The cap, key or long-pause message stays if one of them was the reason. A stop also drops the rest of
+ * the queue.
+ */
 function onStopped() {
   page.phase = "stopped";
   page.conditionsLeft = [];
   page.resumeQueue = [];
   finishSavedRun("stopped");
-  if (!page.budgetHit && !page.keyRefused) {
+  if (!page.budgetHit && !page.keyRefused && !page.rateLimited) {
     setStatus(`Stopped at ${formatCount(page.counts.calls)} calls. Export what you have.`);
   }
   finishRun();
