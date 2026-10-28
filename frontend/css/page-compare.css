@@ -366,7 +366,7 @@
   color: var(--ink-soft);
 }
 
-/* 8. Model Card position (its motion and content are styled in compare-figs-b.css) */
+/* 8. Model Card position (its motion and content are styled in compare-detail-figures.css) */
 /* Side panel pinned to the right edge, full height, above the filter bar (z-index 40 vs 10) */
 .model-card {
   position: fixed;
