@@ -3,8 +3,8 @@
 // views does not reload the page. The router (app.js) marks the open link with aria-current.
 
 import { useLayoutEffect, useState } from "react";
-import { askForToken } from "../token-dialog.js";
-import { nextSidebarState, readStoredSidebar, writeStoredSidebar } from "../sidebar-state.js";
+import { askForToken } from "../ui/token-dialog.js";
+import { nextSidebarState, readStoredSidebar, writeStoredSidebar } from "../ui/sidebar-state.js";
 
 // localStorage key that remembers the visitor's theme choice between visits.
 const THEME_STORAGE_KEY = "sycophancy-theme";

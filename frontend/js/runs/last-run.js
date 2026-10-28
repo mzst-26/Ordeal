@@ -1,7 +1,7 @@
 // Finds the newest saved run of one kind, so a page can show it as soon as it opens. Reading a run sends nothing.
-import { getRun } from "./store/run-store.js";
+import { getRun } from "../store/run-store.js";
 import { savedRunRows } from "./saved-runs.js";
-import { choiceOfSuite } from "./suites.js";
+import { choiceOfSuite } from "../suites/suites.js";
 
 /** Return the newest saved run of this kind ("batch", "gauntlet" or "live"), or null when there is none. */
 export async function latestRunOfKind(adapter, kind) {

@@ -3,10 +3,10 @@
 // copy kept in this browser; batch runs are not copied. Text is always set with textContent, and the rules live in
 // runs-api.js.
 
-import { el } from "./ui.js";
-import { openPageStorage, downloadText } from "./persistence-ui.js";
-import { getBrowserId } from "./browser-id.js";
-import { fetchRunList, fetchRunRecord, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "./runs-api.js";
+import { el } from "../ui/ui.js";
+import { openPageStorage, downloadText } from "../runs/persistence-ui.js";
+import { getBrowserId } from "../web-runs/browser-id.js";
+import { fetchRunList, fetchRunRecord, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "../web-runs/runs-api.js";
 
 const LOADING_TEXT = "Loading runs.";
 const EMPTY_TEXT = "No runs are stored yet.";

@@ -1,4 +1,4 @@
-// Tests for resuming saved runs (frontend/js/saved-runs.js). A reload is simulated by keeping the storage adapter and
+// Tests for resuming saved runs (frontend/js/runs/saved-runs.js). A reload is simulated by keeping the storage adapter and
 // starting again with an empty reply cache, as a new page would. No request is sent.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,8 +10,8 @@ import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, resumeState, addRecordsToCache,
   gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, savedRunRows, interruptedRunsOfKind, canResume,
   isRunDocument, statusWord,
-} from "../../frontend/js/saved-runs.js";
-import { buildSuite } from "../../frontend/js/suites.js";
+} from "../../frontend/js/runs/saved-runs.js";
+import { buildSuite } from "../../frontend/js/suites/suites.js";
 import { cacheKey } from "../../frontend/js/engine/planner.js";
 import { readJson } from "./helpers.js";
 

@@ -3,12 +3,12 @@
 // each one becomes its own runs, or is reported when the site does not offer its suite.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseReplyLine, readReplyGroups, runShape, groupLabel, buildRunInput, importReplyGroups } from "../../frontend/js/full-run-upload.js";
+import { parseReplyLine, readReplyGroups, runShape, groupLabel, buildRunInput, importReplyGroups } from "../../frontend/js/full-run/full-run-upload.js";
 import { importRunDocument, listRuns } from "../../frontend/js/store/run-store.js";
 import { createMemoryAdapter } from "../../frontend/js/store/memory-adapter.js";
-import { unitKeyFor } from "../../frontend/js/saved-runs.js";
-import { FULL_RUN_EXPERIMENT, FULL_RUN_SUITE } from "../../frontend/js/full-run-summary.js";
-import { setsOfChoice } from "../../frontend/js/suites.js";
+import { unitKeyFor } from "../../frontend/js/runs/saved-runs.js";
+import { FULL_RUN_EXPERIMENT, FULL_RUN_SUITE } from "../../frontend/js/full-run/full-run-summary.js";
+import { setsOfChoice } from "../../frontend/js/suites/suites.js";
 
 const COMMON = { callCap: 400, temperature: 0.7, maxTokens: 2048 };
 const OTHER_EXPERIMENT = "96efc1daaa50";

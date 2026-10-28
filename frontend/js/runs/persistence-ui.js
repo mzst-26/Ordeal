@@ -1,9 +1,9 @@
 // Panels that the Gauntlet and Batch pages share: the preset panel, the Saved runs list and the resume notices.
 // Text is always set with textContent. Nothing here sends a request. The pages pass in what each panel needs.
 
-import { el } from "./ui.js";
-import { createMemoryAdapter } from "./store/memory-adapter.js";
-import { openRunStorage, deleteRun, exportRun, getRun } from "./store/run-store.js";
+import { el } from "../ui/ui.js";
+import { createMemoryAdapter } from "../store/memory-adapter.js";
+import { openRunStorage, deleteRun, exportRun, getRun } from "../store/run-store.js";
 import { createPresetStore } from "./presets.js";
 import { savedRunRows, interruptedRunsOfKind } from "./saved-runs.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";

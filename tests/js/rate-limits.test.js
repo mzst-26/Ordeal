@@ -1,8 +1,8 @@
-// Tests for frontend/js/rate-limits.js. The fixtures are shaped like ordeal/data/rate_limits.json (the console table)
+// Tests for frontend/js/shared/rate-limits.js. The fixtures are shaped like ordeal/data/rate_limits.json (the console table)
 // and like results/rate_limits.json (the observed values the backend writes). The functions are pure, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatRateLimit, rateLimitSourceText, rateLimitRowFor, pacingRows } from "../../frontend/js/rate-limits.js";
+import { formatRateLimit, rateLimitSourceText, rateLimitRowFor, pacingRows } from "../../frontend/js/shared/rate-limits.js";
 
 // A small table in the same shape as the published file. Two models are enough to show the rules.
 const TABLE = {

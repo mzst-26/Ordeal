@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readJson } from "./helpers.js";
-import { loadSuite, confessionLabel, planMessage } from "../../frontend/js/page-live.js";
+import { loadSuite, confessionLabel, planMessage } from "../../frontend/js/pages/page-live.js";
 import { ALL_FAMILIES } from "../../frontend/js/engine/flows.js";
 import { buildCacheIndex, planAllModels } from "../../frontend/js/engine/planner.js";
 import { makeSuite, setupLevel } from "../../frontend/js/engine/rules.js";

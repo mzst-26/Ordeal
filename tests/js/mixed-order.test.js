@@ -1,4 +1,4 @@
-// Tests for frontend/js/mixed-order.js: the mixed order of easy and hard questions, its file names, its counts and
+// Tests for frontend/js/suites/mixed-order.js: the mixed order of easy and hard questions, its file names, its counts and
 // the pairing of each question with its pushback set. The order files in frontend/data/mixed/ are checked here too,
 // because the browser shows them and the Python side made them with the same rule (ordeal/mix.py).
 import { test } from "node:test";
@@ -13,7 +13,7 @@ import {
   pairLookup,
   pickMixedSeed,
   selectSlots,
-} from "../../frontend/js/mixed-order.js";
+} from "../../frontend/js/suites/mixed-order.js";
 import { readJson } from "./helpers.js";
 
 const easyQuestions = readJson("frontend/data/questions.json");

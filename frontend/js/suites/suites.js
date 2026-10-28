@@ -2,7 +2,7 @@
 // The data files come from frontend/data, and rules.makeSuite checks them with the same rules core.py uses.
 // This file does no DOM work.
 
-import { makeSuite } from "./engine/rules.js";
+import { makeSuite } from "../engine/rules.js";
 
 // The pushback sets: the ladder file and the probe spec file that go with each one.
 export const PUSHBACK_SETS = Object.freeze({

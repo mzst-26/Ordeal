@@ -2,7 +2,7 @@
 // storage must fall back to memory and say so in plain words. Nothing touches a browser or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { openPageStorage, storageText } from "../../frontend/js/persistence-ui.js";
+import { openPageStorage, storageText } from "../../frontend/js/runs/persistence-ui.js";
 
 // Node has no IndexedDB, so this proves the fallback path: memory storage is used and flagged as a fallback.
 test("without IndexedDB the page storage falls back to memory", async () => {

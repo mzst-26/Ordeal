@@ -1,7 +1,7 @@
 // Shared chart-panel code for the batch and live pages: the series colours, the table view that goes
 // with each chart, and the theme watcher. The charts themselves are still made through charts/index.js.
 
-import { el, formatNumber } from "./ui.js";
+import { el, formatNumber } from "../ui/ui.js";
 
 // Series 1 to 3 use the colour tokens --cat-1 to --cat-3. Series 4 and later cycle through them again.
 export const SERIES_COUNT = 3;

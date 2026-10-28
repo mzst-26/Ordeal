@@ -3,27 +3,27 @@
 // The live run uses the suite the visitor picked on the Suite select (one pushback set with one question set). The replay
 // uses the saved run's suite.
 
-import { askForToken } from "./token-dialog.js";
-import { showToast } from "./toast.js";
-import { vault } from "./engine/token.js";
-import { VIEW_IDS } from "./view-ids.js";
-import { loadJson } from "./data-cache.js";
-import { createBudget, createChatClient } from "./engine/api.js";
-import { activePlatform } from "./platform-choice.js";
-import { createBatchRunner } from "./engine/runner.js";
-import { ALL_FAMILIES } from "./engine/flows.js";
-import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
-import { openPageStorage } from "./persistence-ui.js";
-import { createRun, saveResult, setStatus as setRunStatus, getRun } from "./store/run-store.js";
+import { askForToken } from "../ui/token-dialog.js";
+import { showToast } from "../ui/toast.js";
+import { vault } from "../engine/token.js";
+import { VIEW_IDS } from "../shared/view-ids.js";
+import { loadJson } from "../shared/data-cache.js";
+import { createBudget, createChatClient } from "../engine/api.js";
+import { activePlatform } from "../models/platform-choice.js";
+import { createBatchRunner } from "../engine/runner.js";
+import { ALL_FAMILIES } from "../engine/flows.js";
+import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
+import { openPageStorage } from "../runs/persistence-ui.js";
+import { createRun, saveResult, setStatus as setRunStatus, getRun } from "../store/run-store.js";
 import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, recordsFromRun, addRecordsToCache, isRunDocument,
   savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED,
-} from "./saved-runs.js";
-import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
+} from "../runs/saved-runs.js";
+import { latestRunOfKind, runMatchesSuite, runDateText } from "../runs/last-run.js";
 import {
   choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice, isPushbackSet, isQuestionSet, retiredPairText,
-} from "./suites.js";
-import { gradeCondition, gradeProbes } from "./engine/grade.js";
+} from "../suites/suites.js";
+import { gradeCondition, gradeProbes } from "../engine/grade.js";
 import {
   BASELINE_STEP,
   CONFESSION_STEP,
@@ -31,15 +31,15 @@ import {
   DEFAULT_QUESTIONS as DEFAULT_QUESTION_SET,
   makeSuite,
   parseAnswer,
-} from "./engine/rules.js";
-import { barErrorChart, donutChart, lineBandChart, scatterQuadrant } from "./charts/index.js";
-import { openEnlargedChart } from "./chart-popup.js";
-import { MEAN_NAME } from "./chart-models.js";
+} from "../engine/rules.js";
+import { barErrorChart, donutChart, lineBandChart, scatterQuadrant } from "../charts/index.js";
+import { openEnlargedChart } from "../results/chart-popup.js";
+import { MEAN_NAME } from "../results/chart-models.js";
 import {
   barTable, destroyChart, drawPanel, makeChartPanel, seriesColour, seriesSlot, seriesStyle, isRepeatSeries,
   watchThemeChanges,
-} from "./chart-panel.js";
-import { clear, el, formatNumber } from "./ui.js";
+} from "../results/chart-panel.js";
+import { clear, el, formatNumber } from "../ui/ui.js";
 
 // Saved run kind for the live theatre, so its runs are kept apart from batch and gauntlet runs.
 const KIND_LIVE = "live";

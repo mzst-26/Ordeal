@@ -2,9 +2,9 @@
 // in the browser, and writes the text shown in each row of the runs page. The calls take a fetch function as an
 // argument, so a test can pass a fake one. Each call names this browser by its browser id, in a header.
 
-import { listRuns, keepRunCopy } from "./store/run-store.js";
+import { listRuns, keepRunCopy } from "../store/run-store.js";
 import { RETENTION_HOURS, HOUR_MS } from "./run-retention.js";
-import { planRestore } from "./run-housekeeping.js";
+import { planRestore } from "../runs/run-housekeeping.js";
 import { getBrowserId } from "./browser-id.js";
 
 /** The note the runs page shows, so the visitor knows the 24-hour, 100 MB and delete rules. */

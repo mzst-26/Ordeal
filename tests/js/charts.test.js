@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { linearScale, niceTicks, pathFromPoints, bandPath, formatTick } from "../../frontend/js/charts/scale.js";
 import * as chartKit from "../../frontend/js/charts/index.js";
-import { seriesSlot, isRepeatSeries } from "../../frontend/js/chart-panel.js";
+import { seriesSlot, isRepeatSeries } from "../../frontend/js/results/chart-panel.js";
 
 const { lineBandChart, barErrorChart, scatterQuadrant, donutChart, chooseLabelSide, cornerBoxes } = chartKit;
 

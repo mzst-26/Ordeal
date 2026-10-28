@@ -1,4 +1,4 @@
-// Tests for frontend/js/model-list.js: the per-platform model lists, the names a
+// Tests for frontend/js/models/model-list.js: the per-platform model lists, the names a
 // visitor adds (kept per platform), the checks on a new name, and the large-run warning. Every test is pure: no
 // network, no DOM. The storage tests use fake storage objects, one that works and one whose every call throws.
 import { test } from 'node:test';
@@ -21,10 +21,10 @@ import {
   refusalText,
   entryNote,
   keyFitsPlatform,
-} from '../../frontend/js/model-list.js';
-import { setRunLocked, isRunLocked } from '../../frontend/js/run-lock.js';
-import { allCards } from '../../frontend/js/picker-dialog.js';
-import { platformList, findPlatform, platformIdFor, DEFAULT_PLATFORM_ID } from '../../frontend/js/platforms.js';
+} from '../../frontend/js/models/model-list.js';
+import { setRunLocked, isRunLocked } from '../../frontend/js/runs/run-lock.js';
+import { allCards } from '../../frontend/js/ui/picker-dialog.js';
+import { platformList, findPlatform, platformIdFor, DEFAULT_PLATFORM_ID } from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
 
 const PROVIDERS = readJson('frontend/data/providers.json');

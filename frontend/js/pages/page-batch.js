@@ -2,63 +2,63 @@
 // the batch in this browser with the key the user types. Each finished unit is saved in this browser, so a
 // reload can resume an unfinished run without repeating the calls that are already saved.
 
-import { loadJson } from "./data-cache.js";
-import { showToast } from "./toast.js";
-import { initTooltips } from "./tooltip.js";
-import { browserStorage, vault } from "./engine/token.js";
-import { createBatchLog } from "./engine/batch-log.js";
-import { latestRunOfKind, runMatchesSuite, runDateText } from "./last-run.js";
-import { VIEW_IDS } from "./view-ids.js";
-import { conditionDescriptionText } from "./condition-text.js";
-import { mergePlans, unionInOrder } from "./condition-choice.js";
-import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "./engine/api.js";
-import { activePlatform } from "./platform-choice.js";
-import { DEFAULT_PLATFORM_ID, parseModelReference } from "./platforms.js";
-import { CHOICE_EVENT } from "./platform-section.js";
-import { setRunLocked, suiteChoiceLocked } from "./run-lock.js";
+import { loadJson } from "../shared/data-cache.js";
+import { showToast } from "../ui/toast.js";
+import { initTooltips } from "../ui/tooltip.js";
+import { browserStorage, vault } from "../engine/token.js";
+import { createBatchLog } from "../engine/batch-log.js";
+import { latestRunOfKind, runMatchesSuite, runDateText } from "../runs/last-run.js";
+import { VIEW_IDS } from "../shared/view-ids.js";
+import { conditionDescriptionText } from "../suites/condition-text.js";
+import { mergePlans, unionInOrder } from "../suites/condition-choice.js";
+import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "../engine/api.js";
+import { activePlatform } from "../models/platform-choice.js";
+import { DEFAULT_PLATFORM_ID, parseModelReference } from "../models/platforms.js";
+import { CHOICE_EVENT } from "../models/platform-section.js";
+import { setRunLocked, suiteChoiceLocked } from "../runs/run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
   withAddedModel, withoutAddedModel, addedRows, addOutcomeText, entryNote,
   ticksAfterPlatformChange, largeRunWarning, sortModelIds, letterGroups, withCatalogueNumbers,
   nextAddedNumber, numberAddedModels, readAddedCounter, writeAddedCounter,
-} from "./model-list.js";
-import { buildModelAddArea } from "./model-popup.js";
-import { mountModelCheck } from "./model-check.js";
-import { checkTypedName, keyReadyFor } from "./typed-model-check.js";
-import { hostOfCustomUrl, validateCustomModel } from "./engine/custom-model.js";
-import { createBatchRunner } from "./engine/runner.js";
-import { buildCacheIndex, cacheKey, planAllModels } from "./engine/planner.js";
-import { gradeCondition, gradeProbes } from "./engine/grade.js";
-import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "./analytics.js";
-import { renderResultsFigures } from "./batch-figures.js";
-import { mountFingerprintFigure } from "./fingerprint-figure.js";
-import { clear, el, formatNumber } from "./ui.js";
-import { openPicker } from "./picker-dialog.js";
-import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "./model-details.js";
-import { rateLimitRowFor } from "./rate-limits.js";
-import { updateSelectionCount } from "./selection-count.js";
-import { idsForAction, numberedQuestionLines, shortQuestionText } from "./question-actions.js";
-import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns } from "./store/run-store.js";
-import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns } from "./auto-save.js";
-import { findResumableRun, resumeSignature } from "./run-housekeeping.js";
-import { createPresetStore } from "./presets.js";
+} from "../models/model-list.js";
+import { buildModelAddArea } from "../models/model-popup.js";
+import { mountModelCheck } from "../models/model-check.js";
+import { checkTypedName, keyReadyFor } from "../models/typed-model-check.js";
+import { hostOfCustomUrl, validateCustomModel } from "../engine/custom-model.js";
+import { createBatchRunner } from "../engine/runner.js";
+import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
+import { gradeCondition, gradeProbes } from "../engine/grade.js";
+import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
+import { renderResultsFigures } from "../results/batch-figures.js";
+import { mountFingerprintFigure } from "../results/fingerprint-figure.js";
+import { clear, el, formatNumber } from "../ui/ui.js";
+import { openPicker } from "../ui/picker-dialog.js";
+import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "../models/model-details.js";
+import { rateLimitRowFor } from "../shared/rate-limits.js";
+import { updateSelectionCount } from "../suites/selection-count.js";
+import { idsForAction, numberedQuestionLines, shortQuestionText } from "../suites/question-actions.js";
+import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns } from "../store/run-store.js";
+import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns } from "../web-runs/auto-save.js";
+import { findResumableRun, resumeSignature } from "../runs/run-housekeeping.js";
+import { createPresetStore } from "../runs/presets.js";
 import {
   createSuiteLoader, suiteSummary, isSavedSuite, isPushbackSet, isQuestionSet, DEFAULT_CHOICE, SHUFFLE_CHOICE,
   choiceOfSuite, choiceValueOfSuite, fixedChoice, retiredPairText, setsOfChoice, suiteChoiceMenu,
-} from "./suites.js";
+} from "../suites/suites.js";
 import {
   applyMixedOrder, buildMixedSuite, countsSentence, mixCounts, mixedOrderPath, MIXED_NAME, orderRows,
   pickMixedSeed, PUSHBACK_FOR_SET, selectSlots,
-} from "./mixed-order.js";
+} from "../suites/mixed-order.js";
 import {
   createSerialQueue, KIND_BATCH, plannedBatchUnits, unitKeyFor, unitPayload, resumeState, addRecordsToCache,
-} from "./saved-runs.js";
+} from "../runs/saved-runs.js";
 import {
   openPageStorage, storageText, buildPresetPanel, buildRunsList, buildResumeNotices, downloadText,
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
-} from "./persistence-ui.js";
-import { readReplyGroups, importReplyGroups } from "./full-run-upload.js";
-import { SAVED_RUNS_CHANGED } from "./saved-runs.js";
+} from "../runs/persistence-ui.js";
+import { readReplyGroups, importReplyGroups } from "../full-run/full-run-upload.js";
+import { SAVED_RUNS_CHANGED } from "../runs/saved-runs.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",

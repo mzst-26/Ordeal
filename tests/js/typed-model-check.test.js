@@ -1,10 +1,10 @@
-// Tests for frontend/js/typed-model-check.js: the check a typed model name gets before a page uses it.
+// Tests for frontend/js/models/typed-model-check.js: the check a typed model name gets before a page uses it.
 // No key is saved in these tests, so the platform list is never read and no request is made. The name is then
 // accepted as "not checked", or refused by the format rules, which are the same on every page.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkTypedName, choiceOutcomeText } from "../../frontend/js/typed-model-check.js";
-import { platformList, findPlatform } from "../../frontend/js/platforms.js";
+import { checkTypedName, choiceOutcomeText } from "../../frontend/js/models/typed-model-check.js";
+import { platformList, findPlatform } from "../../frontend/js/models/platforms.js";
 import { readJson } from "./helpers.js";
 
 const PLATFORMS = platformList(readJson("frontend/data/providers.json"));

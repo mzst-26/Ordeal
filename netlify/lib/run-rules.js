@@ -66,7 +66,7 @@ export function summaryOf(id, metadata) {
 }
 
 /**
- * Turn summaries into the shape the retention rules in frontend/js/run-retention.js read: id, createdAt, bytes and owner.
+ * Turn summaries into the shape the retention rules in frontend/js/web-runs/run-retention.js read: id, createdAt, bytes and owner.
  * The rules name the size "bytes", while the summary calls it "size", so this one place does the renaming.
  */
 export function toRetentionRuns(summaries) {

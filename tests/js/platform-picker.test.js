@@ -1,4 +1,4 @@
-// Tests for the platform picker helpers in frontend/js/platforms.js: which platforms a visitor may choose, the facts
+// Tests for the platform picker helpers in frontend/js/models/platforms.js: which platforms a visitor may choose, the facts
 // shown on each card, the sign-up link, and the fallback when the saved choice is missing or unusable.
 // The platform list is the shared site copy of providers.json. Every test is pure: a fake storage object stands in
 // for the browser's local storage.
@@ -13,7 +13,7 @@ import {
   currentPlatform,
   readChoice,
   CHOICE_STORAGE_NAME,
-} from '../../frontend/js/platforms.js';
+} from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
 
 const ALL = platformList(readJson('frontend/data/providers.json'));

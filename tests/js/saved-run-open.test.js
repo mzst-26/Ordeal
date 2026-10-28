@@ -2,7 +2,7 @@
 // Open, and a run with units still to send is not complete, so its button says Resume.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { savedRunRows } from "../../frontend/js/saved-runs.js";
+import { savedRunRows } from "../../frontend/js/runs/saved-runs.js";
 import { importRunDocument } from "../../frontend/js/store/run-store.js";
 import { createMemoryAdapter } from "../../frontend/js/store/memory-adapter.js";
 

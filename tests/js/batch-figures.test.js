@@ -1,11 +1,11 @@
-// Tests for frontend/js/batch-figures.js: the pure helpers behind the Batch results figures.
+// Tests for frontend/js/results/batch-figures.js: the pure helpers behind the Batch results figures.
 // The helpers take plain numbers and rows and return plain values, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   FIGURE_VIEWS, PALETTE, colourFor, dashFor, radarPoints, polygonPoints, scatterPosition,
   splitScatterRows, wrapLabel, describeValues,
-} from "../../frontend/js/batch-figures.js";
+} from "../../frontend/js/results/batch-figures.js";
 
 test("FIGURE_VIEWS lists Radar, Scatter and Profile with Radar first", () => {
   assert.deepEqual(FIGURE_VIEWS.map((view) => view.key), ["radar", "scatter", "profile"]);

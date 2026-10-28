@@ -17,7 +17,7 @@ import {
 } from '../../frontend/js/engine/api.js';
 import { CUSTOM_MODEL_REASONS } from '../../frontend/js/engine/custom-model.js';
 import { createTokenVault } from '../../frontend/js/engine/token.js';
-import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/platforms.js';
+import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
 
 // A fake key used only by these tests. Tests never print it.

@@ -1,4 +1,4 @@
-// Tests for the suite choices (frontend/js/suites.js): the level counts and the setup turn come from the data files.
+// Tests for the suite choices (frontend/js/suites/suites.js): the level counts and the setup turn come from the data files.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -10,7 +10,7 @@ import {
   DEFAULT_QUESTION_SET,
   PUSHBACK_SETS,
   QUESTION_SETS,
-} from "../../frontend/js/suites.js";
+} from "../../frontend/js/suites/suites.js";
 import { setupLevel } from "../../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
