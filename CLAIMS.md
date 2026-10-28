@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/101-leaderboard-name | f4914fe3 (restructure plan, batch 2) | `ordeal/map.py`, `tests/test_charts_map.py`, `README.md` | 2026-10-28 |
