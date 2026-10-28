@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   BudgetExhausted,
   KeyRefused,
+  RateLimited,
   MAX_ATTEMPTS_PER_STEP,
   MAX_RETRIES,
   createBudget,
@@ -17,6 +18,7 @@ import {
 } from '../../frontend/js/engine/api.js';
 import { CUSTOM_MODEL_REASONS } from '../../frontend/js/engine/custom-model.js';
 import { createTokenVault } from '../../frontend/js/engine/token.js';
+import { createPlatformPacer } from '../../frontend/js/engine/platform-pacer.js';
 import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
 
@@ -41,9 +43,12 @@ const CUSTOM_REFUSED = 'Custom endpoints cannot be used yet. Each one needs its 
 // A custom model used only by these tests. Its host is an example name, and no test calls it.
 const CUSTOM_MODEL = { name: 'my-model', base_url: 'https://llm.example.org/v1', model: 'remote-model' };
 
-/** Build a fake HTTP response with a status and a JSON body. */
-function fakeResponse(status, body) {
-  return { status, json: async () => body };
+/**
+ * Build a fake HTTP response with a status, a JSON body and optional headers. Header names are lower case,
+ * as the browser gives them, so the client can read them with get().
+ */
+function fakeResponse(status, body, headers = {}) {
+  return { status, json: async () => body, headers: new Map(Object.entries(headers)) };
 }
 
 /** Build a successful chat reply that contains the given text. */
@@ -85,14 +90,19 @@ function makeClient({
   timeoutMs = 120000,
   hasKey = true,
   sleepImpl = null,
+  pacer = undefined,
 }) {
   const vault = createTokenVault();
   if (hasKey) vault.set(FAKE_KEY, { platform: 'test' });
   const fake = makeFakeFetch(script);
   const sleeps = [];
+  // The fake clock moves on by each wait, so a park set by a 429 ends when the fake sleep says it does.
+  const clock = { now: 0 };
   const recordingSleep = async (seconds) => {
     sleeps.push(seconds);
+    clock.now += seconds * 1000;
   };
+  // A random number of 0 adds no extra wait, so each wait in the tests is exact.
   const client = createChatClient({
     platform: platformAt(baseUrl),
     customModels,
@@ -102,6 +112,8 @@ function makeClient({
     timeoutMs,
     fetchImpl: fake.fetchImpl,
     sleep: sleepImpl ?? recordingSleep,
+    pacer: pacer ?? createPlatformPacer({ now: () => clock.now }),
+    random: () => 0,
   });
   return { client, calls: fake.calls, sleeps };
 }
@@ -208,7 +220,8 @@ test('a 429 is retried once and then the call succeeds', async () => {
   const text = await client.complete(sampleRequest());
   assert.equal(text, 'ok');
   assert.equal(calls.length, 2);
-  assert.deepEqual(sleeps, [1]);
+  // With no Retry-After, a 429 waits the 5-second floor, not the 1-second back-off used for other errors.
+  assert.deepEqual(sleeps, [5]);
 });
 
 test('three 500 errors in a row give up and name the status', async () => {
@@ -617,3 +630,49 @@ test('MAX_ATTEMPTS_PER_STEP is one try plus the retries, and a step that keeps f
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Platform pacing: a 429 parks the whole platform, halves the calls allowed in flight, and sets the wait from Retry-After.
+const RATE_LIMITED = 'The service asked for a pause longer than five minutes, so the run was stopped. Try again later.';
+
+test('a 429 with a Retry-After waits the time the platform asked for', async () => {
+  const { client, sleeps } = makeClient({
+    script: [fakeResponse(429, {}, { 'retry-after': '7' }), replyWith('ok')],
+  });
+  assert.equal(await client.complete(sampleRequest()), 'ok');
+  assert.deepEqual(sleeps, [7]);
+});
+
+test('a Retry-After written as a date is not read as seconds, so the back-off is used', async () => {
+  const { client, sleeps } = makeClient({
+    script: [fakeResponse(429, {}, { 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }), replyWith('ok')],
+  });
+  await client.complete(sampleRequest());
+  assert.deepEqual(sleeps, [5]);
+});
+
+test('a Retry-After longer than five minutes stops the call with RateLimited, and nothing is retried', async () => {
+  const { client, calls, sleeps } = makeClient({
+    script: [fakeResponse(429, {}, { 'retry-after': '3600' }), replyWith('ok')],
+  });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof RateLimited, 'a long wait should throw RateLimited');
+  assert.equal(error.message, RATE_LIMITED);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(sleeps, []);
+});
+
+test('a 429 halves the calls the platform allows in flight', async () => {
+  const pacer = createPlatformPacer({ ceiling: 8, now: () => 0 });
+  const { client } = makeClient({ script: [fakeResponse(429, {}), replyWith('ok')], pacer });
+  await client.complete(sampleRequest());
+  assert.equal(pacer.limit(), 4);
+});
+
+test('a call waits out a park on its platform before it sends anything', async () => {
+  const pacer = createPlatformPacer({ now: () => 0 });
+  pacer.recordRateLimit(3);
+  const { client, calls, sleeps } = makeClient({ script: [replyWith('ok')], pacer });
+  assert.equal(await client.complete(sampleRequest()), 'ok');
+  assert.deepEqual(sleeps, [3]);
+  assert.equal(calls.length, 1);
+});
