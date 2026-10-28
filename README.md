@@ -26,17 +26,28 @@ ordeal check groq org/name             # send one tiny message to confirm the mo
 ordeal test groq org/name --limit 5    # run the Ordeal test on that model
 ```
 
+- `platforms` reads the list in `ordeal/data/providers.json`. The list covers the hosted platforms and
+  the local servers (Ollama, LM Studio, vLLM and llama.cpp), which need no key.
+- `login` saves the key in a per-user file outside the project, so it cannot be committed.
+- `models` and `check` ask the platform for its own model list first, so a typing mistake is caught
+  with suggestions before any chat call is made.
+- `test` runs the same experiment as the next section, for one model. Options after the model name, such
+  as `--limit` or `--probes`, go to the runner unchanged. Each model's replies are saved in their own
+  file under `results/`, and the results table is printed at the end.
+
 A model can be given as an id such as `org/name`, or as a link to its page such as
 `https://huggingface.co/org/name`.
 
 ## Setup
 
-1. Put your Token Factory key in a file named `.env` in the project folder, next to this README.
-   The line in the file is:
+1. Give the key for your platform. Any one of these works, checked in this order:
 
-   `TOKEN_FACTORY_TOKEN=your-key-here`
+   - an environment variable named for the platform, such as `GROQ_API_KEY`;
+   - a `.env` file in the project folder, with a line such as `GROQ_API_KEY=your-key-here`;
+   - the key saved by `ordeal login`, in `~/.config/ordeal/credentials.json`.
 
-   The key is read from there and never printed. The `.env` file is listed in `.gitignore`.
+   The experiment in `ordeal/data/config.json` is the one that uses Token Factory, so it needs
+   `TOKEN_FACTORY_TOKEN`. The key is never printed. The `.env` file is listed in `.gitignore`.
 
 2. Create the environment and install the libraries. The environment lives in the project folder,
    at `.venv-spine`. Use Python 3.10 or newer:
@@ -219,9 +230,25 @@ which file a set uses.
 - The browser cannot call custom endpoints yet. The site's Content Security Policy allows only the Nebius
   API. Widening it needs the owner's approval, so custom models run from the command line only.
 
+## Pacing calls
+
+Each model has its own limit on requests and tokens per minute, and the limits differ a lot. So the runner
+paces the calls to each model separately, instead of using one fixed number of calls at once. A call waits
+until the model's limit has room for it. The limit comes from the first source that exists, most trusted first:
+
+1. The rate-limit headers on the latest reply from that model.
+2. `ordeal/data/rate_limits.json`, the table copied from the provider's console.
+3. A deliberately low default, for a model in neither. An unknown model starts slowly.
+
+`scripts/refresh_rate_limits.py` updates the table from the headers the provider sends on a reply. The pacing
+page on the website (`pacing.html`) explains how calls are paced.
+
 ## Saved runs and presets (web)
 
-The website (`site/`) has two pages that run the experiment in the browser: The Gauntlet and The Batch.
+The website (`site/`) runs the experiment in the browser. Its front page has three views: The Gauntlet, The
+Batch and The Theatre (the live view, which shows each level as it happens). The Compare, Runs and pacing
+pages are separate pages: Compare (`compare.html`), Runs (`runs.html`, the saved web runs) and pacing
+(`pacing.html`, how calls are paced).
 
 - **Saved runs** are kept in the browser's IndexedDB, in the database `sycophancy-meter`. Each unit is saved
   when it finishes. A run can be resumed after a reload, and a resumed run does not repeat any saved call.
@@ -271,18 +298,22 @@ Blobs, and the runs page (`/runs.html`) lists them.
 
 ## Where the key comes from
 
-- **The command line** reads `TOKEN_FACTORY_TOKEN` from the environment. If it is not set, it reads the `.env`
-  file, in the project folder. The key is never printed.
+- **The command line** looks for a platform's key in the environment, then in the `.env` file in the project
+  folder, then in the credentials file saved by `ordeal login` (see Setup). The key is never printed.
 - **The website** asks the visitor to type in their own key. The key is kept in memory only, for that tab.
-  It is not saved to browser storage, cookies or the address, and closing the tab removes it. The browser
-  sends it only to the Nebius Token Factory. The project's `.env` key is never used on the site.
+  It is not saved to browser storage, cookies or the address, and closing the tab removes it. The site's
+  Content Security Policy lets the browser send requests only to the Nebius Token Factory, so the website runs
+  Token Factory models only. The project's `.env` key is never used on the site.
 - **No key is stored on the server.** The site now has a small server part, which keeps saved web runs (see
   [Web run storage](#web-run-storage)). Keys never reach it.
 
 ## Storage
 
-- `results/cache.jsonl` holds the graded replies. The runner writes it, and `grade.py`, `charts.py`,
-  `map.py`, `fingerprint.py` and `transcripts.py` read it.
+- `results/cache.sqlite` is the reply store. Each reply is written as soon as it arrives, so a crash loses at
+  most the reply being written. The runner writes it.
+- `results/cache.jsonl` is a copy of the same replies, one line each, for the tools that read the file. The
+  runner appends to it, and `grade.py`, `charts.py`, `map.py`, `fingerprint.py` and `transcripts.py` read it.
+- `ordeal test` keeps each model's replies in its own file, named after the platform and the model.
 - `results/stub_cache.jsonl` holds the replies of `--stub` runs.
 - `results/results.csv`, `results/probes.csv` and the PNG pictures are written by the grading and chart scripts.
 - Calibration writes `calib_cache.jsonl` and its JSON files to `--out-dir`. The Makefile uses
@@ -407,12 +438,19 @@ The Python backend is separate. Its commands above do not need npm.
 
 ## Files
 
-The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the build and check tools are in `scripts/`. Run a module from the project folder with `python -m ordeal.<name>`, as the commands above do. The static site is in `site/`.
+The Python engine is in `ordeal/`, the experiment inputs are in `ordeal/data/`, and the build and check tools are in `scripts/`. Run a module from the project folder with `python -m ordeal.<name>`, as the commands above do. The static site is in `site/`, and the small server part of the site is in `netlify/`.
 
 | File | What it is |
 | --- | --- |
 | `README.md` | This file. |
+| `ordeal/cli.py` | The `ordeal` command: `platforms`, `login`, `models`, `check` and `test`. It reads what the person types and calls the other modules. |
+| `ordeal/providers.py` | The platform registry. It reads `ordeal/data/providers.json` and turns a typed model name into a route. |
+| `ordeal/keys.py` | Finds and saves each platform's key. Keys are never printed. |
+| `ordeal/data/providers.json` | The platform list, shared by the Python code and the site: names, base URLs, key variables and whether a platform runs on this computer. |
 | `ordeal/data/config.json` | Model list, the default suite (the `ladder` and `questions` keys, which must name one of the two offered suites), custom models, repeats, temperature, token limit, concurrency, retries, health thresholds, bootstrap settings, system prompts and correction messages. |
+| `ordeal/data/models.json` | The text-writing models each hosted platform serves, saved by `scripts/refresh_catalog.py`. |
+| `ordeal/data/rate_limits.json` | The per-model limits used for pacing (see "Pacing calls"). |
+| `ordeal/data/key_checks.json` | The record of answer-key checks. A person fills it in by hand, after the AI screen has flagged a key (see `scripts/screen_keys.py`). |
 | `ordeal/data/questions.json` | The 32 `easy` questions: correct letter, planted wrong letter, tier, and flags for the correction test and the wrapper test. |
 | `ordeal/data/questions_hard.json` | The 59 `hard` questions, in the same form. |
 | `ordeal/data/ladder_v3.json` | The ten-level gauntlet (`gauntlet_v3`): level names, messages, the level 4 setup turn and the confession question. |
@@ -422,27 +460,39 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `ordeal/core.py` | Rules shared by every script: question wording, how the answer letter is read, the Spine Score, the saved-reply keys and the version code. |
 | `ordeal/adaptive.py` | Writes the text of each level and probe, picking quotes and the reactive variant. No network. |
 | `ordeal/flows.py` | Decides which messages each question gets, in what order, and when a flow stops. No network. |
-| `ordeal/runner.py` | Runs the experiment and saves each reply to `results/cache.jsonl`. |
-| `ordeal/model_client.py` | The Token Factory client, and which errors are retried. |
+| `ordeal/mix.py` | Builds the mixed run order for `--shuffle-mix`. |
+| `ordeal/runner.py` | Runs the experiment and saves each reply to the store and to `results/cache.jsonl`. |
+| `ordeal/store.py` | The reply store, `results/cache.sqlite`. |
+| `ordeal/limiter.py` | Paces the calls to each model so it stays inside its limits (see "Pacing calls"). |
+| `ordeal/model_client.py` | The client that sends chat calls to every platform, and which errors are retried. |
 | `ordeal/stub_model.py` | An offline stand-in for the model, used by the tests and by `--stub`. |
 | `ordeal/grade.py` | Turns saved replies into `results/results.csv` and `results/probes.csv`, and prints the tables. |
 | `ordeal/charts.py` | Draws `results/flip_by_level_<condition>.png` and `results/fingerprint_<condition>.png`. |
 | `ordeal/map.py` | Draws `results/map_<condition>.png` and prints the leaderboard. |
+| `ordeal/fingerprint.py`, `ordeal/difficulty.py` | The fingerprint and by-difficulty calculations. |
+| `ordeal/calibrate.py` | Checks the question set against one model before a run (see "Calibrating the questions"). |
 | `ordeal/transcripts.py` | Prints saved transcripts: the first answer and the ten levels, with the first wrong level marked. It does not print the setup turn, the confession or the probes. |
 | `scripts/hello.py` | One small call to the first model, to check the key and the connection. |
-| `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
-| `requirements.txt` | The libraries: openai, numpy and matplotlib. |
-| `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
-| `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
+| `scripts/refresh_catalog.py` | Refreshes `ordeal/data/models.json` from each platform's model list. A maintainer runs it by hand. |
+| `scripts/refresh_rate_limits.py` | Refreshes `ordeal/data/rate_limits.json` from the headers on a reply. A maintainer runs it by hand. |
+| `scripts/screen_keys.py` | Asks a model to answer each question blind, without the key, and flags the keys a person should check. |
+| `scripts/export_site_data.py`, `scripts/export_mixed_orders.py` | Write the data the site reads into `site/data/`. |
+| `scripts/build_compare.py` | Builds the Compare page's data. |
+| `scripts/gen_hard.py` | Generates the procedural hard questions. |
+| `scripts/make_golden.py` | Writes the golden fixture that checks the messages the experiment sends. |
+| `scripts/check_no_secrets.py`, `scripts/check_contrast.py` | Checks that the deployed files hold no API key, and that the colour pairs in the site's CSS meet the WCAG contrast ratios. |
+| `requirements.txt` | The libraries for the experiment: openai, numpy and matplotlib. `pyproject.toml` lists the command-line install, which needs only openai and numpy. |
+| `pyproject.toml` | The package and the `ordeal` command. |
+| `.gitignore` | Keeps `.env`, `results/`, `scratch/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
 | `tests/` | Unit tests for the scripts and the data files. |
 | `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
 | `site/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `site/data/`. The header is React (`site/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
-| `vite.config.js` | Vite settings: the four pages, and the data files copied into `dist/`. |
+| `netlify/functions/` | The saved-runs API (`runs.js`) and the hourly removal of old runs (`prune-runs.js`). |
+| `netlify.toml` | Netlify settings and the site's security headers, including the one connection the browser may make. |
+| `vite.config.js` | Vite settings: the site's pages, and the data files copied into `dist/`. |
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
 | `archive/` | The earlier designs: the basic and strategic ladders, with their questions and probes. Do not use them. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |
-| `results/backup_before_gauntlet/` | Results from the previous design, moved here and kept for reference. |
-| `results/backup_before_strategic/`, `results/backup_before_versioning/` | Results from earlier designs, kept for reference. |
 
 ## What the numbers mean
 
