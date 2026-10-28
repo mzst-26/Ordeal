@@ -6,4 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/cap-accepted-calls (a 429 refusal no longer uses up the call cap) | Claude Code session 2026-10-28 | frontend/js/engine/api.js, tests/js/api.test.js, CLAIMS.md | 2026-10-28 |
+| batch/cap-accepted-calls (a 429 refusal no longer uses up the call cap) | Claude Code session 2026-10-28 | frontend/js/engine/api.js, tests/js/api.test.js, frontend/js/pages/page-batch.js, frontend/index.html, CLAIMS.md | 2026-10-28 |
