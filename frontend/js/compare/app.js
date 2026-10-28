@@ -5,6 +5,7 @@ import {
   defaultFilters, visibleModels, rankBands, takeaway, familyOrder, familyColour, familyLabel, sizeBounds,
 } from "./derive.js";
 import { hideTooltip } from "./tooltip.js";
+import { keepBannerHeight } from "../ui/banner-height.js";
 
 // Id of the element holding the embedded results JSON.
 const DATA_ID = "compare-data";
@@ -394,4 +395,6 @@ async function boot() {
   render();
 }
 
+// Place the levels-drawer offset under the storage banner, so the banner is never covered.
+keepBannerHeight();
 boot();

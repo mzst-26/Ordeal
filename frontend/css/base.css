@@ -1268,13 +1268,13 @@ p {
 
   .levels-drawer {
     position: fixed;
-    top: 0;
+    top: var(--experiment-banner-height, 0px);
     left: var(--sidebar-width);
     z-index: 10;
     display: flex;
     flex-direction: column;
     width: var(--levels-drawer-width);
-    height: 100vh;
+    height: calc(100vh - var(--experiment-banner-height, 0px));
     overflow: hidden;
     background: var(--paper);
     border-right: 1px solid var(--rule);
@@ -1358,8 +1358,13 @@ p {
   }
 }
 
-/* The experiment banner: a thin strip at the top of every page, always in view, saying the storage is temporary. */
+/* The experiment banner: a thin strip at the top of every page, always in view, saying the storage is temporary.
+   It is sticky and sits above the levels drawer (z-index 10), so the drawer never covers it. The drawer starts
+   below it, using the height that banner-height.js measures. */
 .experiment-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   grid-column: 1 / -1;
   padding: 6px var(--page-gutter);
   font-size: 0.8125rem;

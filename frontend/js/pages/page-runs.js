@@ -7,6 +7,10 @@ import { el } from "../ui/ui.js";
 import { openPageStorage, downloadText } from "../runs/persistence-ui.js";
 import { getBrowserId } from "../web-runs/browser-id.js";
 import { fetchRunList, fetchRunRecord, deleteRun, keepBrowserCopies, rowText, RUNS_NOTE_TEXT } from "../web-runs/runs-api.js";
+import { keepBannerHeight } from "../ui/banner-height.js";
+
+// Place the levels-drawer offset under the storage banner, so the banner is never covered.
+keepBannerHeight();
 
 const LOADING_TEXT = "Loading runs.";
 const EMPTY_TEXT = "No runs are stored yet.";

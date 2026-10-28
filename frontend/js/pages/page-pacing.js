@@ -3,6 +3,10 @@
 // It never calls a model platform, and it says so when the file cannot be read, instead of showing an empty table.
 import { loadJson } from "../shared/data-cache.js";
 import { pacingRows } from "../shared/rate-limits.js";
+import { keepBannerHeight } from "../ui/banner-height.js";
+
+// Place the levels-drawer offset under the storage banner, so the banner is never covered.
+keepBannerHeight();
 
 // The file the export writes. The page reads it once when it opens.
 const RATE_LIMITS_PATH = "/data/rate_limits.json";
