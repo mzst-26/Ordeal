@@ -1,7 +1,7 @@
-// Tests for finding the newest saved run (site/js/last-run.js). The adapter is a small in-memory stand-in.
+// Tests for finding the newest saved run (frontend/js/last-run.js). The adapter is a small in-memory stand-in.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { latestRunOfKind, runMatchesSuite } from '../site/js/last-run.js';
+import { latestRunOfKind, runMatchesSuite } from '../frontend/js/last-run.js';
 
 /** An adapter that holds runs in a list, like the run store's adapter. */
 function adapterWith(runs) {

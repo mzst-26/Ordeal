@@ -3,9 +3,9 @@
 // js-tests/fixtures/numerics.json: the inverse normal and numpy's integer draws.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gradeCondition, gradeProbes, normalDistInverse } from "../site/js/engine/grade.js";
-import { createIntegerDraw } from "../site/js/engine/rng.js";
-import { makeSuite } from "../site/js/engine/rules.js";
+import { gradeCondition, gradeProbes, normalDistInverse } from "../frontend/js/engine/grade.js";
+import { createIntegerDraw } from "../frontend/js/engine/rng.js";
+import { makeSuite } from "../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
 // Allowed difference between JS and Python numbers. The inverse normal is held to a tighter limit.

@@ -1,4 +1,4 @@
-"""Fail if the deployed files (dist/, site/, netlify/ and netlify.toml) contain an API key or key-like text."""
+"""Fail if the deployed files (dist/, frontend/, netlify/ and netlify.toml) contain an API key or key-like text."""
 
 import argparse
 import re
@@ -16,7 +16,7 @@ BINARY_SNIFF_BYTES = 8000
 # A key shorter than this is not searched for, because it could match ordinary text
 MIN_PROJECT_KEY_LENGTH = 16
 # The folder names and the single file under the root that make up what is deployed
-DEPLOY_FOLDERS = ("dist", "site", "netlify")
+DEPLOY_FOLDERS = ("dist", "frontend", "netlify")
 DEPLOY_FILE = "netlify.toml"
 
 

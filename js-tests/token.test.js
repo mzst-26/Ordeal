@@ -1,4 +1,4 @@
-// Tests for the memory-only key vault in site/js/engine/token.js.
+// Tests for the memory-only key vault in frontend/js/engine/token.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -9,7 +9,7 @@ import {
   MIN_KEY_LENGTH,
   MAX_KEY_LENGTH,
   KEY_CHARACTERS_PATTERN,
-} from '../site/js/engine/token.js';
+} from '../frontend/js/engine/token.js';
 
 // A fake key of exactly 40 characters. It is not a real key.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);

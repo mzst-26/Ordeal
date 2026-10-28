@@ -1,10 +1,10 @@
-// Tests for the comparison page's pure helpers (site/js/compare/derive.js).
+// Tests for the comparison page's pure helpers (frontend/js/compare/derive.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   isNotRun, pct, rateText, numberText, visibleModels, defaultFilters, familyColour, familyOrder,
   familyLabel, rankBands, takeaway, FAMILY_PALETTE, sizeBounds,
-} from "../site/js/compare/derive.js";
+} from "../frontend/js/compare/derive.js";
 
 /** A rate with an interval and unit count. */
 function rate(value, low, high, n = 56) {

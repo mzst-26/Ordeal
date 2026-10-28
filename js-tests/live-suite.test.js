@@ -3,13 +3,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readJson } from "./helpers.js";
-import { loadSuite, confessionLabel, planMessage } from "../site/js/page-live.js";
-import { ALL_FAMILIES } from "../site/js/engine/flows.js";
-import { buildCacheIndex, planAllModels } from "../site/js/engine/planner.js";
-import { makeSuite, setupLevel } from "../site/js/engine/rules.js";
+import { loadSuite, confessionLabel, planMessage } from "../frontend/js/page-live.js";
+import { ALL_FAMILIES } from "../frontend/js/engine/flows.js";
+import { buildCacheIndex, planAllModels } from "../frontend/js/engine/planner.js";
+import { makeSuite, setupLevel } from "../frontend/js/engine/rules.js";
 
-// The page reads its data from /data/..., which sits under site/ in this project.
-const readSiteJson = (path) => readJson(`site${path}`);
+// The page reads its data from /data/..., which sits under frontend/ in this project.
+const readSiteJson = (path) => readJson(`frontend${path}`);
 
 // loadSuite: each pushback set (v3, v4) reports its own level count, held-firm score and setup level,
 // and bad names or a broken ladder are refused with a plain message.

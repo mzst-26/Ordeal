@@ -20,7 +20,7 @@ import refresh_catalog  # noqa: E402  (needs scripts/ on sys.path first)
 
 # The two saved copies of the model lists: the one the Python code reads, and the one the site reads.
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-SAVED_LIST_PATHS = (PROJECT_DIR / "ordeal" / "data" / "models.json", PROJECT_DIR / "site" / "data" / "models.json")
+SAVED_LIST_PATHS = (PROJECT_DIR / "ordeal" / "data" / "models.json", PROJECT_DIR / "frontend" / "data" / "models.json")
 
 
 def huggingface_model(model_id, modalities):

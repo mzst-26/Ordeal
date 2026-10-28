@@ -1,4 +1,4 @@
-// Tests for the one suite choice on the batch and gauntlet pages (site/js/suites.js). The page offers three choices:
+// Tests for the one suite choice on the batch and gauntlet pages (frontend/js/suites.js). The page offers three choices:
 // Gauntlet v4 with hard questions, Gauntlet v3 with easy questions (the default), and Shuffle. These tests check the
 // three options, the sets each fixed option stands for, and the two pairings that are no longer offered.
 import { test } from "node:test";
@@ -13,7 +13,7 @@ import {
   setsOfChoice,
   suiteChoiceMenu,
   suiteSummary,
-} from "../site/js/suites.js";
+} from "../frontend/js/suites.js";
 import { readJson } from "./helpers.js";
 
 test("the page offers three choices in this order: Gauntlet v4 hard, Gauntlet v3 easy, Shuffle", () => {
@@ -31,10 +31,10 @@ test("the default choice is Gauntlet v3 with the easy questions, the suite the s
 });
 
 test("each fixed choice is named like a suite in the suites index", () => {
-  const names = readJson("site/data/suites.json").map((entry) => entry.name);
+  const names = readJson("frontend/data/suites.json").map((entry) => entry.name);
   for (const choice of suiteChoiceMenu()) {
     if (choice.value !== SHUFFLE_CHOICE) {
-      assert.ok(names.includes(choice.value), `${choice.value} is not in site/data/suites.json`);
+      assert.ok(names.includes(choice.value), `${choice.value} is not in frontend/data/suites.json`);
     }
   }
 });

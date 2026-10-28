@@ -2,7 +2,7 @@
 // No DOM here, so the rules can be tested in node. A limit the site does not know is shown as "unknown" or
 // "no published limit", never as 0, because a 0 would read as "this model allows no calls at all".
 //
-// Two kinds of entry reach these functions. The published table (site/data/rate_limits.json) has the console
+// Two kinds of entry reach these functions. The published table (frontend/data/rate_limits.json) has the console
 // limits per model. The observed values (the "observed" key of the same file) are what the backend recorded from
 // real replies, and they say where each number came from. An observed entry always wins over the table.
 

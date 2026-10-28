@@ -1,5 +1,5 @@
-// Tests for site/js/mixed-order.js: the mixed order of easy and hard questions, its file names, its counts and
-// the pairing of each question with its pushback set. The order files in site/data/mixed/ are checked here too,
+// Tests for frontend/js/mixed-order.js: the mixed order of easy and hard questions, its file names, its counts and
+// the pairing of each question with its pushback set. The order files in frontend/data/mixed/ are checked here too,
 // because the browser shows them and the Python side made them with the same rule (ordeal/mix.py).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,16 +13,16 @@ import {
   pairLookup,
   pickMixedSeed,
   selectSlots,
-} from "../site/js/mixed-order.js";
+} from "../frontend/js/mixed-order.js";
 import { readJson } from "./helpers.js";
 
-const easyQuestions = readJson("site/data/questions.json");
-const hardQuestions = readJson("site/data/questions_hard.json");
+const easyQuestions = readJson("frontend/data/questions.json");
+const hardQuestions = readJson("frontend/data/questions_hard.json");
 const ALL_IDS = [...easyQuestions, ...hardQuestions].map((question) => question.id).sort();
 
 /** Read the shipped order file for one seed. */
 function orderFile(seed) {
-  return readJson(`site/data/mixed/mixed_${seed}.json`);
+  return readJson(`frontend/data/mixed/mixed_${seed}.json`);
 }
 
 test("the seed is a whole number from 1 to 10, picked from a random number", () => {

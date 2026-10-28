@@ -11,7 +11,7 @@ Each platform gets one status:
 If no platform was refreshed, the file is left alone. The new file is written to a temporary file
 first and then moved into place, so a crash cannot leave half a file behind.
 
-This script never writes to the site folder. The site copy is made by a separate step.
+This script never writes to the frontend folder. The site copy is made by a separate step.
 """
 
 import json

@@ -1,9 +1,9 @@
-// Tests for site/js/engine/planner.js, the browser port of the dry-run planner in runner.py.
+// Tests for frontend/js/engine/planner.js, the browser port of the dry-run planner in runner.py.
 // The golden cases come from js-tests/fixtures/planner.json. Each case holds the step list that
 // flows.expected_steps returns, so the planner's counts are checked against those steps.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ALL_FAMILIES, expectedSteps } from "../site/js/engine/flows.js";
+import { ALL_FAMILIES, expectedSteps } from "../frontend/js/engine/flows.js";
 import { readJson } from "./helpers.js";
 import {
   buildCacheIndex,
@@ -12,14 +12,14 @@ import {
   makeUnits,
   planAllModels,
   planModelCalls,
-} from "../site/js/engine/planner.js";
+} from "../frontend/js/engine/planner.js";
 
 const fixture = readJson("js-tests/fixtures/planner.json");
-// The settings come from the shipped copies in site/data/, which is what the browser loads. Their dose
+// The settings come from the shipped copies in frontend/data/, which is what the browser loads. Their dose
 // dials keep the source file order, which the golden step lists were written in.
-const ladder = readJson("site/data/ladder.json");
-const probeSpec = readJson("site/data/probe_spec.json");
-const config = readJson("site/data/config.json");
+const ladder = readJson("frontend/data/ladder.json");
+const probeSpec = readJson("frontend/data/probe_spec.json");
+const config = readJson("frontend/data/config.json");
 const questions = fixture.inputs.questions;
 const MODEL = "test-model";
 const CONDITION = "none";
@@ -174,10 +174,10 @@ test("makeUnits lists every model, question and repeat in that order", () => {
 // A mixed run gives each question its own pushback set. With a pairFor function, the count for both sets together
 // must equal the two fixed counts added up, because each question is counted with its own ladder and probe spec.
 test("planAllModels with pairFor counts each question with its own pushback set", () => {
-  const hardQuestionList = readJson("site/data/questions_hard.json").slice(0, 3);
-  const easyQuestionList = readJson("site/data/questions.json").slice(0, 3);
-  const ladderV4 = readJson("site/data/ladder_v4.json");
-  const probeSpecV4 = readJson("site/data/probe_spec_v4.json");
+  const hardQuestionList = readJson("frontend/data/questions_hard.json").slice(0, 3);
+  const easyQuestionList = readJson("frontend/data/questions.json").slice(0, 3);
+  const ladderV4 = readJson("frontend/data/ladder_v4.json");
+  const probeSpecV4 = readJson("frontend/data/probe_spec_v4.json");
   const emptyCache = new Map();
   const families = new Set(ALL_FAMILIES);
   const easyOnly = planAllModels([MODEL], easyQuestionList, 1, emptyCache, CONDITION, families, ladder, probeSpec, config);

@@ -1,4 +1,4 @@
-// Tests for the suite choices (site/js/suites.js): the level counts and the setup turn come from the data files.
+// Tests for the suite choices (frontend/js/suites.js): the level counts and the setup turn come from the data files.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -10,17 +10,17 @@ import {
   DEFAULT_QUESTION_SET,
   PUSHBACK_SETS,
   QUESTION_SETS,
-} from "../site/js/suites.js";
-import { setupLevel } from "../site/js/engine/rules.js";
+} from "../frontend/js/suites.js";
+import { setupLevel } from "../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
 const FILES = {
-  "/data/ladder.json": "site/data/ladder.json",
-  "/data/probe_spec.json": "site/data/probe_spec.json",
-  "/data/ladder_v4.json": "site/data/ladder_v4.json",
-  "/data/probe_spec_v4.json": "site/data/probe_spec_v4.json",
-  "/data/questions.json": "site/data/questions.json",
-  "/data/questions_hard.json": "site/data/questions_hard.json",
+  "/data/ladder.json": "frontend/data/ladder.json",
+  "/data/probe_spec.json": "frontend/data/probe_spec.json",
+  "/data/ladder_v4.json": "frontend/data/ladder_v4.json",
+  "/data/probe_spec_v4.json": "frontend/data/probe_spec_v4.json",
+  "/data/questions.json": "frontend/data/questions.json",
+  "/data/questions_hard.json": "frontend/data/questions_hard.json",
 };
 
 /** Return a fake loader that reads the site data files, and counts how often each one is read. */
@@ -109,9 +109,9 @@ test("a load that fails is not kept, so the next try reads again", async () => {
 
 // buildSuite applies the same data rules as core.py.
 test("buildSuite rejects data that breaks the rules of core.py", () => {
-  const ladder = readJson("site/data/ladder_v4.json");
-  const probeSpec = readJson("site/data/probe_spec_v4.json");
-  const questions = readJson("site/data/questions.json");
+  const ladder = readJson("frontend/data/ladder_v4.json");
+  const probeSpec = readJson("frontend/data/probe_spec_v4.json");
+  const questions = readJson("frontend/data/questions.json");
   assert.throws(
     () => buildSuite({ pushbackSet: "gauntlet_v4", questionSet: "easy", ladder: { levels: [] }, probeSpec, questions }),
     /needs at least one level/,

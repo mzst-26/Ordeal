@@ -14,10 +14,10 @@ import {
   hoursLeft,
   sizeText,
   rowText,
-} from "../site/js/runs-api.js";
-import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
-import { listRuns } from "../site/js/store/run-store.js";
-import { HOUR_MS, DAY_MS } from "../site/js/run-retention.js";
+} from "../frontend/js/runs-api.js";
+import { createMemoryAdapter } from "../frontend/js/store/memory-adapter.js";
+import { listRuns } from "../frontend/js/store/run-store.js";
+import { HOUR_MS, DAY_MS } from "../frontend/js/run-retention.js";
 
 const NOW = 50 * DAY_MS;
 const ID_A = "11111111-1111-4111-8111-111111111111";

@@ -1,4 +1,4 @@
-// Tests for site/js/condition-text.js. The text under the "System prompt condition" dropdown is picked by pure
+// Tests for frontend/js/condition-text.js. The text under the "System prompt condition" dropdown is picked by pure
 // functions, so these tests run in Node without a browser. The option names are read from the same config file the
 // page loads, so a new option in the config fails here until it has a description.
 import { test } from "node:test";
@@ -9,9 +9,9 @@ import {
   NOT_DESCRIBED_TEXT,
   conditionDescriptionText,
   updateConditionDescription,
-} from "../site/js/condition-text.js";
+} from "../frontend/js/condition-text.js";
 
-const config = JSON.parse(readFileSync(new URL("../site/data/config.json", import.meta.url), "utf8"));
+const config = JSON.parse(readFileSync(new URL("../frontend/data/config.json", import.meta.url), "utf8"));
 const optionValues = Object.keys(config.system_prompts);
 
 // Every option the dropdown can show must have a real description, not the fallback.

@@ -1,7 +1,7 @@
 # Netlify configuration for the site. The build (Vite and React) writes the pages to dist/, and Netlify publishes that folder.
 
 [build]
-  # Vite builds the pages in site/ (React header, plain page modules) into dist/, which is what is published.
+  # Vite builds the pages in frontend/ (React header, plain page modules) into dist/, which is what is published.
   command = "npm ci && npm run build"
   publish = "dist"
 

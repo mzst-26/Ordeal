@@ -2,9 +2,9 @@
 // Open, and a run with units still to send is not complete, so its button says Resume.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { savedRunRows } from "../site/js/saved-runs.js";
-import { importRunDocument } from "../site/js/store/run-store.js";
-import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
+import { savedRunRows } from "../frontend/js/saved-runs.js";
+import { importRunDocument } from "../frontend/js/store/run-store.js";
+import { createMemoryAdapter } from "../frontend/js/store/memory-adapter.js";
 
 const SAVED_STEP = { steps: [{ condition: "none", model: "M1", question_id: "q1", repeat: 1, step: "level_0", reply: "A" }] };
 

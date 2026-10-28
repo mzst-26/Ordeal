@@ -1,8 +1,8 @@
-"""Browser tests for the comparison page (site/compare.html), run in Chromium through Playwright.
+"""Browser tests for the comparison page (frontend/compare.html), run in Chromium through Playwright.
 
-The tests serve site/ on 127.0.0.1 and abort every request to any other host. A page that tries
+The tests serve frontend/ on 127.0.0.1 and abort every request to any other host. A page that tries
 to reach the network therefore fails the test. The expected values come from the real
-site/data/compare/results.json, and the only files written are screenshots in a temporary folder that
+frontend/data/compare/results.json, and the only files written are screenshots in a temporary folder that
 the tests remove afterwards. Nothing in the project is changed.
 
 Run from the project folder:
@@ -26,10 +26,10 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-SITE_DIR = PROJECT_DIR / "site"
-# The browser tests serve the Vite build, which setUpModule writes here, because site/ holds JSX that a plain server cannot run.
+FRONTEND_DIR = PROJECT_DIR / "frontend"
+# The browser tests serve the Vite build, which setUpModule writes here, because frontend/ holds JSX that a plain server cannot run.
 DIST_DIR = PROJECT_DIR / "dist"
-RESULTS_PATH = SITE_DIR / "data" / "compare" / "results.json"
+RESULTS_PATH = FRONTEND_DIR / "data" / "compare" / "results.json"
 LOCAL_HOST = "127.0.0.1"
 PREFERRED_PORT = 8790
 DESKTOP = {"width": 1280, "height": 800}

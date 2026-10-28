@@ -1,18 +1,18 @@
-// Tests for resuming saved runs (site/js/saved-runs.js). A reload is simulated by keeping the storage adapter and
+// Tests for resuming saved runs (frontend/js/saved-runs.js). A reload is simulated by keeping the storage adapter and
 // starting again with an empty reply cache, as a new page would. No request is sent.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
+import { createMemoryAdapter } from "../frontend/js/store/memory-adapter.js";
 import {
   createRun, saveResult, setStatus, getRun, interruptedRuns, pendingUnits, RUNS_STORE,
-} from "../site/js/store/run-store.js";
+} from "../frontend/js/store/run-store.js";
 import {
   createSerialQueue, plannedBatchUnits, unitKeyFor, unitPayload, resumeState, addRecordsToCache,
   gauntletPlannedSteps, gauntletStepPayload, replayGauntlet, savedRunRows, interruptedRunsOfKind, canResume,
   isRunDocument, statusWord,
-} from "../site/js/saved-runs.js";
-import { buildSuite } from "../site/js/suites.js";
-import { cacheKey } from "../site/js/engine/planner.js";
+} from "../frontend/js/saved-runs.js";
+import { buildSuite } from "../frontend/js/suites.js";
+import { cacheKey } from "../frontend/js/engine/planner.js";
 import { readJson } from "./helpers.js";
 
 const MODELS = ["model/a", "model/b"];
@@ -173,9 +173,9 @@ function gauntletSuite() {
   return buildSuite({
     pushbackSet: "gauntlet_v4",
     questionSet: "hard",
-    ladder: readJson("site/data/ladder_v4.json"),
-    probeSpec: readJson("site/data/probe_spec_v4.json"),
-    questions: readJson("site/data/questions_hard.json"),
+    ladder: readJson("frontend/data/ladder_v4.json"),
+    probeSpec: readJson("frontend/data/probe_spec_v4.json"),
+    questions: readJson("frontend/data/questions_hard.json"),
   });
 }
 

@@ -4,7 +4,7 @@ The fixtures hold five fake models: alpha (normal), bravo (no mitigation and no 
 baseline wrong), charlie (low sample), delta (data warning, quote_mine not run) and echo (final-correct
 check fails, no transcripts, no metadata entry). Question ids are real ids from questions.json, because
 the builder checks baseline answers against that file. Every run writes into a temporary folder. The real
-results/ and site/ folders are only listed before and after, never written.
+results/ and frontend/ folders are only listed before and after, never written.
 """
 
 import contextlib
@@ -55,7 +55,7 @@ def file_digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-# Used to prove that the real results/ and site/ folders are not written by the tests.
+# Used to prove that the real results/ and frontend/ folders are not written by the tests.
 def snapshot(folder):
     """Return the file names, sizes and modification times under a folder, so writes can be detected."""
     if not folder.exists():
@@ -83,9 +83,9 @@ class BuildCompareTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name)
         self.results_dir = self.root / "results"
-        self.site_dir = self.root / "site"
+        self.frontend_dir = self.root / "frontend"
         self.results_dir.mkdir()
-        (self.site_dir / "data").mkdir(parents=True)
+        (self.frontend_dir / "data").mkdir(parents=True)
         shutil.copy(FIXTURES_DIR / "results.csv", self.results_dir / "results.csv")
         shutil.copy(FIXTURES_DIR / "probes.csv", self.results_dir / "probes.csv")
         self.write_cache(self.cache_text())
@@ -93,8 +93,8 @@ class BuildCompareTests(unittest.TestCase):
         shutil.copy(FIXTURES_DIR / "models.json", self.models_path)
         self.config_path = self.root / "config_subset.json"
         shutil.copy(FIXTURES_DIR / "config_subset.json", self.config_path)
-        self.out_path = self.site_dir / "data" / "compare" / "results.json"
-        self.page_path = self.site_dir / "compare.html"
+        self.out_path = self.frontend_dir / "data" / "compare" / "results.json"
+        self.page_path = self.frontend_dir / "compare.html"
 
     def tearDown(self):
         """Delete the temporary folder."""
@@ -113,7 +113,7 @@ class BuildCompareTests(unittest.TestCase):
         output, errors = io.StringIO(), io.StringIO()
         args = [
             "--results-dir", str(self.results_dir),
-            "--site-dir", str(self.site_dir),
+            "--frontend-dir", str(self.frontend_dir),
             "--models", str(self.models_path),
             "--out", str(self.out_path),
             "--config", str(self.config_path),
@@ -145,15 +145,15 @@ class BuildCompareTests(unittest.TestCase):
     # ------------------------------------------------------------ outputs and paths
 
     def test_writes_only_inside_the_temp_folder(self):
-        """The real results/ and site/ folders are unchanged, and the output lands in the temporary folder."""
+        """The real results/ and frontend/ folders are unchanged, and the output lands in the temporary folder."""
         real_results = snapshot(PROJECT_DIR / "results")
-        real_site_data = snapshot(PROJECT_DIR / "site" / "data")
-        real_page = file_digest(PROJECT_DIR / "site" / "compare.html")
+        real_site_data = snapshot(PROJECT_DIR / "frontend" / "data")
+        real_page = file_digest(PROJECT_DIR / "frontend" / "compare.html")
         self.build()
         self.assertTrue(self.out_path.is_file())
         self.assertEqual(real_results, snapshot(PROJECT_DIR / "results"))
-        self.assertEqual(real_site_data, snapshot(PROJECT_DIR / "site" / "data"))
-        self.assertEqual(real_page, file_digest(PROJECT_DIR / "site" / "compare.html"))
+        self.assertEqual(real_site_data, snapshot(PROJECT_DIR / "frontend" / "data"))
+        self.assertEqual(real_page, file_digest(PROJECT_DIR / "frontend" / "compare.html"))
 
     def test_top_level_keys_and_fixed_values(self):
         """The top-level keys match section 3 of the plan, and the suite values come from the suite."""

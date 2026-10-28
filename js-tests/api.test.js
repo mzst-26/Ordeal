@@ -1,4 +1,4 @@
-// Tests for the chat client in site/js/engine/api.js. Every call uses a fake fetch, so no test
+// Tests for the chat client in frontend/js/engine/api.js. Every call uses a fake fetch, so no test
 // touches the network or spends money.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,16 +14,16 @@ import {
   defaultSleep,
   apiModelFor,
   chatBody,
-} from '../site/js/engine/api.js';
-import { CUSTOM_MODEL_REASONS } from '../site/js/engine/custom-model.js';
-import { createTokenVault } from '../site/js/engine/token.js';
-import { platformList, browserPlatforms, findPlatform } from '../site/js/platforms.js';
+} from '../frontend/js/engine/api.js';
+import { CUSTOM_MODEL_REASONS } from '../frontend/js/engine/custom-model.js';
+import { createTokenVault } from '../frontend/js/engine/token.js';
+import { platformList, browserPlatforms, findPlatform } from '../frontend/js/platforms.js';
 import { readJson } from './helpers.js';
 
 // A fake key used only by these tests. Tests never print it.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);
 // The platform these tests use is Nebius, read from the shared list, so the tests check the real address.
-const TEST_PLATFORM = findPlatform(browserPlatforms(platformList(readJson('site/data/providers.json'))), 'nebius');
+const TEST_PLATFORM = findPlatform(browserPlatforms(platformList(readJson('frontend/data/providers.json'))), 'nebius');
 // The shared list has no trailing slash on this address, so the tests add one: the client adds it the same way.
 const BASE_URL = TEST_PLATFORM.base_url.endsWith('/') ? TEST_PLATFORM.base_url : TEST_PLATFORM.base_url + '/';
 const CHAT_URL = BASE_URL + 'chat/completions';

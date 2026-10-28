@@ -226,8 +226,8 @@ const page = {
   ticked: new Set(),          // the ids ticked on the chosen platform: the only models a run uses
   platform: null,             // the platform the model rows belong to, or null when none can be chosen
   hasList: false,             // true when the platform has a saved model list, or is the default platform
-  modelsFile: null,           // the saved model lists (site/data/models.json), or null when they could not be read
-  rateLimits: null,           // the per-model rate limits (site/data/rate_limits.json), or null when they could not be read
+  modelsFile: null,           // the saved model lists (frontend/data/models.json), or null when they could not be read
+  rateLimits: null,           // the per-model rate limits (frontend/data/rate_limits.json), or null when they could not be read
   addedModels: [],            // the names the visitor added for this platform: {id, checked}, kept per platform
   popupRefresh: null,         // redraws the open model popup after its items change, or null when it is closed
   questionRows: [],           // one per question row of the suite on the form: its tick box and its question

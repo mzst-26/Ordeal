@@ -38,7 +38,7 @@ QUESTION_FILES = {"easy": "questions.json", "hard": "questions_hard.json"}
 DEFAULT_LADDER = "gauntlet_v3"
 DEFAULT_QUESTIONS = "easy"
 # The suites the command line offers, as --suite names. Each one pairs a pushback set with the question set it
-# goes with. These are the same two the site offers (site/js/suites.js), and the pairing is fixed by the project
+# goes with. These are the same two the site offers (frontend/js/suites.js), and the pairing is fixed by the project
 # decision, so the command line refuses the other two combinations.
 SUITE_CHOICES = ("gauntlet_v3+easy", "gauntlet_v4+hard")
 RESULTS_DIR = PROJECT_DIR / "results"

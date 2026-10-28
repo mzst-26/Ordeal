@@ -1,7 +1,7 @@
-// Tests for the pure helpers in site/js/picker-dialog.js. The dialog itself needs a DOM, so only the helpers are tested here.
+// Tests for the pure helpers in frontend/js/picker-dialog.js. The dialog itself needs a DOM, so only the helpers are tested here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeSelection, filterItems, pageRangeText } from "../site/js/picker-dialog.js";
+import { summarizeSelection, filterItems, pageRangeText } from "../frontend/js/picker-dialog.js";
 
 // summarizeSelection counts every item and the ones the predicate marks as selected.
 test("summarizeSelection counts total and selected items", () => {

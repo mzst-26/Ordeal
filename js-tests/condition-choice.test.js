@@ -1,8 +1,8 @@
-// Tests for site/js/condition-choice.js. The Batch page ticks several system prompt conditions and runs one saved run
+// Tests for frontend/js/condition-choice.js. The Batch page ticks several system prompt conditions and runs one saved run
 // for each, so these helpers must keep the order, add the plans up, and union the lists without repeats.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergePlans, unionInOrder } from "../site/js/condition-choice.js";
+import { mergePlans, unionInOrder } from "../frontend/js/condition-choice.js";
 
 // Each condition makes its own plan. The plan line for a model is the sum over every condition.
 test("plans for two conditions add up per model and in total", () => {

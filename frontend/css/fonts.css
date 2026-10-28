@@ -1,7 +1,7 @@
 /*
   Licensed web fonts for Field Notes (Tiempos and Styrene A).
 
-  Uncomment a block only after the matching file is in site/fonts/.
+  Uncomment a block only after the matching file is in frontend/fonts/.
   A missing file makes the browser request a 404 for the font, which is
   harmless but noisy.
 
@@ -11,7 +11,7 @@
 
 /*
   Tiempos Text, regular (400, upright). Body text.
-  File: site/fonts/TiemposText-Regular.woff2
+  File: frontend/fonts/TiemposText-Regular.woff2
   @font-face {
     font-family: "Tiempos Text";
     src: url("../fonts/TiemposText-Regular.woff2") format("woff2");
@@ -23,7 +23,7 @@
 
 /*
   Tiempos Text, italic (400, italic). Emphasis.
-  File: site/fonts/TiemposText-Italic.woff2
+  File: frontend/fonts/TiemposText-Italic.woff2
   @font-face {
     font-family: "Tiempos Text";
     src: url("../fonts/TiemposText-Italic.woff2") format("woff2");
@@ -36,7 +36,7 @@
 /*
   Tiempos Headline, semibold (600). Headings. Loaded under the Tiempos Text
   family name so the serif stack picks it up at weight 600.
-  File: site/fonts/TiemposHeadline-Semibold.woff2
+  File: frontend/fonts/TiemposHeadline-Semibold.woff2
   @font-face {
     font-family: "Tiempos Text";
     src: url("../fonts/TiemposHeadline-Semibold.woff2") format("woff2");
@@ -48,7 +48,7 @@
 
 /*
   Styrene A, regular (400). Controls and labels.
-  File: site/fonts/StyreneA-Regular.woff2
+  File: frontend/fonts/StyreneA-Regular.woff2
   @font-face {
     font-family: "Styrene A";
     src: url("../fonts/StyreneA-Regular.woff2") format("woff2");
@@ -60,7 +60,7 @@
 
 /*
   Styrene A, medium (500). Labels and emphasis in the sans stack.
-  File: site/fonts/StyreneA-Medium.woff2
+  File: frontend/fonts/StyreneA-Medium.woff2
   @font-face {
     font-family: "Styrene A";
     src: url("../fonts/StyreneA-Medium.woff2") format("woff2");
@@ -72,7 +72,7 @@
 
 /*
   Styrene A, bold (700). Strong labels and numbers.
-  File: site/fonts/StyreneA-Bold.woff2
+  File: frontend/fonts/StyreneA-Bold.woff2
   @font-face {
     font-family: "Styrene A";
     src: url("../fonts/StyreneA-Bold.woff2") format("woff2");

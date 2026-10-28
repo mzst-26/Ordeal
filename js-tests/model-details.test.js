@@ -1,4 +1,4 @@
-// Tests for site/js/model-details.js. The entries here are small fixtures shaped like the catalog in
+// Tests for frontend/js/model-details.js. The entries here are small fixtures shaped like the catalog in
 // config.json, with the four fields from Task A (context_tokens, reasoning, industry_rank, rank_basis).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import {
   sortByRank,
   modelRowText,
   modelOptionLabel,
-} from "../site/js/model-details.js";
+} from "../frontend/js/model-details.js";
 
 const FULL_ENTRY = {
   id: "org/model-a",

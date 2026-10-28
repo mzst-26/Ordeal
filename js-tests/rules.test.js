@@ -1,10 +1,10 @@
-// Tests for site/js/engine/rules.js. The golden cases come from js-tests/fixtures/rules.json,
+// Tests for frontend/js/engine/rules.js. The golden cases come from js-tests/fixtures/rules.json,
 // which was written from the Python reference in core.py.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import * as rules from "../site/js/engine/rules.js";
+import * as rules from "../frontend/js/engine/rules.js";
 
 const fixturePath = fileURLToPath(new URL("./fixtures/rules.json", import.meta.url));
 const fixtures = JSON.parse(readFileSync(fixturePath, "utf8"));

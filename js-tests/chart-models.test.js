@@ -2,7 +2,7 @@
 // that a model with no confession units used to break, and the check that a run has probe answers to draw.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { modelNames, filterChartOptions, rankedModels, topModels, MEAN_NAME } from "../site/js/chart-models.js";
+import { modelNames, filterChartOptions, rankedModels, topModels, MEAN_NAME } from "../frontend/js/chart-models.js";
 
 test("the mean line is a filter entry, but it is never ranked as a model", () => {
   const options = { lowerIsBetter: true, series: [
@@ -14,7 +14,7 @@ test("the mean line is a filter entry, but it is never ranked as a model", () =>
   assert.deepEqual(rankedModels(options), ["B", "A"]);
   assert.deepEqual(topModels(options, 5, "best"), ["B", "A"]);
 });
-import { confessionSum, probeFamilyPresent, savedUnitCount } from "../site/js/page-live.js";
+import { confessionSum, probeFamilyPresent, savedUnitCount } from "../frontend/js/page-live.js";
 
 const LINE = {
   lowerIsBetter: true,

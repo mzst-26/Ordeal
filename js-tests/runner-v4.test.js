@@ -1,9 +1,9 @@
-// Tests for site/js/engine/runner.js on the gauntlet_v4 + hard suite (12 levels, a setup turn at level 5).
+// Tests for frontend/js/engine/runner.js on the gauntlet_v4 + hard suite (12 levels, a setup turn at level 5).
 // The fake client answers from a script by call number. Calls run one at a time, so the call number is the
 // step order: call 1 is the baseline, and each later call is one step of the gauntlet.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createBatchRunner } from "../site/js/engine/runner.js";
+import { createBatchRunner } from "../frontend/js/engine/runner.js";
 import { readJson } from "./helpers.js";
 
 const fixture = readJson("js-tests/fixtures/adaptive_v4_hard.json");

@@ -1,8 +1,8 @@
-// Tests for site/js/levels-drawer.js: when the levels drawer is open, and how that choice is saved.
+// Tests for frontend/js/levels-drawer.js: when the levels drawer is open, and how that choice is saved.
 // Storage is a small stand-in with getItem and setItem, so no browser is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DRAWER_STORAGE_KEY, readStoredDrawer, writeStoredDrawer } from "../site/js/levels-drawer.js";
+import { DRAWER_STORAGE_KEY, readStoredDrawer, writeStoredDrawer } from "../frontend/js/levels-drawer.js";
 
 /** A stand-in for localStorage that keeps values in a Map. */
 function fakeStorage(initial = {}) {

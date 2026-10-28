@@ -1,4 +1,4 @@
-// Tests for site/js/model-list.js: the per-platform model lists, the names a
+// Tests for frontend/js/model-list.js: the per-platform model lists, the names a
 // visitor adds (kept per platform), the checks on a new name, and the large-run warning. Every test is pure: no
 // network, no DOM. The storage tests use fake storage objects, one that works and one whose every call throws.
 import { test } from 'node:test';
@@ -21,13 +21,13 @@ import {
   refusalText,
   entryNote,
   keyFitsPlatform,
-} from '../site/js/model-list.js';
-import { setRunLocked, isRunLocked } from '../site/js/run-lock.js';
-import { allCards } from '../site/js/picker-dialog.js';
-import { platformList, findPlatform, platformIdFor, DEFAULT_PLATFORM_ID } from '../site/js/platforms.js';
+} from '../frontend/js/model-list.js';
+import { setRunLocked, isRunLocked } from '../frontend/js/run-lock.js';
+import { allCards } from '../frontend/js/picker-dialog.js';
+import { platformList, findPlatform, platformIdFor, DEFAULT_PLATFORM_ID } from '../frontend/js/platforms.js';
 import { readJson } from './helpers.js';
 
-const PROVIDERS = readJson('site/data/providers.json');
+const PROVIDERS = readJson('frontend/data/providers.json');
 const ALL = platformList(PROVIDERS);
 const HF = findPlatform(ALL, 'huggingface');
 const NEBIUS = findPlatform(ALL, 'nebius');
@@ -110,7 +110,7 @@ test('hasSavedList is true only when the platform has at least one saved id', ()
 });
 
 test('the shipped models.json gives the featherless list with its many ids, and nebius a list too', () => {
-  const shipped = readJson('site/data/models.json');
+  const shipped = readJson('frontend/data/models.json');
   assert.ok(platformModelIds(shipped, 'featherless').length > 1000);
   assert.ok(platformModelIds(shipped, 'nebius').length > 0);
   assert.deepEqual(platformModelIds(shipped, 'groq'), []);

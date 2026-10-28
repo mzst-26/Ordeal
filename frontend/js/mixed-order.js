@@ -1,6 +1,6 @@
 // The mixed order: easy and hard questions asked in one seeded order, each with its own pushback set.
 // This is the browser side of ordeal/mix.py. Python shuffles with its own random generator, which JavaScript cannot
-// repeat, so Python writes one file per seed (site/data/mixed/mixed_<seed>.json) and this file reads those files.
+// repeat, so Python writes one file per seed (frontend/data/mixed/mixed_<seed>.json) and this file reads those files.
 // Nothing here reads or writes a file, sends a request or touches the page. It only checks and counts the orders.
 
 // The seeds the site offers. A run picks one of them at random when it starts.

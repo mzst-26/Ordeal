@@ -1,6 +1,6 @@
 """Browser tests that the three views keep their state when the visitor switches between them.
 
-The tests serve site/ on 127.0.0.1 and abort every request to any other host. They use a fake key that
+The tests serve frontend/ on 127.0.0.1 and abort every request to any other host. They use a fake key that
 never leaves the browser, so no paid API call can be made. Nothing in the project is changed.
 
 Run from the project folder:
@@ -22,8 +22,8 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-SITE_DIR = PROJECT_DIR / "site"
-# The browser tests serve the Vite build, which setUpModule writes here, because site/ holds JSX that a plain server cannot run.
+FRONTEND_DIR = PROJECT_DIR / "frontend"
+# The browser tests serve the Vite build, which setUpModule writes here, because frontend/ holds JSX that a plain server cannot run.
 DIST_DIR = PROJECT_DIR / "dist"
 LOCAL_HOST = "127.0.0.1"
 # Port 8791 is tried first so the address is predictable; any free port is used if it is taken.
@@ -32,7 +32,7 @@ DESKTOP = {"width": 1280, "height": 800}
 # Playwright wait limits in milliseconds: short for UI that reacts at once, long for loading the page data and a finished batch run.
 SHORT_MS = 5000
 LONG_MS = 10000
-# Models and a question that have saved replies in site/data/sample_run.json, so the run needs no new calls.
+# Models and a question that have saved replies in frontend/data/sample_run.json, so the run needs no new calls.
 SAVED_MODELS = ["Qwen/Qwen3-30B-A3B-Instruct-2507", "google/gemma-3-27b-it"]
 SAVED_QUESTION = "c01"
 FAKE_KEY = "tab-state-test-" + "k" * 13  # 30 characters, with no real key in it

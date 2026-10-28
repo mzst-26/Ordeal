@@ -1,4 +1,4 @@
-"""Tests for fingerprint.py. Each test uses its own temporary folder and never touches results/ or site/data/."""
+"""Tests for fingerprint.py. Each test uses its own temporary folder and never touches results/ or frontend/data/."""
 
 import contextlib
 import csv

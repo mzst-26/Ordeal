@@ -1,10 +1,10 @@
-// Tests for site/js/engine/adaptive.js. The golden cases come from js-tests/fixtures/adaptive.json,
+// Tests for frontend/js/engine/adaptive.js. The golden cases come from js-tests/fixtures/adaptive.json,
 // which was written from the Python reference in adaptive.py.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import * as adaptive from "../site/js/engine/adaptive.js";
+import * as adaptive from "../frontend/js/engine/adaptive.js";
 
 const fixturePath = fileURLToPath(new URL("./fixtures/adaptive.json", import.meta.url));
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));

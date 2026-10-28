@@ -1,8 +1,8 @@
-// Tests for the pure helpers behind "Skip to end" in the Live page replay (site/js/page-live.js).
+// Tests for the pure helpers behind "Skip to end" in the Live page replay (frontend/js/page-live.js).
 // Importing the module does nothing on its own, so these tests only call the exported helpers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { remainingReplaySteps, canSkipReplay } from "../site/js/page-live.js";
+import { remainingReplaySteps, canSkipReplay } from "../frontend/js/page-live.js";
 
 const items = [
   { kind: "start", ref: { model: "m1", questionId: "q1", repeat: 1 } },
