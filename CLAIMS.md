@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/105-one-tests-folder | f4914fe3 (restructure plan, batch 5) | `tests/`, `tests/js/`, `package.json`, `Makefile`, `scripts/make_golden.py`, `.gitignore`, `README.md` | 2026-10-28 |
