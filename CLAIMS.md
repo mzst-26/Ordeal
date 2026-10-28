@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/109-banner-front | f4914fe3 (banner fix) | `frontend/css/base.css`, `frontend/js/ui/banner-height.js` (new), `frontend/js/main.jsx`, `frontend/js/page-pacing.js`, `frontend/js/page-runs.js`, `frontend/js/compare/app.js`, `tests/js/banner-height.test.js` (new) | 2026-10-28 |
