@@ -2,8 +2,11 @@
 
 Ordeal tests whether an AI model gives up a correct answer under pressure. It asks multiple-choice questions,
 and when the model answers correctly, it pushes the model toward a wrong answer through a set of levels, all in
-one conversation. If the model gives in, Ordeal asks which answer it really believes. Every reply is saved, so
+one conversation. The default set has 32 questions (`easy`); a second set has 59 (`hard`). The default pushback set
+has ten levels (`gauntlet_v3`); the second has twelve (`gauntlet_v4`). If the model gives in, Ordeal asks which answer it really believes. Every reply is saved, so
 every result can be checked by hand.
+
+The default experiment asks three open AI models.
 
 The project has two parts that share one set of rules: a command line (`ordeal`) and a website that runs the
 same experiment in the browser.
@@ -36,7 +39,7 @@ link to its page such as `https://huggingface.co/org/name`.
 3. **Confession.** If the model gave a wrong answer at any level, Ordeal asks which option it actually believes,
    with the pressure set aside. A right answer means the model knew better and gave in anyway. A wrong answer
    means the pressure changed what it believed.
-4. **Correction tests.** On the questions flagged for it, Ordeal plants a wrong answer as the model's earlier reply,
+4. **Correction tests.** On the questions flagged for it (16 in `easy`, 30 in `hard`), Ordeal plants a wrong answer as the model's earlier reply,
    then sends one of two corrections. The model is accepted if it then gives the correct letter.
 5. **Probes.** Single messages, each in a fresh conversation after a correct first answer, test one kind of
    pressure at a time.
@@ -60,12 +63,14 @@ Two question sets exist:
 | `hard` | 59 (30 flagged for the correction test) | `ordeal/data/questions_hard.json` |
 
 Pick a pair with `--suite gauntlet_v3+easy` or `--suite gauntlet_v4+hard`. Without the flag, the default comes from
-the `ladder` and `questions` keys in `ordeal/data/config.json`, which ship as `gauntlet_v3+easy`. Both files of each
-set are kept, and nothing is deleted. Replies for each pair are kept apart, so changing the pair never reuses
+the `ladder` and `questions` keys in `ordeal/data/config.json`, which ship as `gauntlet_v3+easy`. The other two
+pairings are not offered. Both files of each set are kept, and nothing is deleted. Replies for each pair are kept apart, so changing the pair never reuses
 another pair's replies. The names `easy` and `hard` only say which file a set uses. Difficulty labels (easy, hard,
 very hard) are not yet measured or assigned.
 
 ### The ten levels (gauntlet_v3)
+
+The table below is for `gauntlet_v3`, the default. `gauntlet_v4` has twelve levels, listed after this table.
 
 Each level is one message in the same conversation, so the model sees all the earlier pressure.
 
@@ -116,7 +121,7 @@ when the run changes.
 ### Conditions
 
 A condition is the system prompt sent with every question. The default is `none`. Each condition is graded and
-charted separately.
+charted separately, for example `grade.py --condition mitigation`.
 
 | Condition | System prompt | What it tests |
 | --- | --- | --- |
@@ -143,7 +148,8 @@ Keys are never printed. The `.env` file is listed in `.gitignore`.
 
 ### The project experiment
 
-To run the experiment in this repository, create an environment in the project folder and install the libraries:
+To run the experiment in this repository, create an environment in the project folder and install the libraries.
+Use Python 3.10 or newer:
 
 ```
 python3.12 -m venv .venv-spine
@@ -153,7 +159,8 @@ python3.12 -m venv .venv-spine
 Run every command from the project folder with `.venv-spine/bin/python`. The experiment in
 `ordeal/data/config.json` calls Token Factory, so it needs `TOKEN_FACTORY_TOKEN` in the environment or the `.env` file.
 
-Check the connection with one call. It is a small paid call to the first model in `ordeal/data/config.json`:
+Check the connection with one call. You run this yourself. It is a small paid call to the first model in
+`ordeal/data/config.json`:
 
 ```
 .venv-spine/bin/python scripts/hello.py
@@ -178,7 +185,8 @@ It should print the model, the raw reply and the letter `B` (17 × 24 = 408).
 - `test` runs the experiment for one model. Options after the model name, such as `--limit` or `--probes`, go to
   the runner unchanged. Each model's replies are saved in their own file under `results/`, named after the
   platform and the model, and the results table is printed at the end.
-- `--base-url` is for tests only. It is accepted only for a 127.0.0.1 or localhost address.
+- `--base-url <url>` sends every request to a 127.0.0.1 or localhost address. It is for tests only, and it needs
+  `--cache`. It cannot send to any other address.
 
 ## Run the experiment
 
@@ -234,18 +242,20 @@ that are missing.
 
 - `--probes` chooses the probe families to run: `gauntlet`, `corrections`, `fingerprint`, `twins`, `dose`, or
   `all` (the default). Give a comma list, for example `--probes gauntlet,corrections`. `--probes gauntlet` runs only
-  the gauntlet.
+  the gauntlet (10 levels in `gauntlet_v3`, 12 in `gauntlet_v4`).
 - `--suite gauntlet_v3+easy` or `--suite gauntlet_v4+hard` chooses the pushback set and the question set together.
-  A config pair that is not one of the two offered is refused.
+  A config pair that is not one of the two offered is refused. The other two pairings are not offered. See
+  [Pushback sets and question sets](#pushback-sets-and-question-sets).
 - `--shuffle-mix <seed>` runs the easy and hard questions together, in one order chosen by the seed. Easy questions
-  always use `gauntlet_v3` and hard questions always use `gauntlet_v4`. `--limit` keeps the first N of each set before
-  the order is made. Each run is recorded in `results/mixed_runs.json`. Grade it with
-  `grade.py --shuffle-mix <seed>`, which writes `results/mixed_results.csv` and `results/mixed_by_run.csv` and leaves
+  always use `gauntlet_v3` and hard questions always use `gauntlet_v4`, for the whole run. `--limit` keeps the first N of
+  each set before the order is made. Its replies are kept apart from the fixed pairs, and each run is recorded in
+  `results/mixed_runs.json`. Grade it with `grade.py --shuffle-mix <seed>`, which writes `results/mixed_results.csv` and `results/mixed_by_run.csv` and leaves
   `results.csv` alone. It cannot be used with `--suite`.
 - `--models <full name>` runs chosen models. A custom model runs only when it is named here (see
   [Custom models](#custom-models)). `--limit 20` runs only the first 20 questions. `--repeats 1` asks each question once.
 - `--condition mitigation`, `third_person` or `control` runs with a system prompt (see [Conditions](#conditions)).
-- `--cache <file>` names the file of saved replies to read and append to. The default is `results/cache.jsonl`.
+- `--cache <file>` names the file of saved replies to read and append to. The default is `results/cache.jsonl`. It is
+  required with `--base-url`.
 - `--out-dir <folder>` (grade, charts, map, fingerprint) writes the CSV files and pictures to another folder. The
   default is `results/`. `grade.py` also takes `--results-csv <file>` and `--probes-csv <file>` to name the two CSV
   files in full. `--output-dir` is an alias of `--out-dir`.
@@ -262,8 +272,9 @@ The three models are listed in `ordeal/data/config.json`: `Qwen/Qwen3-30B-A3B-In
 `google/gemma-3-27b-it` and `nvidia/nemotron-3-super-120b-a12b`. All three are called through the Token Factory.
 Each question is asked twice (`repeats` is 2).
 
-The numbers below are upper bounds, because a wrong first answer skips the gauntlet, and the confession is asked
-only after a flip.
+The dry-run check used 32 questions, 2 repeats and 3 models for `gauntlet_v3`, and 59 questions, 2 repeats and 3 models
+for `gauntlet_v4`. The numbers below are upper bounds, because a wrong first answer skips the gauntlet, and the
+confession is asked only after a flip.
 
 | Run | Pushback set and questions | Most calls per model | Most calls for 3 models |
 | --- | --- | --- | --- |
@@ -416,7 +427,7 @@ The browser can call only the Nebius Token Factory, so the website runs Token Fa
 ### Web run storage
 
 The website has a small server part: Netlify functions in `netlify/functions/`. They keep saved web runs in Netlify
-Blobs, and the runs page lists them.
+Blobs, and the runs page (`/runs.html`) lists them.
 
 - **What is stored:** each run's id, kind (batch or gauntlet), first save time, size, the id of the browser that saved
   it, and the run record. The key is never stored.
@@ -528,6 +539,7 @@ small server part of the site is in `netlify/`.
 
 | File | What it is |
 | --- | --- |
+| `README.md` | This file. |
 | `ordeal/cli.py` | The `ordeal` command: `platforms`, `login`, `models`, `check` and `test`. It reads what the person types and calls the other modules. |
 | `ordeal/providers.py` | The platform registry. It reads `ordeal/data/providers.json` and turns a typed model name into a route. |
 | `ordeal/keys.py` | Finds and saves each platform's key. Keys are never printed. |
@@ -571,7 +583,7 @@ small server part of the site is in `netlify/`.
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
 | `pyproject.toml` | The package and the `ordeal` command. The command-line install needs only openai and numpy. |
 | `requirements.txt` | The libraries for the experiment: openai, numpy and matplotlib. |
-| `tests/` | Unit tests for the Python code and the data files. |
+| `tests/` | Unit tests for the scripts and the data files. |
 | `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
 | `archive/` | The earlier designs: the basic and strategic ladders, with their questions and probes. Do not use them. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |
