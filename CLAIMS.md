@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/102-script-names | f4914fe3 (restructure plan, batch 3) | `scripts/hello.py`, `scripts/gen_hard.py`, `README.md` | 2026-10-28 |
