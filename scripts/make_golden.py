@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-FIXTURE_DIR = PROJECT_DIR / "js-tests" / "fixtures"
+FIXTURE_DIR = PROJECT_DIR / "tests" / "js" / "fixtures"
 sys.path.insert(0, str(PROJECT_DIR))
 
 from ordeal import adaptive  # noqa: E402

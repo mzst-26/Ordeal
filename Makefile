@@ -14,4 +14,4 @@ calibrate-screen:
 		--model nvidia/nemotron-3-super-120b-a12b --out-dir $(CALIBRATION_OUT_DIR)
 
 test:
-	$(PYTHON) -m unittest discover -s tests -t .
+	$(PYTHON) -m unittest discover -s tests/python -t .
