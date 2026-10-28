@@ -65,8 +65,9 @@
     <section class="pacing-section">
       <h2>When a provider refuses a call</h2>
       <p>
-        A refusal with status 429 means the provider has said there are too many calls. Ordeal pauses only that model for
-        the time the provider asks for. The other models keep running.
+        A refusal with status 429 means the provider has said there are too many calls. Ordeal pauses the whole provider
+        for the time the provider asks for, and sends fewer calls at once until calls succeed again. If the provider asks
+        for a pause longer than five minutes, the run stops, so it can be started again later.
       </p>
     </section>
 
