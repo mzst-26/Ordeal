@@ -2,10 +2,12 @@
 // never holds back another model, and no model gets more calls at once than its provider allows.
 
 /**
- * Create a limiter that lets at most 'limit' tasks run for the same model. run(model, task) waits for a free
- * place, runs task() and frees the place when it settles, even if it failed.
+ * Create a limiter that lets at most 'limit' tasks run for the same model. 'limit' is a number, or a function that
+ * returns the number. run(model, task) waits for a free place, runs task() and frees the place when it settles, even
+ * if it failed. A function is read again each time a place is taken or freed, so a limit that drops applies at once.
  */
 export function createModelLimiter(limit) {
+  const currentLimit = typeof limit === 'function' ? limit : () => limit;
   const states = new Map();
 
   /** Return the state for one model, made the first time the model is seen. */
@@ -14,21 +16,31 @@ export function createModelLimiter(limit) {
     return states.get(model);
   }
 
-  /** Take a place. When all places are taken, wait until release hands one over. */
+  /** Take a place. When there is no room under the limit, or someone is already waiting, queue behind them. */
   async function acquire(state) {
-    if (state.running < limit) {
+    if (state.waiting.length === 0 && state.running < currentLimit()) {
       state.running += 1;
       return;
     }
-    // release() hands its place to the next waiter and does not change the count, so nothing is added here.
+    // wakeWaiters counts the place for this caller before it resolves, so nothing is added here.
     await new Promise((resolve) => state.waiting.push(resolve));
   }
 
-  /** Give the place to the next waiter, or free it when nobody is waiting. */
+  /**
+   * Hand free places to the oldest waiters, while there is room under the current limit. The count goes up when a
+   * place is handed over, so a waiter that wakes up already holds its place.
+   */
+  function wakeWaiters(state) {
+    while (state.waiting.length > 0 && state.running < currentLimit()) {
+      state.running += 1;
+      state.waiting.shift()();
+    }
+  }
+
+  /** Free one place, then let waiters in. A place is not reused while the count is above the limit. */
   function release(state) {
-    const next = state.waiting.shift();
-    if (next) next();
-    else state.running -= 1;
+    state.running -= 1;
+    wakeWaiters(state);
   }
 
   return {

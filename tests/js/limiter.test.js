@@ -55,3 +55,36 @@ test('a task that fails frees its place for the next waiter', async () => {
   await assert.rejects(first, /boom/);
   assert.equal(await second, 'second ran');
 });
+
+/** Wait a few milliseconds, so that the tasks that are due to start have started. */
+function tick() {
+  return new Promise((resolve) => setTimeout(resolve, 5));
+}
+
+test('a limit that drops is applied to the tasks still waiting', async () => {
+  let limit = 2;
+  const limiter = createModelLimiter(() => limit);
+  const started = [];
+  const gates = [];
+  const taskNamed = (name) => () => new Promise((resolve) => {
+    started.push(name);
+    gates.push(resolve);
+  });
+  const runs = ['one', 'two', 'three', 'four'].map((name) => limiter.run('a', taskNamed(name)));
+  await tick();
+  assert.deepEqual(started, ['one', 'two']);
+  // The limit drops to 1 while two tasks run. Finishing one leaves one running, so nothing new may start.
+  limit = 1;
+  gates[0]('done');
+  await tick();
+  assert.deepEqual(started, ['one', 'two']);
+  // Finishing the second leaves none running, so the next waiter starts, and only one at a time.
+  gates[1]('done');
+  await tick();
+  assert.deepEqual(started, ['one', 'two', 'three']);
+  gates[2]('done');
+  await tick();
+  assert.deepEqual(started, ['one', 'two', 'three', 'four']);
+  gates[3]('done');
+  await Promise.all(runs);
+});
