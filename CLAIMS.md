@@ -6,4 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/platform-pacing (per-platform pacing so 429s from OpenRouter and similar stop ending steps) | Claude Code session 2026-10-28 | frontend/js/engine/platform-pacer.js (new), frontend/js/engine/api.js, frontend/js/engine/limiter.js, frontend/js/engine/runner.js, tests/js/platform-pacer.test.js (new), tests/js/api.test.js, tests/js/limiter.test.js, tests/js/runner.test.js, CLAIMS.md | 2026-10-28 |
+| batch/platform-pacing (per-platform pacing so 429s from OpenRouter and similar stop ending steps) | Claude Code session 2026-10-28 | frontend/js/engine/platform-pacer.js (new), frontend/js/engine/api.js, frontend/js/engine/limiter.js, frontend/js/engine/runner.js, tests/js/platform-pacer.test.js (new), tests/js/api.test.js, tests/js/limiter.test.js, tests/js/runner.test.js, frontend/js/pages/page-live.js, frontend/pacing.html, CLAIMS.md | 2026-10-28 |
