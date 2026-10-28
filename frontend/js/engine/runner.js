@@ -1,7 +1,7 @@
 // Runs many units (one model, one question, one repeat each) in the browser. It reuses saved replies,
 // limits how many calls are in flight, and can be paused, resumed and stopped. This is the browser port
 // of run_all in runner.py. It never reads the API key: the client holds it, and no event carries it.
-import { BudgetExhausted, KeyRefused } from "./api.js";
+import { BudgetExhausted, KeyRefused, RateLimited } from "./api.js";
 import { runFlows } from "./flows.js";
 import { cacheKey, makeUnits } from "./planner.js";
 import { BASELINE_STEP, formatQuestion, systemPromptFor } from "./rules.js";
@@ -102,14 +102,16 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
   }
 
   /**
-   * Handle a failed request. A spent budget or a refused key stops the batch. A stop is not a failure.
-   * Always returns null.
+   * Handle a failed request. A spent budget, a refused key or a long rate-limit pause stops the batch. A stop is not a
+   * failure. Always returns null.
    */
   function handleCallError(unit, step, error) {
     if (error instanceof BudgetExhausted) {
       shared.reportBudgetExhausted();
     } else if (error instanceof KeyRefused) {
       shared.reportKeyRefused(error);
+    } else if (error instanceof RateLimited) {
+      shared.reportRateLimited(error);
     } else if (!shared.stopRequested) {
       shared.counts.failed += 1;
       shared.emit({ kind: "step-failed", ...unitFields(unit), step, message: errorMessage(error) });
@@ -236,6 +238,11 @@ export function createBatchRunner({
     endWithNotice({ kind: "key-refused", message: errorMessage(error) });
   }
 
+  /** Emit rate-limited once, then stop the batch. A long pause is not waited out, so the run can be resumed later. */
+  function reportRateLimited(error) {
+    endWithNotice({ kind: "rate-limited", message: errorMessage(error) });
+  }
+
   const shared = {
     log,
     stopRequested: false,
@@ -250,6 +257,7 @@ export function createBatchRunner({
     requestStop,
     reportBudgetExhausted,
     reportKeyRefused,
+    reportRateLimited,
   };
 
   const replyRunner = makeReplyRunner({
