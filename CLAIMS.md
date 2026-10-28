@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/108-readme-layout | f4914fe3 (restructure plan, batch 8) | `README.md` | 2026-10-28 |
