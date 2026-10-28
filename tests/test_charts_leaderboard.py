@@ -1,4 +1,4 @@
-"""Tests for charts.py and map.py. They draw into a temporary folder and never touch results/."""
+"""Tests for charts.py and leaderboard.py. They draw into a temporary folder and never touch results/."""
 
 import contextlib
 import io
@@ -12,7 +12,7 @@ from unittest import mock
 from ordeal import charts
 from ordeal import core
 from ordeal import grade
-from ordeal import map as firm_open_map
+from ordeal import leaderboard
 
 CONDITION = "none"
 MODEL_ONE = "org/Model-One"
@@ -151,32 +151,32 @@ class FingerprintChartTests(SpineFileTestCase):
 # Guards the firm-versus-open map: models with a missing (NaN) top-level flip rate are left off the map,
 # are sorted last on the leaderboard, and labels are placed on the side that faces the middle of the plot.
 class LeaderboardMapTests(SpineFileTestCase):
-    """Tests for the firm-versus-open map and leaderboard in map.py."""
+    """Tests for the firm-versus-open map and leaderboard in leaderboard.py."""
 
     def test_draw_map_saves_a_png_for_rows_with_both_values(self):
         rows = self.write_gauntlet_rows(
             [make_gauntlet_row(MODEL_ONE, 0.4, 9.0), make_gauntlet_row(MODEL_TWO, 0.8, 7.0)]
         )
         output_path = self.folder / "map.png"
-        firm_open_map.draw_map([row for row in rows if firm_open_map.has_both_values(row)], output_path)
+        leaderboard.draw_map([row for row in rows if leaderboard.has_both_values(row)], output_path)
         self.assertTrue(output_path.is_file())
         self.assertGreater(output_path.stat().st_size, 0)
 
     def test_has_both_values_is_false_when_top_level_flip_rate_is_nan(self):
         row = self.write_gauntlet_rows([make_gauntlet_row(MODEL_ONE, 0.4, 9.0)])[0]
         row["flip_rate_level_10"] = "nan"
-        self.assertFalse(firm_open_map.has_both_values(row))
+        self.assertFalse(leaderboard.has_both_values(row))
 
     def test_spine_sort_value_puts_nan_last(self):
         rows = self.write_gauntlet_rows(
             [make_gauntlet_row(MODEL_ONE, 0.4, math.nan), make_gauntlet_row(MODEL_TWO, 0.2, 9.5)]
         )
-        self.assertEqual(firm_open_map.spine_sort_value(rows[0]), -math.inf)
-        self.assertEqual(firm_open_map.spine_sort_value(rows[1]), 9.5)
+        self.assertEqual(leaderboard.spine_sort_value(rows[0]), -math.inf)
+        self.assertEqual(leaderboard.spine_sort_value(rows[1]), 9.5)
 
     def test_label_offset_aligns_labels_towards_the_middle(self):
-        self.assertEqual(firm_open_map.label_offset(0.8, 0)[0], "right")
-        self.assertEqual(firm_open_map.label_offset(0.2, 0)[0], "left")
+        self.assertEqual(leaderboard.label_offset(0.8, 0)[0], "right")
+        self.assertEqual(leaderboard.label_offset(0.2, 0)[0], "left")
 
 
 # Same idea as make_gauntlet_row, but with the 12-level v4 column layout and its suite name.
@@ -222,15 +222,15 @@ class GauntletV4ChartTests(SpineFileTestCase):
 
     def test_has_both_values_reads_the_last_level_of_the_suite(self):
         row = make_v4_row(MODEL_ONE, 0.4, 9.0)
-        self.assertTrue(firm_open_map.has_both_values(row, V4_HARD))
+        self.assertTrue(leaderboard.has_both_values(row, V4_HARD))
         row["flip_rate_level_12"] = "nan"
-        self.assertFalse(firm_open_map.has_both_values(row, V4_HARD))
+        self.assertFalse(leaderboard.has_both_values(row, V4_HARD))
 
     def test_leaderboard_names_the_held_firm_score_of_each_suite(self):
         rows = self.write_v4_rows([make_v4_row(MODEL_ONE, 0.4, 9.0)])
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            firm_open_map.print_leaderboard(rows, V4_HARD)
+            leaderboard.print_leaderboard(rows, V4_HARD)
         self.assertIn("(13 = never flipped)", buffer.getvalue())
         self.assertIn("Breaking Point [95% CI]", buffer.getvalue())
 
@@ -245,8 +245,8 @@ class GauntletV4ChartTests(SpineFileTestCase):
         argv = ["--suite", "gauntlet_v4+hard", "--out-dir", str(self.folder)]
         with mock.patch.object(sys, "argv", ["charts.py", *argv]), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(charts.main(), 0)
-        with mock.patch.object(sys, "argv", ["map.py", *argv]), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(firm_open_map.main(), 0)
+        with mock.patch.object(sys, "argv", ["leaderboard.py", *argv]), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(leaderboard.main(), 0)
         for name in ("flip_by_level_none_gauntlet_v4_hard.png", "map_none_gauntlet_v4_hard.png"):
             self.assertGreater((self.folder / name).stat().st_size, 0)
 

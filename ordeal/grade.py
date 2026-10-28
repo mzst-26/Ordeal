@@ -801,7 +801,7 @@ def registered_suites() -> list[core.Suite]:
 
 
 def add_results_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add the options that choose the suite, the condition and the output folder. charts.py and map.py use them too."""
+    """Add the options that choose the suite, the condition and the output folder. charts.py and leaderboard.py use them too."""
     parser.add_argument(
         "--condition",
         default=core.NO_SYSTEM_PROMPT,

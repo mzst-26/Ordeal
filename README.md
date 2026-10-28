@@ -92,7 +92,7 @@ calls that are missing.
 5. Map (free). Writes `results/map_none.png` and prints the leaderboard.
 
 ```
-.venv-spine/bin/python -m ordeal.map --condition none
+.venv-spine/bin/python -m ordeal.leaderboard --condition none
 ```
 
 6. Transcripts (free). Prints saved transcripts for checking the grader by hand.
@@ -282,7 +282,7 @@ Blobs, and the runs page (`/runs.html`) lists them.
 ## Storage
 
 - `results/cache.jsonl` holds the graded replies. The runner writes it, and `grade.py`, `charts.py`,
-  `map.py`, `fingerprint.py` and `transcripts.py` read it.
+  `leaderboard.py`, `fingerprint.py` and `transcripts.py` read it.
 - `results/stub_cache.jsonl` holds the replies of `--stub` runs.
 - `results/results.csv`, `results/probes.csv` and the PNG pictures are written by the grading and chart scripts.
 - Calibration writes `calib_cache.jsonl` and its JSON files to `--out-dir`. The Makefile uses
@@ -427,7 +427,7 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `ordeal/stub_model.py` | An offline stand-in for the model, used by the tests and by `--stub`. |
 | `ordeal/grade.py` | Turns saved replies into `results/results.csv` and `results/probes.csv`, and prints the tables. |
 | `ordeal/charts.py` | Draws `results/flip_by_level_<condition>.png` and `results/fingerprint_<condition>.png`. |
-| `ordeal/map.py` | Draws `results/map_<condition>.png` and prints the leaderboard. |
+| `ordeal/leaderboard.py` | Draws `results/map_<condition>.png` and prints the leaderboard. |
 | `ordeal/transcripts.py` | Prints saved transcripts: the first answer and the ten levels, with the first wrong level marked. It does not print the setup turn, the confession or the probes. |
 | `scripts/hello.py` | One small call to the first model, to check the key and the connection. |
 | `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
