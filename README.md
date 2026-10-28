@@ -104,7 +104,7 @@ calls that are missing.
 7. Tests (free).
 
 ```
-.venv-spine/bin/python -m unittest discover -s tests -t .
+.venv-spine/bin/python -m unittest discover -s tests/python -t .
 ```
 
 Useful options:
@@ -433,8 +433,8 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `generate_hard_questions.py`. |
 | `requirements.txt` | The libraries: openai, numpy and matplotlib. |
 | `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
-| `tests/` | Unit tests for the scripts and the data files. |
-| `js-tests/` | Node tests for the browser code in `frontend/js/`, which must match the Python reference. |
+| `tests/python/` | Python unit tests for the package and the scripts, with their helpers (`mock_openai.py`, `fake_clock.py`) and the fixtures they read. |
+| `tests/js/` | Node tests for the browser code in `frontend/js/`, which must match the Python reference. |
 | `frontend/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `frontend/data/`. The header is React (`frontend/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
 | `vite.config.js` | Vite settings: the four pages, and the data files copied into `dist/`. |
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |

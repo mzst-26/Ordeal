@@ -63,7 +63,7 @@ fingerprint_*.png
 flip_by_level_*.png
 map_*.png
 
-# These two names also appear in tracked test fixtures (tests/fixtures/compare/),
+# These two names also appear in tracked test fixtures (tests/python/fixtures/compare/),
 # so only the copies at the project root are ignored.
 /results.csv
 /probes.csv
