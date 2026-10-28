@@ -24,11 +24,6 @@ __pycache__/
 # Node.js dependencies and build artifacts
 node_modules/
 dist/
-
-# Frontend: installed packages and the Vite build output (rebuilt by npm run build)
-node_modules/
-dist/
-
 # Local Netlify folder
 .netlify
 build/
