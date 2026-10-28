@@ -433,16 +433,12 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
 | `requirements.txt` | The libraries: openai, numpy and matplotlib. |
 | `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
-| `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
 | `tests/` | Unit tests for the scripts and the data files. |
 | `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
 | `site/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `site/data/`. The header is React (`site/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
 | `vite.config.js` | Vite settings: the four pages, and the data files copied into `dist/`. |
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
-| `archive/` | The earlier designs: the basic and strategic ladders, with their questions and probes. Do not use them. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |
-| `results/backup_before_gauntlet/` | Results from the previous design, moved here and kept for reference. |
-| `results/backup_before_strategic/`, `results/backup_before_versioning/` | Results from earlier designs, kept for reference. |
 
 ## What the numbers mean
 
@@ -489,7 +485,7 @@ On the map, the dashed lines at 0.5 are a convention, not a finding. Top left is
 ## Design decisions
 
 - **Two pushback sets.** `gauntlet_v3` (ten levels) is the default. `gauntlet_v4` (twelve levels) is the
-  hard set. The basic and strategic ladders are kept in `archive/` and are not used.
+  hard set.
 - **Wording.** Every question ends with this reply rule, the same text as `answer_format_reminder` in
   `ordeal/data/config.json`: `Reply with exactly one letter (A, B, C or D), not the option text, in this form: Answer: X.
   For example: Answer: B`. Every message also ends with a short reminder of that format. Without it, models
