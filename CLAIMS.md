@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/106-group-frontend-js | f4914fe3 (restructure plan, batch 6) | `frontend/js/` (51 modules moved into folders), `frontend/*.html`, `tests/js/` (imports), `scripts/`, `vite.config.js` | 2026-10-28 |
