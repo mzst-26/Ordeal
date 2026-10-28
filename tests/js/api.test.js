@@ -676,3 +676,31 @@ test('a call waits out a park on its platform before it sends anything', async (
   assert.deepEqual(sleeps, [3]);
   assert.equal(calls.length, 1);
 });
+
+// The call cap counts requests the platform accepted. A 429 refusal costs no tokens, so it gives its attempt back.
+test('a 429 refusal does not use up the call cap', async () => {
+  const budget = createBudget(1);
+  const { client, calls } = makeClient({ script: [fakeResponse(429, {}), replyWith('ok')], budget });
+  assert.equal(await client.complete(sampleRequest()), 'ok');
+  assert.equal(calls.length, 2);
+  assert.equal(budget.used(), 1);
+});
+
+test('refused calls never reach the cap, so a step that keeps getting 429 fails with the 429 message', async () => {
+  const budget = createBudget(2);
+  const script = Array.from({ length: MAX_ATTEMPTS_PER_STEP }, () => fakeResponse(429, {}));
+  const { client } = makeClient({ script, budget });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(!(error instanceof BudgetExhausted), 'refused calls should not reach the cap');
+  assert.match(error.message, /429/);
+  assert.equal(budget.used(), 0);
+});
+
+test('accepted calls still use up the cap', async () => {
+  const budget = createBudget(1);
+  const { client } = makeClient({ script: [replyWith('a'), replyWith('b')], budget });
+  await client.complete(sampleRequest());
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof BudgetExhausted);
+  assert.equal(budget.used(), 1);
+});

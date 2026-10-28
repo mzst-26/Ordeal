@@ -77,6 +77,13 @@ export function createBudget(limit) {
     remaining() {
       return limit === null ? null : limit - count;
     },
+    /**
+     * Give back one attempt. A 429 refusal costs no tokens, so it should not use up the cap. Nothing is given back
+     * below zero.
+     */
+    refund() {
+      if (count > 0) count -= 1;
+    },
   };
 }
 
@@ -280,6 +287,8 @@ async function attemptOnce(context) {
   }
   try {
     const outcome = interpretResponse(response.status, json, retryAfterSeconds(response));
+    // The platform refused the call before doing any work, so the attempt does not count against the cap.
+    if (response.status === 429) context.budget.refund();
     context.log.record('request-result', { model: context.model, attempt: context.attempt + 1, ...describeOutcome(outcome) });
     return outcome;
   } catch (error) {
