@@ -1290,6 +1290,10 @@ function handleLiveEvent(event) {
       addTicker("Key", "The key was refused, so the run stopped.");
       setStatus(keyRefusedText(event.message));
       break;
+    case "rate-limited":
+      addTicker("Problem", "The provider asked for a pause longer than five minutes, so the run stopped.");
+      setStatus("The provider asked for a long pause, so the run stopped. Start it again later.");
+      break;
     case "progress":
       live.calls = event.calls;
       live.failed = event.failed;

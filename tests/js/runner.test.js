@@ -2,7 +2,7 @@
 // records every call and returns scripted replies. The ladder, probe spec and config are the real files.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BudgetExhausted, KeyRefused } from "../../frontend/js/engine/api.js";
+import { BudgetExhausted, KeyRefused, RateLimited } from "../../frontend/js/engine/api.js";
 import { createBatchRunner } from "../../frontend/js/engine/runner.js";
 import { cacheKey } from "../../frontend/js/engine/planner.js";
 import { BASELINE_STEP, formatQuestion } from "../../frontend/js/engine/rules.js";
@@ -412,6 +412,26 @@ test("a refused key stops the batch at once: no second call and one key-refused 
 
   assert.equal(client.calls.length, 1);
   assert.equal(events.filter((event) => event.kind === "key-refused").length, 1);
+  assert.equal(events.some((event) => event.kind === "step-failed"), false);
+  assert.equal(events.at(-1).kind, "stopped");
+  assert.equal(runner.status().state, "stopped");
+});
+
+test("a long rate-limit pause stops the batch at once: no second call and one rate-limited event", async () => {
+  const client = new FakeClient((callNumber) => {
+    if (callNumber === 1) throw new RateLimited();
+    return "Answer: B";
+  });
+  const { runner, events } = buildRunner(client, {
+    models: ["model-a", "model-b", "model-c"],
+    families: new Set(),
+    concurrency: 1,
+  });
+
+  await runner.start();
+
+  assert.equal(client.calls.length, 1);
+  assert.equal(events.filter((event) => event.kind === "rate-limited").length, 1);
   assert.equal(events.some((event) => event.kind === "step-failed"), false);
   assert.equal(events.at(-1).kind, "stopped");
   assert.equal(runner.status().state, "stopped");

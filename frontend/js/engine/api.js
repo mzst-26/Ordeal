@@ -3,6 +3,7 @@
 
 import { isSafeCustomUrl, validateCustomModel } from './custom-model.js';
 import { createModelLimiter } from './limiter.js';
+import { createPlatformPacer, isLongWait, rateLimitSeconds } from './platform-pacer.js';
 
 const MAX_BACKOFF_SECONDS = 60;
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -16,6 +17,7 @@ const TIMEOUT_MESSAGE = 'The request timed out.';
 const WRONG_ADDRESS_MESSAGE = 'The API address is not the one this site is allowed to use.';
 const CUSTOM_REFUSED_MESSAGE = 'Custom endpoints cannot be used yet. Each one needs its own key first.';
 const NO_MODEL_LIST_MESSAGE = 'The service sent no model list.';
+const RATE_LIMITED_MESSAGE = 'The service asked for a pause longer than five minutes, so the run was stopped. Try again later.';
 // The key must only ever go to the chosen platform's own host. The address is built from the platform in
 // platformAddressFor, so there is no fixed host in this file.
 // The retries the client makes after a failed try. Each try is one HTTP attempt.
@@ -27,6 +29,8 @@ export const DEFAULT_PER_MODEL_LIMIT = 4;
 
 // The log used when the caller gives none: it keeps nothing.
 const NO_LOG = { record() {} };
+// The key of the platform-wide places. Every model's calls share these places, so one 429 lowers them all.
+const PLATFORM_QUEUE = 'platform';
 
 /** Thrown when a run has used up its call budget. */
 export class BudgetExhausted extends Error {
@@ -41,6 +45,17 @@ export class KeyRefused extends Error {
   constructor() {
     super(KEY_REFUSED_MESSAGE);
     this.name = 'KeyRefused';
+  }
+}
+
+/**
+ * Thrown when the platform asks for a pause longer than the batch will wait (a Retry-After over five minutes). That
+ * is usually a cap that resets later, such as a daily one. Waiting would hold the batch for hours, so it stops instead.
+ */
+export class RateLimited extends Error {
+  constructor() {
+    super(RATE_LIMITED_MESSAGE);
+    this.name = 'RateLimited';
   }
 }
 
@@ -200,15 +215,27 @@ function classifyFailure(error, signal) {
   return { ok: false, retryable: true, status: null, message: NETWORK_MESSAGE };
 }
 
+/**
+ * Return the Retry-After header of a reply as a number of seconds, or null when it is missing or is a date. A browser
+ * lets a page read this header only when the platform allows it, so null is common, and the pacer then uses its own
+ * back-off instead.
+ */
+function retryAfterSeconds(response) {
+  const headers = response.headers;
+  const value = headers && typeof headers.get === 'function' ? headers.get('retry-after') : null;
+  if (typeof value !== 'string' || !/^\d+$/.test(value.trim())) return null;
+  return Number(value.trim());
+}
+
 /** Turn a completed HTTP response into a reply, a retry decision, or a final error. */
-function interpretResponse(status, json) {
+function interpretResponse(status, json, retryAfter) {
   if (isSuccess(status)) {
     const text = readReplyText(json);
     if (text === null) throw new Error(NO_TEXT_MESSAGE);
     return { ok: true, text, status };
   }
   if (status === 401 || status === 403) throw new KeyRefused();
-  return { ok: false, retryable: isRetryable(status, false), status, message: describeStatus(status) };
+  return { ok: false, retryable: isRetryable(status, false), status, message: describeStatus(status), retryAfter };
 }
 
 /**
@@ -252,7 +279,7 @@ async function attemptOnce(context) {
     if (context.signal) context.signal.removeEventListener('abort', stopWithCaller);
   }
   try {
-    const outcome = interpretResponse(response.status, json);
+    const outcome = interpretResponse(response.status, json, retryAfterSeconds(response));
     context.log.record('request-result', { model: context.model, attempt: context.attempt + 1, ...describeOutcome(outcome) });
     return outcome;
   } catch (error) {
@@ -313,7 +340,7 @@ function readModelIds(json) {
  * A custom model is refused with a fixed message until it has its own key, so no request is made for it.
  * @param {object} options - platform (a browser platform from providers.json), customModels, builtInModels, vault,
  *   budget, and optional maxRetries, timeoutMs, fetchImpl, sleep. builtInModels lists the built-in model names
- *   that no custom model may use.
+ *   that no custom model may use. pacer and random are optional: a test passes its own to control the waits.
  */
 export function createChatClient({
   platform,
@@ -327,11 +354,38 @@ export function createChatClient({
   sleep = defaultSleep,
   log = NO_LOG,
   perModelLimit = DEFAULT_PER_MODEL_LIMIT,
+  pacer = createPlatformPacer(),
+  random = Math.random,
 }) {
   // Check the address before any request is made and before the key is read. The chat address comes from the platform.
   const chatUrl = platformAddressFor(platform, 'chat/completions');
   checkCustomModels(customModels, builtInModels);
+  // Each model keeps its own places. Every model's calls also share one platform-wide limit, which a 429 lowers.
   const limiter = createModelLimiter(perModelLimit);
+  const platformLimiter = createModelLimiter(() => pacer.limit());
+
+  /**
+   * Make one attempt, after waiting out any park on the platform. The attempt takes a place for its model first and a
+   * place on the platform second, so a call that waits for its model never holds a platform place.
+   */
+  async function attemptWithPacing(context) {
+    const parkedMs = pacer.waitMs();
+    if (parkedMs > 0) await waitUnlessStopped(sleep(parkedMs / 1000, context.signal), context.signal);
+    const outcome = await limiter.run(context.model, () => platformLimiter.run(PLATFORM_QUEUE, () => attemptOnce(context)));
+    if (outcome.ok) pacer.recordSuccess();
+    return outcome;
+  }
+
+  /**
+   * Return the seconds to wait before the next try. A 429 parks the whole platform for the time it asks, and lowers
+   * the calls allowed. Any other retryable error uses the plain back-off. A 429 asking for a very long pause throws
+   * RateLimited, so the batch stops rather than waiting for hours.
+   */
+  function waitBeforeRetry(outcome, attempt) {
+    if (outcome.status !== 429) return backoffSeconds(attempt);
+    if (isLongWait(outcome.retryAfter)) throw new RateLimited();
+    return pacer.recordRateLimit(rateLimitSeconds(outcome.retryAfter, attempt, random));
+  }
 
   /** Send one chat request and return the reply text. Throws a plain message on failure. */
   async function complete({ model, messages, temperature, maxTokens, signal }) {
@@ -355,14 +409,14 @@ export function createChatClient({
       log,
     };
 
-    // Each attempt takes a place for its model. A wait before a retry holds no place, so other calls can run.
-    let outcome = await limiter.run(model, () => attemptOnce(context));
+    // Each attempt takes places for its model and the platform. A wait before a retry holds no place, so other calls can run.
+    let outcome = await attemptWithPacing(context);
     while (!outcome.ok && outcome.retryable && context.attempt < maxRetries) {
-      const seconds = backoffSeconds(context.attempt);
+      const seconds = waitBeforeRetry(outcome, context.attempt);
       log.record('retry-wait', { model, after_attempt: context.attempt + 1, seconds });
       await waitUnlessStopped(sleep(seconds, signal), signal);
       context.attempt += 1;
-      outcome = await limiter.run(model, () => attemptOnce(context));
+      outcome = await attemptWithPacing(context);
     }
 
     if (!outcome.ok) {
