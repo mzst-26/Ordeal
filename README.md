@@ -435,9 +435,22 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
 | `tests/python/` | Python unit tests for the package and the scripts, with their helpers (`mock_openai.py`, `fake_clock.py`) and the fixtures they read. |
 | `tests/js/` | Node tests for the browser code in `frontend/js/`, which must match the Python reference. |
-| `frontend/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `frontend/data/`. The header is React (`frontend/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
-| `vite.config.js` | Vite settings: the four pages, and the data files copied into `dist/`. |
-| `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
+| `frontend/` | The static site source: six pages (`index`, `batch`, `live`, `compare`, `pacing` and `runs`). `npm run build` writes it to `dist/`. |
+| `frontend/js/` | Browser modules, grouped by job: `pages/` (the page modules), `models/` (the model picker and platforms), `suites/` (suite choice and the mixed order), `runs/` (saved runs), `web-runs/` (saving runs to the server), `full-run/` (the full-run upload), `results/` (charts and figures), `ui/` (dialogs and small widgets) and `shared/`. `main.jsx`, `app.js` and `load-fallback.js` stay at the top. |
+| `frontend/js/engine/`, `charts/`, `compare/`, `store/`, `react/` | The browser version of the experiment logic, the chart kit, the comparison page, the storage for saved runs, and the React header. |
+| `frontend/css/` | Design tokens, base styles, and one stylesheet per page or figure. |
+| `frontend/data/` | The JSON the pages load, exported from `ordeal/data/` and the scripts. |
+| `frontend/fonts/` | The folder for the web fonts. Only a placeholder is tracked. |
+| `netlify/` | Server functions for saved web runs (`functions/`) and the rules they share (`lib/`). |
+| `docs/` | The pre-registration and the full-run summary that the site serves. |
+| `vite.config.js` | Vite settings: the six pages, and the data files copied into `dist/`. |
+| `package.json`, `package-lock.json` | npm scripts (`dev`, `build`, `test`), and the React, Vite and Netlify packages. |
+| `netlify.toml` | Netlify build settings, security headers and cache times. |
+| `pyproject.toml`, `requirements-dev.txt` | Package metadata, and the extra requirements for the tests (Playwright). |
+| `Makefile` | Shortcut commands for the Python tests and the calibration runs. |
+| `.github/workflows/ci.yml` | The checks that run on every push and pull request. |
+| `CLAUDE.md`, `CLAIMS.md` | The working rules for the project, and the file claims that stop two sessions editing the same file. |
+| `LICENSE` | The licence. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |
 
 ## What the numbers mean
