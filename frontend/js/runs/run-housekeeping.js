@@ -9,12 +9,15 @@ export const CARRY_ON_STATUSES = Object.freeze(["planned", "paused", "stopped", 
 export const LOCAL_GAUNTLET_KEEP = 3;
 
 /**
- * Return the part of a batch's settings that decides whether two runs are the same run: the sets, the models, the
- * questions, the families, the condition, the repeats and the shuffle seed. Lists are sorted, so the order of the ticks
- * does not matter. The result is a string, so two settings can be compared with ===.
+ * Return the part of a batch's settings that decides whether two runs are the same run: the provider, the sets, the models,
+ * the questions, the families, the condition, the repeats, the max tokens and the shuffle seed. Lists are sorted, so the
+ * order of the ticks does not matter. The result is a string, so two settings can be compared with ===. The provider is
+ * part of it, so a Start on one provider never carries on a run that was made with another. Max tokens is part of it too,
+ * because a reply cut off at a different limit is a different reply.
  */
 export function resumeSignature(config) {
   return JSON.stringify({
+    platformId: config.platformId ?? null,
     experiment: config.experiment ?? null,
     pushbackSet: config.pushbackSet ?? null,
     questionSet: config.questionSet ?? null,
@@ -23,6 +26,7 @@ export function resumeSignature(config) {
     families: [...config.families].sort(),
     condition: config.condition ?? null,
     repeats: config.repeats,
+    maxTokens: config.maxTokens ?? null,
     seed: config.seed ?? null,
   });
 }

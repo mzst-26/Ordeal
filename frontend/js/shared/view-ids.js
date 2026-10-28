@@ -20,6 +20,7 @@ export const VIEW_IDS = {
     "suite-select": "batch-suite-select",
     "suite-summary": "batch-suite-summary",
     "start-button": "batch-start-button",
+    "restart-button": "batch-restart-button",
     "stop-button": "batch-stop-button",
     "status-line": "batch-status-line",
     "cap-input": "batch-cap-input",

@@ -239,8 +239,8 @@
           <!-- The count line, where the saved runs are kept, then the saved runs themselves. All are filled by the script. -->
           <p class="field-hint" id="batch-saved-count"></p>
           <p class="field-hint" id="batch-storage-note" role="status"></p>
-          <!-- Loads a full run from its replies file (cache.jsonl). Each condition becomes a saved run, shown above. -->
-          <label class="field-label" for="batch-full-run-file">Load saved replies from a replies file (cache.jsonl)</label>
+          <!-- Loads replies from a replies file (cache.jsonl, or a batch export). Each condition becomes a saved run, shown above. -->
+          <label class="field-label" for="batch-full-run-file">Load saved replies or a saved run from a file (.jsonl)</label>
           <input class="text-input" id="batch-full-run-file" type="file" accept=".jsonl,application/x-ndjson">
           <p class="field-hint" id="batch-full-run-status" role="status" aria-live="polite"></p>
           <div id="batch-runs-list"></div>
@@ -389,14 +389,36 @@
                   inputmode="numeric">
               </div>
             </div>
-            <div class="field">
-              <label class="field-label" for="batch-cap-input">Call cap</label>
-              <input class="text-input" id="batch-cap-input" type="number" min="1" step="1"
-                inputmode="numeric" value="1"
-                aria-describedby="cap-hint">
-              <p class="field-hint" id="cap-hint">
-                The most HTTP requests this batch may send, retries included. Saved replies are never counted.
-              </p>
+            <div class="field-grid">
+              <div class="field">
+                <label class="field-label" for="batch-max-tokens-select">Max tokens</label>
+                <select class="select" id="batch-max-tokens-select" aria-describedby="max-tokens-hint">
+                  <option value="2048">2048</option>
+                  <option value="4096">4096</option>
+                  <option value="8192">8192</option>
+                  <option value="16384">16384</option>
+                  <option value="32768">32768</option>
+                  <option value="custom">Advanced: custom value</option>
+                </select>
+                <!-- Shown only in Advanced mode. Any whole number from 1 to 100000 is allowed. -->
+                <div class="field" id="batch-max-tokens-advanced" hidden>
+                  <label class="field-label" for="batch-max-tokens-custom">Custom value (1 to 100000)</label>
+                  <input class="text-input number-input" id="batch-max-tokens-custom" type="number" min="1" max="100000"
+                    step="1" inputmode="numeric">
+                </div>
+                <p class="field-hint" id="max-tokens-hint">
+                  The most tokens one reply may use, reasoning included. Reasoning models often need 8192 or more.
+                </p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="batch-cap-input">Call cap</label>
+                <input class="text-input number-input" id="batch-cap-input" type="number" min="1" step="1"
+                  inputmode="numeric" value="1"
+                  aria-describedby="cap-hint">
+                <p class="field-hint" id="cap-hint">
+                  The most HTTP requests this batch may send, retries included. Saved replies are never counted.
+                </p>
+              </div>
             </div>
             <div class="field-grid">
               <div class="field">
@@ -488,6 +510,8 @@
 
               <div class="button-row">
                 <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
+                <!-- A new run with the same settings. Every call is sent again; the saved run it replaces stays as it is. -->
+                <button type="button" class="btn" id="batch-restart-button" disabled>Restart from scratch</button>
                 <button type="button" class="btn" id="pause-button" disabled>Pause</button>
                 <button type="button" class="btn btn-danger" id="batch-stop-button" disabled>Stop</button>
               </div>
@@ -564,7 +588,7 @@
         <h2 class="panel-title" id="export-heading">Export</h2>
         <p class="field-hint">Exports hold only the results and replies on this page. The key is never included.</p>
         <div class="button-row">
-          <button type="button" class="btn" id="export-replies" disabled>Download all replies (JSON)</button>
+          <button type="button" class="btn" id="export-replies" disabled>Download all replies (JSON Lines)</button>
           <button type="button" class="btn" id="export-batch-log" disabled>Download batch log (JSON Lines)</button>
         </div>
       </section>

@@ -3,7 +3,8 @@
 
 import { el } from "../ui/ui.js";
 import { createMemoryAdapter } from "../store/memory-adapter.js";
-import { openRunStorage, deleteRun, exportRun, getRun } from "../store/run-store.js";
+import { openRunStorage, deleteRun, getRun } from "../store/run-store.js";
+import { runToJsonl } from "../store/run-jsonl.js";
 import { createPresetStore } from "./presets.js";
 import { savedRunRows, interruptedRunsOfKind } from "./saved-runs.js";
 import { runsButtonText, unfinishedCountText, savedCountText } from "./runs-popup-text.js";
@@ -357,11 +358,14 @@ export function buildRunsList({
   return { root: host, refresh };
 }
 
-/** Download one run as JSON. The export holds only the fields the store lets out, so no key is included. */
+/**
+ * Download one run as JSON Lines: a header line, then one line for each saved unit. The export holds only the fields the
+ * store lets out, so no key is included.
+ */
 async function exportRunFile(adapter, runId) {
   const run = await getRun(adapter, runId);
   if (run !== null) {
-    downloadText(`run-${runId}.json`, exportRun(run), "application/json");
+    downloadText(`run-${runId}.jsonl`, runToJsonl(run), "application/x-ndjson");
   }
 }
 

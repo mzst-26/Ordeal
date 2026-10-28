@@ -13,8 +13,8 @@ import { conditionDescriptionText } from "../suites/condition-text.js";
 import { mergePlans, unionInOrder } from "../suites/condition-choice.js";
 import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "../engine/api.js";
 import { activePlatform } from "../models/platform-choice.js";
-import { DEFAULT_PLATFORM_ID, parseModelReference } from "../models/platforms.js";
-import { CHOICE_EVENT } from "../models/platform-section.js";
+import { DEFAULT_PLATFORM_ID, findPlatform, loadPlatforms, parseModelReference } from "../models/platforms.js";
+import { CHOICE_EVENT, saveChoice } from "../models/platform-section.js";
 import { setRunLocked, suiteChoiceLocked } from "../runs/run-lock.js";
 import {
   MAX_POPUP_ROWS, MODELS_PATH, PAGE_SIZE, hasSavedList, platformModelIds, readAddedModels, writeAddedModels,
@@ -34,11 +34,15 @@ import { renderResultsFigures } from "../results/batch-figures.js";
 import { mountFingerprintFigure } from "../results/fingerprint-figure.js";
 import { clear, el, formatNumber } from "../ui/ui.js";
 import { openPicker } from "../ui/picker-dialog.js";
+import { buildSelectionControls } from "../ui/selection-files.js";
 import { modelNumberText, hasNoDetails, modelRowText, sortByRank } from "../models/model-details.js";
 import { rateLimitRowFor } from "../shared/rate-limits.js";
 import { updateSelectionCount } from "../suites/selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "../suites/question-actions.js";
-import { createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns } from "../store/run-store.js";
+import {
+  createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns, importRunDocument,
+} from "../store/run-store.js";
+import { isRunHeaderLine, parseRunJsonl } from "../store/run-jsonl.js";
 import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns } from "../web-runs/auto-save.js";
 import { findResumableRun, resumeSignature } from "../runs/run-housekeeping.js";
 import { createPresetStore } from "../runs/presets.js";
@@ -58,6 +62,7 @@ import {
   wireRunsPopup, showRunCounts, closePopupBeforeResume,
 } from "../runs/persistence-ui.js";
 import { readReplyGroups, importReplyGroups } from "../full-run/full-run-upload.js";
+import { repliesToJsonl } from "../full-run/replies-export.js";
 import { SAVED_RUNS_CHANGED } from "../runs/saved-runs.js";
 
 const DATA_PATHS = {
@@ -83,6 +88,11 @@ const MAX_REPEATS = 4;
 const MAX_CONCURRENCY = 300;
 // The most API attempts one batch may be given. It is the same limit as the live page's cap.
 const MAX_BATCH_CALLS = 400;
+// The max tokens choices on the batch form. A reply's reasoning and its answer share this budget, so the choices start
+// well above the 2048 that config.json used to give. The Advanced value is any whole number up to MAX_TOKENS_LIMIT.
+const MAX_TOKEN_CHOICES = [2048, 4096, 8192, 16384, 32768];
+const CUSTOM_MAX_TOKENS = "custom";
+const MAX_TOKENS_LIMIT = 100000;
 // The default call cap is the planned attempt bound rounded up to a multiple of this.
 const CAP_STEP = 10;
 const MAX_LOG_ENTRIES = 200;
@@ -181,6 +191,9 @@ const IDS = {
   repeats: "repeats-input",
   concurrency: "concurrency-input",
   cap: VIEW_IDS.batch["cap-input"],
+  maxTokensSelect: "batch-max-tokens-select",
+  maxTokensAdvanced: "batch-max-tokens-advanced",
+  maxTokensCustom: "batch-max-tokens-custom",
   price: "price-input",
   tokens: "tokens-input",
   planModels: "plan-models",
@@ -192,6 +205,7 @@ const IDS = {
   confirmContinue: "confirm-continue",
   confirmCancel: "confirm-cancel",
   start: VIEW_IDS.batch["start-button"],
+  restart: VIEW_IDS.batch["restart-button"],
   pause: "pause-button",
   stop: VIEW_IDS.batch["stop-button"],
   progressFill: "progress-fill",
@@ -232,7 +246,6 @@ const page = {
   popupRefresh: null,         // redraws the open model popup after its items change, or null when it is closed
   questionRows: [],           // one per question row of the suite on the form: its tick box and its question
   customModels: [],           // custom models from config.json that passed the checks in custom-model.js
-  newRecords: [],             // replies made in this page session, for the JSON export
   log: null,                  // the operation log of the batch run on this page, for the log download
   phase: "idle",              // "idle", "running", "stopping", "stopped" or "finished"
   runner: null,               // the batch runner while a batch exists
@@ -256,6 +269,7 @@ const page = {
   queue: createSerialQueue(), // run writes, one at a time
   runId: null,                // the saved run of the batch on screen, or null
   resumeRunId: null,          // the saved run the next Start continues, or null
+  restartFromScratch: false,  // true from Restart from scratch until its confirmation is answered
   unitSteps: new Map(),       // the step records of each unit still running, by unit key
   mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
@@ -315,6 +329,11 @@ function wireControls() {
     }
   });
   dom.start.addEventListener("click", handleStart);
+  dom.maxTokensSelect.addEventListener("change", () => {
+    updateMaxTokensAdvanced();
+    onSelectionChanged();
+  });
+  dom.restart.addEventListener("click", handleRestart);
   dom.pause.addEventListener("click", togglePause);
   dom.stop.addEventListener("click", stopRun);
   dom.confirmContinue.addEventListener("click", confirmStart);
@@ -467,6 +486,13 @@ async function loadFullRunFile(input) {
   }
   showFullRunStatus(`Reading ${file.name}. A large file can take a minute.`);
   try {
+    // A saved run's file starts with its header line. Any other file is read as replies.
+    if (isRunHeaderLine(await firstLineOf(file))) {
+      const status = await importRunFile(file);
+      await refreshRuns();
+      showFullRunStatus(status);
+      return;
+    }
     const groups = await readReplyGroups(file);
     const common = {
       callCap: MAX_BATCH_CALLS,
@@ -479,8 +505,35 @@ async function loadFullRunFile(input) {
     const skippedText = skipped.length > 0 ? ` Not saved: ${skipped.join("; ")}.` : "";
     showFullRunStatus(savedText + skippedText);
   } catch (error) {
-    showFullRunStatus(`The file could not be loaded: ${errorText(error)} Check that it is the cache.jsonl file.`);
+    showFullRunStatus(`The file could not be loaded: ${errorText(error)} Check that it is a replies file, such as cache.jsonl, or a saved run file.`);
   }
+}
+
+/** Return the first line of a file. The file is read in pieces, so a large replies file is never loaded whole. */
+async function firstLineOf(file) {
+  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+  let text = "";
+  while (!text.includes("\n")) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += value;
+  }
+  await reader.cancel();
+  return text.split("\n", 1)[0];
+}
+
+/**
+ * Save the run in a saved-run file as a run of its own. A run with the same label that is already in this browser is not
+ * saved again. Returns the sentence to show.
+ */
+async function importRunFile(file) {
+  const run = parseRunJsonl(await file.text());
+  const labels = (await listRuns(page.storage.adapter)).map((item) => item.label);
+  if (labels.includes(run.label)) {
+    return `Not saved: ${run.label} is already in this browser.`;
+  }
+  await importRunDocument(page.storage.adapter, run);
+  return `Saved: ${run.label}.`;
 }
 
 /**
@@ -552,6 +605,8 @@ function setupControls(config) {
   fillConditionList(config.system_prompts);
   page.dom.repeats.value = String(config.repeats);
   page.dom.concurrency.value = String(config.concurrency);
+  // The form starts on the max tokens that config.json gives, so the page and the file agree.
+  restoreMaxTokens(config.max_tokens);
   page.dom.fixedSettings.textContent = fixedSettingsText(config);
   // A reload can keep the choice from the last visit. The page always opens on the default suite, so it never opens
   // on Shuffle by accident.
@@ -736,20 +791,20 @@ function setAllModels(on) {
 
 /**
  * The platform was changed in the platform section. The section refuses a change during a run, so this only redraws
- * the rows for the new platform, then refreshes the plan.
+ * the rows for the new platform, then refreshes the plan. A change made by a resume is skipped here, because the resume
+ * redraws the rows itself and must restore the saved models after that.
  */
-async function onPlatformChosen() {
-  if (page.data === null || isRunning() || page.confirming) {
+async function onPlatformChosen(event) {
+  if (page.data === null || isRunning() || page.confirming || event?.detail?.source === RESUME_SOURCE) {
     return;
   }
   await refreshModelChoices();
   onSelectionChanged();
 }
 
-/** Return the note that says where temperature and max tokens come from. Presets keep them as they are. */
+/** Return the note that says where temperature comes from. Presets keep it as it is. Max tokens is chosen on the form. */
 function fixedSettingsText(config) {
-  return `Temperature ${config.temperature} and max tokens ${config.max_tokens} come from config.json. `
-    + "Presets keep those two as they are.";
+  return `Temperature ${config.temperature} comes from config.json. Presets keep it as it is.`;
 }
 
 /**
@@ -995,6 +1050,14 @@ function openModelPicker() {
     for (const id of sortModelIds([...rowById.keys()])) names.push(id);
   };
   refillNames();
+  const selectionControls = buildSelectionControls({
+    idPrefix: "batch-models",
+    type: "model",
+    label: "models",
+    getIds: () => sortModelIds([...page.ticked]),
+    applyIds: importModelSelection,
+    download: downloadText,
+  });
   const dialog = openPicker({
     title: "Choose models",
     items: names,
@@ -1003,7 +1066,7 @@ function openModelPicker() {
     renderCard: (id) => buildModelCard(rowById.get(id)),
     pageSize: PAGE_SIZE,
     groupItems: letterGroups,
-    header: addArea.node,
+    header: el("div", {}, [addArea.node, selectionControls]),
     onSelectAll: () => setAllModels(true),
     onClear: () => setAllModels(false),
     onReady: (redraw) => {
@@ -1017,6 +1080,18 @@ function openModelPicker() {
   dialog.addEventListener("close", () => {
     page.popupRefresh = null;
   });
+}
+
+/**
+ * Tick exactly the models of an imported selection that this list has, in place of the current ticks. Returns how many
+ * were ticked and which ids are not in the list. The open popup and the plan follow.
+ */
+function importModelSelection(ids) {
+  const listed = new Set(page.allModels);
+  const missing = ids.filter((id) => !listed.has(id));
+  setTickedModels(ids);
+  afterListChange();
+  return { selected: ids.length - missing.length, missing };
 }
 
 /** Tick or untick one model from the popup. The picker redraws its own card; the plan and the lists follow here. */
@@ -1152,6 +1227,16 @@ function buildQuestionRow(question, checked = false) {
 function openQuestionPicker() {
   const tier = page.dom.tierFilter.value;
   const items = page.questionRows.filter((entry) => tier === "all" || entry.question.tier === tier);
+  // An import redraws the open picker, so its redraw function is kept once the picker is ready.
+  let redrawPicker = () => {};
+  const selectionControls = buildSelectionControls({
+    idPrefix: "batch-questions",
+    type: "question",
+    label: "questions",
+    getIds: () => page.questionRows.filter((entry) => entry.input.checked).map((entry) => entry.question.id),
+    applyIds: (ids) => importQuestionSelection(ids, redrawPicker),
+    download: downloadText,
+  });
   openPicker({
     title: tier === "all" ? "Choose questions" : `Choose questions (${tier})`,
     items,
@@ -1161,7 +1246,30 @@ function openQuestionPicker() {
     onSelectAll: () => setChecks(page.dom.questionList, () => true),
     onClear: () => setChecks(page.dom.questionList, () => false),
     searchPlaceholder: "Search questions",
+    header: selectionControls,
+    onReady: (redraw) => {
+      redrawPicker = redraw;
+    },
   });
+}
+
+/**
+ * Tick exactly the questions of an imported selection, in place of the current ticks, across every tier. Returns how
+ * many were ticked and which ids are not questions of this suite. The open picker is redrawn so its cards match.
+ */
+function importQuestionSelection(ids, redraw) {
+  const wanted = new Set(ids);
+  for (const entry of page.questionRows) {
+    entry.input.checked = wanted.has(entry.question.id);
+  }
+  if (!page.confirming) {
+    page.resumeRunId = null;
+  }
+  onSelectionChanged();
+  redraw();
+  const listed = new Set(page.questionRows.map((entry) => entry.question.id));
+  const missing = ids.filter((id) => !listed.has(id));
+  return { selected: ids.length - missing.length, missing };
 }
 
 /**
@@ -1275,9 +1383,36 @@ function readChoices() {
     repeats: readWholeNumber(dom.repeats, 1, MAX_REPEATS),
     concurrency: readWholeNumber(dom.concurrency, 1, MAX_CONCURRENCY),
     cap: readWholeNumber(dom.cap, 1, MAX_BATCH_CALLS),
+    maxTokens: readMaxTokens(),
     price: readOptionalNumber(dom.price),
     tokens: readOptionalNumber(dom.tokens),
   };
+}
+
+/** Return the max tokens the form asks for, or null when the Advanced value is not a whole number in range. */
+function readMaxTokens() {
+  const dom = page.dom;
+  if (dom.maxTokensSelect.value === CUSTOM_MAX_TOKENS) {
+    return readWholeNumber(dom.maxTokensCustom, 1, MAX_TOKENS_LIMIT);
+  }
+  return Number(dom.maxTokensSelect.value);
+}
+
+/** Show a max tokens value. A value on the list is picked from the menu; any other value uses Advanced mode. */
+function restoreMaxTokens(value) {
+  const dom = page.dom;
+  if (MAX_TOKEN_CHOICES.includes(value)) {
+    dom.maxTokensSelect.value = String(value);
+  } else {
+    dom.maxTokensSelect.value = CUSTOM_MAX_TOKENS;
+    dom.maxTokensCustom.value = String(value);
+  }
+  updateMaxTokensAdvanced();
+}
+
+/** Show the Advanced box only when the menu is on Advanced mode. */
+function updateMaxTokensAdvanced() {
+  page.dom.maxTokensAdvanced.hidden = page.dom.maxTokensSelect.value !== CUSTOM_MAX_TOKENS;
 }
 
 /** Say in plain words what stops the batch from starting, or return null when everything is ready. */
@@ -1305,6 +1440,9 @@ function findProblem(choices) {
   }
   if (choices.cap === null) {
     return `The call cap must be a whole number from 1 to ${MAX_BATCH_CALLS}.`;
+  }
+  if (choices.maxTokens === null) {
+    return `Max tokens must be a whole number from 1 to ${MAX_TOKENS_LIMIT}.`;
   }
   return null;
 }
@@ -1514,6 +1652,8 @@ function updateControls() {
   const dom = page.dom;
   const running = isRunning();
   dom.start.disabled = running || page.confirming || findProblem(readChoices()) !== null;
+  // Restart from scratch is offered under the same rules as Start.
+  dom.restart.disabled = dom.start.disabled;
   dom.pause.disabled = page.phase !== "running";
   dom.stop.disabled = page.phase !== "running";
   dom.pause.textContent = page.runner !== null && page.runner.isPaused() ? "Resume" : "Pause";
@@ -1586,6 +1726,7 @@ function confirmStart() {
 function cancelConfirmation() {
   page.confirming = false;
   page.resumeRunId = null;
+  page.restartFromScratch = false;
   page.resumeQueue = [];
   page.dom.confirmPanel.hidden = true;
   setStatus("Not started. No call was made.");
@@ -1598,6 +1739,8 @@ function batchConfig(choices) {
   const { config } = page.data;
   return {
     kind: KIND_BATCH,
+    // The provider the models belong to, so a resume can choose it again. It is an id only, never a key.
+    platformId: page.platform === null ? null : page.platform.id,
     ...choiceOfSuite(page.suite),
     experiment: page.suite.mixed ? MIXED_NAME : null,
     ...mixedConfigFields(choices),
@@ -1609,7 +1752,7 @@ function batchConfig(choices) {
     concurrency: choices.concurrency,
     callCap: choices.cap,
     temperature: config.temperature,
-    maxTokens: config.max_tokens,
+    maxTokens: choices.maxTokens,
   };
 }
 
@@ -1655,8 +1798,10 @@ async function openRunFor(choices) {
         return resumedId;
       }
       // A Start with the same settings as a run that can still be carried on continues that run. So a run that was
-      // stopped and started again is one saved run, never two.
-      const carried = findResumableRun(await listRuns(adapter), resumeSignature(batchConfig(choices)));
+      // stopped and started again is one saved run, never two. A restart from scratch never carries a run on.
+      const carried = choices.fromScratch
+        ? null
+        : findResumableRun(await listRuns(adapter), resumeSignature(batchConfig(choices)));
       if (carried !== null) {
         await resumeRun(adapter, carried.id);
         return carried.id;
@@ -1677,6 +1822,9 @@ async function openRunFor(choices) {
  * another. All of them share one API client, so the call cap covers the whole Start, not each condition on its own.
  */
 async function beginRun(confirmedId) {
+  // The restart flag is used by this Start only, so it is cleared here, before any early return can leave it set.
+  const fromScratch = page.restartFromScratch;
+  page.restartFromScratch = false;
   // The platform is read first. The ticked models belong to the platform the visitor confirmed, so any other
   // platform stops the run before a single call is made.
   const platform = await activePlatform();
@@ -1696,7 +1844,12 @@ async function beginRun(confirmedId) {
       return;
     }
   }
-  const choices = readChoices();
+  const choices = { ...readChoices(), fromScratch };
+  // A reply cut off at one max tokens limit is not the reply for another, so a change of limit clears the replies kept on
+  // this page. A resume keeps its own replies, which were restored with its own limit. The saved runs are not changed.
+  if (page.resumeRunId === null && page.batchChoices !== null && page.batchChoices.maxTokens !== choices.maxTokens) {
+    page.cache.clear();
+  }
   const { config } = page.data;
   page.phase = "running";
   page.budgetHit = false;
@@ -1737,6 +1890,10 @@ async function startConditionRun(condition) {
   const choices = { ...page.batchChoices, condition };
   const { config } = page.data;
   page.runCondition = condition;
+  // A restart sends every call again, so this condition's replies in the page's cache are not reused.
+  if (choices.fromScratch) {
+    forgetRepliesOf(condition);
+  }
   page.runId = await openRunFor(choices);
   if (page.runId === null) {
     setStatus(`Running. ${NOT_SAVED_TEXT}`);
@@ -1765,7 +1922,8 @@ async function startConditionRun(condition) {
     families: choices.families,
     ladder: page.suite.ladder,
     probeSpec: page.suite.probeSpec,
-    config,
+    // The runner reads max_tokens from its config, so this run's choice from the form is passed in its place.
+    config: { ...config, max_tokens: choices.maxTokens },
     cache: page.cache,
     concurrency: choices.concurrency,
     onEvent: handleEvent,
@@ -1920,6 +2078,10 @@ async function resumeBatchRun(run) {
     setStatus("This saved batch used a shuffled order that this site no longer has, so it cannot be resumed.");
     return;
   }
+  // The models and the key belong to the provider the run was made with, so that provider is chosen first.
+  if (!(await switchToRunPlatform(config))) {
+    return;
+  }
   if (mixed) {
     if (!(await enterMixedFromRun(config))) {
       return;
@@ -1950,6 +2112,55 @@ async function resumeBatchRun(run) {
   page.resumeRunId = run.id;
   setStatus(`Resuming. ${formatCount(remaining)} units are left, and the saved ones are reused, not sent again.`);
   await handleStart();
+}
+
+// The source name that a resume gives its provider change. The page's own listener skips changes with this name, because
+// the resume redraws the model rows itself and must restore the saved models after that.
+const RESUME_SOURCE = "batch-resume";
+
+/**
+ * Choose the provider that a saved run was made with, the same way the platform section does when the visitor picks one,
+ * so the saved models are checked against that provider's list. A run saved before providers were kept has none, so the
+ * chosen provider stays. Returns false, with the reason in the status line, when the provider is no longer on the site.
+ */
+async function switchToRunPlatform(config) {
+  if (!config.platformId || (page.platform !== null && page.platform.id === config.platformId)) {
+    return true;
+  }
+  const list = await loadPlatforms(loadJson);
+  if (findPlatform(list, config.platformId) === null) {
+    setStatus(`The provider ${config.platformId} is not on this site, so this batch cannot be resumed.`);
+    return false;
+  }
+  saveChoice(RESUME_SOURCE, browserStorage(), { platformId: config.platformId, model: "" });
+  await refreshModelChoices();
+  return true;
+}
+
+/**
+ * Restart from scratch: the same settings as a new batch, but every call is sent again and no saved run is carried on.
+ * The run it replaces stays as it is in storage. The confirmation is the same as for Start.
+ */
+function handleRestart() {
+  page.resumeRunId = null;
+  page.restartFromScratch = true;
+  handleStart();
+  // handleStart stops before the confirmation when it cannot start, so the restart is not kept then.
+  if (!page.confirming) {
+    page.restartFromScratch = false;
+  }
+}
+
+/**
+ * Forget the replies of one condition in the page's reply cache, so a restart sends every call again. Only the page's
+ * copy is cleared. The saved runs in storage are not changed.
+ */
+function forgetRepliesOf(condition) {
+  for (const [key, record] of page.cache) {
+    if (record.condition === condition) {
+      page.cache.delete(key);
+    }
+  }
 }
 
 /**
@@ -1991,6 +2202,8 @@ function restoreChoices(config) {
   dom.repeats.value = String(config.repeats);
   dom.concurrency.value = String(config.concurrency);
   dom.cap.value = String(config.callCap);
+  // A run saved before the form kept max tokens has none, so its value from config.json is used instead.
+  restoreMaxTokens(config.maxTokens ?? config.max_tokens);
   page.capTouched = true;
   tickOnly(dom.conditionList, [config.condition]);
 }
@@ -2086,7 +2299,7 @@ function saveFinishedUnit(event) {
     });
 }
 
-/** Handle a finished step. A new call is kept for the export; a reused one is only counted. */
+/** Handle a finished step. A new call is counted; a reused one is only counted. The reply itself is in page.cache. */
 function onStepDone(event) {
   if (event.reused) {
     page.counts.reused += 1;
@@ -2094,11 +2307,6 @@ function onStepDone(event) {
     return;
   }
   page.counts.calls += 1;
-  const key = cacheKey(page.runCondition, event.model, event.questionId, event.repeat, event.step);
-  const record = page.cache.get(key);
-  if (record !== undefined) {
-    page.newRecords.push({ ...record, suite: page.suite.name });
-  }
   addLogEntry("Called", describeStep(event));
 }
 
@@ -2614,7 +2822,7 @@ function figureModel(model) {
 
 /** Enable each export only when it has something to save. */
 function updateExportButtons() {
-  page.dom.exportReplies.disabled = page.newRecords.length === 0;
+  page.dom.exportReplies.disabled = page.cache.size === 0;
   page.dom.exportBatchLog.disabled = page.log === null || page.log.entries().length === 0;
 }
 
@@ -2627,9 +2835,13 @@ function exportBatchLog() {
   downloadText(`ordeal-batch-log-${stamp}.jsonl`, page.log.toJsonl(), "application/x-ndjson");
 }
 
-/** Download every reply made on this page as JSON. The key is never part of a reply, so it is never exported. */
+/**
+ * Download every reply of the suite on this page, both new and reused, as a replies file. The batch page can load that
+ * file back with "Load saved replies", so it is written in the same format. The key is never part of a reply.
+ */
 function exportRepliesJson() {
-  downloadText("batch-replies.json", JSON.stringify(page.newRecords), "application/json");
+  const records = [...page.cache.values()];
+  downloadText("batch-replies.jsonl", repliesToJsonl(records, page.suite.name), "application/x-ndjson");
 }
 
 /** Return the preset view of the form: both sets, the models, families, numbers, cap and system prompt. */
@@ -2646,7 +2858,7 @@ function readPresetSettings() {
     callCap: choices.cap,
     conditions: choices.conditions,
     temperature: config.temperature,
-    maxTokens: config.max_tokens,
+    maxTokens: choices.maxTokens,
   };
 }
 
@@ -2685,6 +2897,10 @@ async function applyPresetSettings(settings) {
     dom.cap.value = String(settings.callCap);
     page.capTouched = true;
   }
+  // A preset saved before the form kept max tokens has none, so the form's current value stays.
+  if (settings.maxTokens !== undefined) {
+    restoreMaxTokens(settings.maxTokens);
+  }
   // A preset saved before the boxes were a list holds one condition, which is ticked on its own.
   const conditions = settings.conditions ?? (settings.condition === undefined ? undefined : [settings.condition]);
   if (conditions !== undefined) {
@@ -2705,14 +2921,13 @@ function skippedModelsNote(count) {
     : `${count} models in this preset are not in the list, so they were skipped.`;
 }
 
-/** Return a note when a preset's temperature or max tokens differ from config.json. Those two are never changed. */
+/** Return a note when a preset's temperature differs from config.json. Temperature is never changed by a preset. */
 function batchFixedSettingsNote(settings) {
   const { config } = page.data;
   const temperature = settings.temperature ?? config.temperature;
-  const maxTokens = settings.maxTokens ?? config.max_tokens;
-  if (temperature === config.temperature && maxTokens === config.max_tokens) {
+  if (temperature === config.temperature) {
     return "";
   }
-  return `This preset was saved with temperature ${temperature} and max tokens ${maxTokens}. `
-    + `config.json sets ${config.temperature} and ${config.max_tokens}, so those two were not changed.`;
+  return `This preset was saved with temperature ${temperature}. `
+    + `config.json sets ${config.temperature}, so temperature was not changed.`;
 }
