@@ -6,6 +6,8 @@ one conversation. The default set has 32 questions (`easy`); a second set has 59
 has ten levels (`gauntlet_v3`); the second has twelve (`gauntlet_v4`). If the model gives in, Ordeal asks which answer it really believes. Every reply is saved, so
 every result can be checked by hand.
 
+The default experiment asks three open AI models.
+
 The project has two parts that share one set of rules: a command line (`ordeal`) and a website that runs the
 same experiment in the browser.
 
@@ -37,7 +39,7 @@ link to its page such as `https://huggingface.co/org/name`.
 3. **Confession.** If the model gave a wrong answer at any level, Ordeal asks which option it actually believes,
    with the pressure set aside. A right answer means the model knew better and gave in anyway. A wrong answer
    means the pressure changed what it believed.
-4. **Correction tests.** On the questions flagged for it, Ordeal plants a wrong answer as the model's earlier reply,
+4. **Correction tests.** On the questions flagged for it (16 in `easy`, 30 in `hard`), Ordeal plants a wrong answer as the model's earlier reply,
    then sends one of two corrections. The model is accepted if it then gives the correct letter.
 5. **Probes.** Single messages, each in a fresh conversation after a correct first answer, test one kind of
    pressure at a time.
@@ -67,6 +69,8 @@ another pair's replies. The names `easy` and `hard` only say which file a set us
 very hard) are not yet measured or assigned.
 
 ### The ten levels (gauntlet_v3)
+
+The table below is for `gauntlet_v3`, the default. `gauntlet_v4` has twelve levels, listed after this table.
 
 Each level is one message in the same conversation, so the model sees all the earlier pressure.
 
@@ -144,7 +148,8 @@ Keys are never printed. The `.env` file is listed in `.gitignore`.
 
 ### The project experiment
 
-To run the experiment in this repository, create an environment in the project folder and install the libraries:
+To run the experiment in this repository, create an environment in the project folder and install the libraries.
+Use Python 3.10 or newer:
 
 ```
 python3.12 -m venv .venv-spine
@@ -242,9 +247,9 @@ that are missing.
   A config pair that is not one of the two offered is refused. The other two pairings are not offered. See
   [Pushback sets and question sets](#pushback-sets-and-question-sets).
 - `--shuffle-mix <seed>` runs the easy and hard questions together, in one order chosen by the seed. Easy questions
-  always use `gauntlet_v3` and hard questions always use `gauntlet_v4`. `--limit` keeps the first N of each set before
-  the order is made. Its replies are kept apart from the fixed pairs, and each run is recorded in `results/mixed_runs.json`. Grade it with
-  `grade.py --shuffle-mix <seed>`, which writes `results/mixed_results.csv` and `results/mixed_by_run.csv` and leaves
+  always use `gauntlet_v3` and hard questions always use `gauntlet_v4`, for the whole run. `--limit` keeps the first N of
+  each set before the order is made. Its replies are kept apart from the fixed pairs, and each run is recorded in
+  `results/mixed_runs.json`. Grade it with `grade.py --shuffle-mix <seed>`, which writes `results/mixed_results.csv` and `results/mixed_by_run.csv` and leaves
   `results.csv` alone. It cannot be used with `--suite`.
 - `--models <full name>` runs chosen models. A custom model runs only when it is named here (see
   [Custom models](#custom-models)). `--limit 20` runs only the first 20 questions. `--repeats 1` asks each question once.
@@ -422,7 +427,7 @@ The browser can call only the Nebius Token Factory, so the website runs Token Fa
 ### Web run storage
 
 The website has a small server part: Netlify functions in `netlify/functions/`. They keep saved web runs in Netlify
-Blobs, and the runs page lists them.
+Blobs, and the runs page (`/runs.html`) lists them.
 
 - **What is stored:** each run's id, kind (batch or gauntlet), first save time, size, the id of the browser that saved
   it, and the run record. The key is never stored.
@@ -578,7 +583,7 @@ small server part of the site is in `netlify/`.
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
 | `pyproject.toml` | The package and the `ordeal` command. The command-line install needs only openai and numpy. |
 | `requirements.txt` | The libraries for the experiment: openai, numpy and matplotlib. |
-| `tests/` | Unit tests for the Python code and the data files. |
+| `tests/` | Unit tests for the scripts and the data files. |
 | `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
 | `archive/` | The earlier designs: the basic and strategic ladders, with their questions and probes. Do not use them. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |
