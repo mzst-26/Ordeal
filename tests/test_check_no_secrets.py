@@ -22,25 +22,25 @@ FAKE_TOKEN_NAME = "TOKEN_" + "FACTORY_TOKEN"
 FAKE_PROJECT_KEY = "project-" + "0123456789abcdef"
 
 
-# Guards the pre-publish secrets scan of site/: each secret shape (API key, token variable name, Bearer
+# Guards the pre-publish secrets scan of frontend/: each secret shape (API key, token variable name, Bearer
 # header, the project key from .env) is detected and gives exit code 1, a clean folder gives 0, the
 # output gives only file, line and pattern name and never the matched text, and binary files are skipped.
 class CheckNoSecretsTests(unittest.TestCase):
-    """Run the check on a temporary folder so the real site/ is never touched."""
+    """Run the check on a temporary folder so the real frontend/ is never touched."""
 
     def setUp(self):
-        """Create a temporary root folder that holds an empty site/ folder."""
+        """Create a temporary root folder that holds an empty frontend/ folder."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name)
-        (self.root / "site").mkdir()
+        (self.root / "frontend").mkdir()
 
     def tearDown(self):
         """Delete the temporary folder."""
         self.temp_dir.cleanup()
 
     def write_site_file(self, name, text):
-        """Write a text file under the temporary site/ folder."""
-        (self.root / "site" / name).write_text(text, encoding="utf-8")
+        """Write a text file under the temporary frontend/ folder."""
+        (self.root / "frontend" / name).write_text(text, encoding="utf-8")
 
     def run_check(self, *extra_args):
         """Run main() on the temporary folder; return the exit code and the printed output."""
@@ -89,7 +89,7 @@ class CheckNoSecretsTests(unittest.TestCase):
 
     def test_binary_file_is_skipped(self):
         """A file with a NUL byte in its first 8000 bytes is not scanned, so a key inside it is ignored."""
-        (self.root / "site" / "image.bin").write_bytes(b"\x00\x01" + FAKE_SK_KEY.encode("ascii"))
+        (self.root / "frontend" / "image.bin").write_bytes(b"\x00\x01" + FAKE_SK_KEY.encode("ascii"))
         code, output = self.run_check()
         self.assertEqual(code, 0)
         self.assertIn("Secrets check passed: 0 files scanned.", output)

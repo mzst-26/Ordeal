@@ -45,7 +45,7 @@ run-*.json
 model-card-*.png
 
 # Written by scripts/export_site_data.py (the other site data is tracked on purpose)
-site/data/results.json
+frontend/data/results.json
 
 # Written by the Python tools into results/ or scratch/ by default, which are ignored above.
 # These names are ignored anywhere, so a run with another --out-dir is kept out of git too.

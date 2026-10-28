@@ -1,8 +1,8 @@
-// Tests for site/js/question-actions.js. These are pure functions: they take question objects and return ids or
+// Tests for frontend/js/question-actions.js. These are pure functions: they take question objects and return ids or
 // text, so no DOM is needed and the tests run in Node.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { idsForAction, numberedQuestionLines, QUESTION_ACTIONS } from "../site/js/question-actions.js";
+import { idsForAction, numberedQuestionLines, QUESTION_ACTIONS } from "../frontend/js/question-actions.js";
 import { readJson } from "./helpers.js";
 
 // A small stand-in for the suite's questions: two flagged for correction, one flagged for wrapper, one with both.
@@ -46,7 +46,7 @@ test("a flagged action on a suite with no flagged questions ticks none", () => {
 });
 
 test("the real easy question set has 16 correction-flagged and 12 wrapper-flagged questions", () => {
-  const questions = readJson("site/data/questions.json");
+  const questions = readJson("frontend/data/questions.json");
   assert.equal(idsForAction("correction", questions).size, 16);
   assert.equal(idsForAction("wrapper", questions).size, 12);
   assert.equal(idsForAction("all", questions).size, 32);

@@ -20,7 +20,7 @@ dependencies = [
 ordeal = "ordeal.cli:main"
 
 [tool.setuptools]
-# Name the package on purpose, so the folders beside it (site, scripts, tests, data) are not packaged.
+# Name the package on purpose, so the folders beside it (frontend, scripts, tests, data) are not packaged.
 packages = ["ordeal"]
 
 [tool.setuptools.package-data]

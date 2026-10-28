@@ -2,9 +2,9 @@
 // The charts draw into a host element, so the drawing tests run against a small fake DOM below.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { linearScale, niceTicks, pathFromPoints, bandPath, formatTick } from "../site/js/charts/scale.js";
-import * as chartKit from "../site/js/charts/index.js";
-import { seriesSlot, isRepeatSeries } from "../site/js/chart-panel.js";
+import { linearScale, niceTicks, pathFromPoints, bandPath, formatTick } from "../frontend/js/charts/scale.js";
+import * as chartKit from "../frontend/js/charts/index.js";
+import { seriesSlot, isRepeatSeries } from "../frontend/js/chart-panel.js";
 
 const { lineBandChart, barErrorChart, scatterQuadrant, donutChart, chooseLabelSide, cornerBoxes } = chartKit;
 

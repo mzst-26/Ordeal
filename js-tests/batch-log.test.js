@@ -2,9 +2,9 @@
 // and the request and stop events that are written to the log (engine/api.js and engine/runner.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBatchLog, LOG_LIMIT } from '../site/js/engine/batch-log.js';
-import { createTokenVault, REMEMBER_STORAGE_NAME } from '../site/js/engine/token.js';
-import { createChatClient, createBudget } from '../site/js/engine/api.js';
+import { createBatchLog, LOG_LIMIT } from '../frontend/js/engine/batch-log.js';
+import { createTokenVault, REMEMBER_STORAGE_NAME } from '../frontend/js/engine/token.js';
+import { createChatClient, createBudget } from '../frontend/js/engine/api.js';
 
 // A fake key of exactly 40 characters. It is not a real key.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);

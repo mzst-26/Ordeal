@@ -1,7 +1,7 @@
 // Pure helpers for FIG 4 (head to head), FIG 5 (transcript replay) and the Model Card.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { betterSide, biggestGapAxis, numericValue } from "../site/js/compare/fig-h2h.js";
+import { betterSide, biggestGapAxis, numericValue } from "../frontend/js/compare/fig-h2h.js";
 import {
   visibleCharCount,
   visibleText,
@@ -9,7 +9,7 @@ import {
   stampFor,
   confessionSentence,
   TURN_MS,
-} from "../site/js/compare/fig-replay.js";
+} from "../frontend/js/compare/fig-replay.js";
 import {
   backboneFormulaText,
   sizeText,
@@ -19,7 +19,7 @@ import {
   viewChange,
   closeHandoff,
   consistencyStatus,
-} from "../site/js/compare/model-card.js";
+} from "../frontend/js/compare/model-card.js";
 
 const rate = (value, low = null, high = null, n = 10) => ({ rate: value, ci_low: low, ci_high: high, n });
 

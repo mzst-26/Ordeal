@@ -1,5 +1,5 @@
 {
-  "name": "ordeal-site-tests",
+  "name": "ordeal-frontend",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,6 +1,6 @@
 // Pure analytics for the Batch results view. Input is a list of per-model rows shaped like
 // { model, measures: { <key>: number|null } }, where the keys are the field names the grader writes
-// (see site/js/engine/grade.js). Nothing here touches the DOM, the network or random numbers.
+// (see frontend/js/engine/grade.js). Nothing here touches the DOM, the network or random numbers.
 
 // The eight measures in the batch table, with the labels the table shows. Accuracy-like measures are
 // higher-is-better. Flip-like measures are lower-is-better: a flip or a capitulation is a failure.

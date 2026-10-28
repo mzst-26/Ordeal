@@ -3,9 +3,9 @@
 // the Python reference (scripts/make_golden.py). The setup and confession checks use the flow scenarios.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as adaptive from "../site/js/engine/adaptive.js";
-import * as flows from "../site/js/engine/flows.js";
-import { setupLevel, pushbackSteps, BASELINE_STEP, CONFESSION_STEP } from "../site/js/engine/rules.js";
+import * as adaptive from "../frontend/js/engine/adaptive.js";
+import * as flows from "../frontend/js/engine/flows.js";
+import { setupLevel, pushbackSteps, BASELINE_STEP, CONFESSION_STEP } from "../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
 const adaptiveFixture = readJson("js-tests/fixtures/adaptive_v4_hard.json");

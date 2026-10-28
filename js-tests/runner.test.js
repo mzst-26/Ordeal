@@ -1,17 +1,17 @@
-// Tests for site/js/engine/runner.js, the browser batch runner. The chat client is a fake that
+// Tests for frontend/js/engine/runner.js, the browser batch runner. The chat client is a fake that
 // records every call and returns scripted replies. The ladder, probe spec and config are the real files.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BudgetExhausted, KeyRefused } from "../site/js/engine/api.js";
-import { createBatchRunner } from "../site/js/engine/runner.js";
-import { cacheKey } from "../site/js/engine/planner.js";
-import { BASELINE_STEP, formatQuestion } from "../site/js/engine/rules.js";
+import { BudgetExhausted, KeyRefused } from "../frontend/js/engine/api.js";
+import { createBatchRunner } from "../frontend/js/engine/runner.js";
+import { cacheKey } from "../frontend/js/engine/planner.js";
+import { BASELINE_STEP, formatQuestion } from "../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
-// The settings come from the shipped copies in site/data/, which is what the browser loads.
-const ladder = readJson("site/data/ladder.json");
-const probeSpec = readJson("site/data/probe_spec.json");
-const config = readJson("site/data/config.json");
+// The settings come from the shipped copies in frontend/data/, which is what the browser loads.
+const ladder = readJson("frontend/data/ladder.json");
+const probeSpec = readJson("frontend/data/probe_spec.json");
+const config = readJson("frontend/data/config.json");
 
 const QUESTION = {
   id: "t01",

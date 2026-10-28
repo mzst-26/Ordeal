@@ -1,11 +1,11 @@
-"""Build the data file for the comparison page and embed it in site/compare.html.
+"""Build the data file for the comparison page and embed it in frontend/compare.html.
 
 Every number comes from the grade output: results/results.csv and results/probes.csv.
 results/cache.jsonl is read only for the transcripts and the unparsed-at-last-level share, and only for the experiment code of
 the suite that the CSV files were graded with. If the models in the cache and in the CSV
 files disagree, the script stops and reports the difference.
 
-The script writes site/data/compare/results.json. If site/compare.html exists, it also
+The script writes frontend/data/compare/results.json. If frontend/compare.html exists, it also
 replaces the text of <script id="compare-data" type="application/json"> with that JSON.
 Nothing else in the page changes. If the page is missing, a notice is printed and the
 script still exits 0.
@@ -72,8 +72,8 @@ PERSONALITY_LABELS = {
     "unity": "Joins the chorus",
     "elite_bait": "Hooked by elite framing",
 }
-DEFAULT_SITE_DIR = PROJECT_DIR / "site"
-DEFAULT_OUT = DEFAULT_SITE_DIR / "data" / "compare" / "results.json"
+DEFAULT_FRONTEND_DIR = PROJECT_DIR / "frontend"
+DEFAULT_OUT = DEFAULT_FRONTEND_DIR / "data" / "compare" / "results.json"
 
 
 class BuildError(Exception):
@@ -771,13 +771,13 @@ def is_inside(path, folder):
     return path == folder or folder in path.parents
 
 
-def check_out_path(out, results_dir, site_dir):
-    """Refuse an output path inside results/, or a file placed directly in site/data/ (the existing data files)."""
+def check_out_path(out, results_dir, frontend_dir):
+    """Refuse an output path inside results/, or a file placed directly in frontend/data/ (the existing data files)."""
     resolved = out.resolve()
     if is_inside(resolved, results_dir.resolve()):
         raise BuildError("Refused to write: --out must not be inside the results folder.")
-    if resolved.parent == (site_dir / "data").resolve():
-        raise BuildError("Refused to write: --out must not sit directly in site/data/ (the existing data files live there).")
+    if resolved.parent == (frontend_dir / "data").resolve():
+        raise BuildError("Refused to write: --out must not sit directly in frontend/data/ (the existing data files live there).")
 
 
 def write_text(path, text):
@@ -816,7 +816,7 @@ def parse_args(argv):
     """Read the command-line options. Every path has a default inside the project."""
     parser = argparse.ArgumentParser(description="Build the comparison page data and embed it in the page.")
     parser.add_argument("--results-dir", type=Path, default=core.RESULTS_DIR, help="grade output folder (default: %(default)s)")
-    parser.add_argument("--site-dir", type=Path, default=DEFAULT_SITE_DIR, help="site folder with compare.html (default: %(default)s)")
+    parser.add_argument("--frontend-dir", type=Path, default=DEFAULT_FRONTEND_DIR, help="frontend folder with compare.html (default: %(default)s)")
     parser.add_argument("--models", type=Path, default=core.DATA_DIR / MODELS_NAME, help="saved model file; its details block gives each model's family and size (default: %(default)s)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="data file to write (default: %(default)s)")
     parser.add_argument("--config", type=Path, default=core.CONFIG_PATH, help="settings file; only the mitigation and control prompts are read")
@@ -831,8 +831,8 @@ def main(argv=None):
         data = build_results(args)
         json_text = render_json(data)
         check_no_key_text(args.out.name, json_text)
-        check_out_path(args.out, args.results_dir, args.site_dir)
-        page_path = args.site_dir / PAGE_NAME
+        check_out_path(args.out, args.results_dir, args.frontend_dir)
+        page_path = args.frontend_dir / PAGE_NAME
         new_page = None
         if page_path.is_file():
             new_page = embed_in_page(read_text_exact(page_path), json_text)

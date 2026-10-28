@@ -1,8 +1,8 @@
-// Tests for site/js/app.js: which view a visit asks for, and how the router shows, mounts and titles views.
+// Tests for frontend/js/app.js: which view a visit asks for, and how the router shows, mounts and titles views.
 // The DOM is a small stand-in: only the attributes, the title and the history calls that the router uses.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routeFromLocation, createRouter } from "../site/js/app.js";
+import { routeFromLocation, createRouter } from "../frontend/js/app.js";
 
 /** A stand-in element with the attribute methods the router uses, and `hidden` reflected as an attribute. */
 class FakeElement {

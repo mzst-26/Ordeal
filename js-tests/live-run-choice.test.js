@@ -3,11 +3,11 @@
 // says why when it is chosen.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { replayProblem } from "../site/js/page-live.js";
-import { savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED } from "../site/js/saved-runs.js";
-import { importRunDocument } from "../site/js/store/run-store.js";
-import { createMemoryAdapter } from "../site/js/store/memory-adapter.js";
-import { fixedChoiceMenu, setsOfChoice } from "../site/js/suites.js";
+import { replayProblem } from "../frontend/js/page-live.js";
+import { savedRunRows, KIND_BATCH, SAVED_RUNS_CHANGED } from "../frontend/js/saved-runs.js";
+import { importRunDocument } from "../frontend/js/store/run-store.js";
+import { createMemoryAdapter } from "../frontend/js/store/memory-adapter.js";
+import { fixedChoiceMenu, setsOfChoice } from "../frontend/js/suites.js";
 
 const SAVED_STEP = { steps: [{ condition: "none", model: "M1", question_id: "q1", repeat: 1, step: "level_0", reply: "A" }] };
 

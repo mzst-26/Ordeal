@@ -1,10 +1,10 @@
-"""Check WCAG contrast ratios for the Field Notes colour pairs defined in site/css/tokens.css."""
+"""Check WCAG contrast ratios for the Field Notes colour pairs defined in frontend/css/tokens.css."""
 
 import re
 import sys
 from pathlib import Path
 
-TOKENS_PATH = Path(__file__).resolve().parent.parent / "site" / "css" / "tokens.css"
+TOKENS_PATH = Path(__file__).resolve().parent.parent / "frontend" / "css" / "tokens.css"
 # WCAG AA thresholds: 4.5:1 for normal-size text, 3:1 for non-text UI parts such as outlines and chart marks
 TEXT_MINIMUM = 4.5
 UI_MINIMUM = 3.0

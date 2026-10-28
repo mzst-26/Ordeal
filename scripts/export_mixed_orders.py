@@ -1,7 +1,7 @@
-"""Write the mixed run orders for seeds 1 to 10 into site/data/mixed/, one JSON file per seed.
+"""Write the mixed run orders for seeds 1 to 10 into frontend/data/mixed/, one JSON file per seed.
 
 The browser reads these files, so the site shows the same order that Python runs. Each file is made by
-mix.order_document, the same rule the runner and the tests use. Only site/data/mixed/ is written.
+mix.order_document, the same rule the runner and the tests use. Only frontend/data/mixed/ is written.
 Usage (from the project folder): python scripts/export_mixed_orders.py
 """
 
@@ -18,7 +18,7 @@ from ordeal import mix  # noqa: E402
 # The seeds the site offers. A run picks one of these, so each one needs its own file.
 SEEDS = range(1, 11)
 # Where the browser looks for the files. Only this folder is written.
-OUT_DIR = core.PROJECT_DIR / "site" / "data" / "mixed"
+OUT_DIR = core.PROJECT_DIR / "frontend" / "data" / "mixed"
 
 
 def main() -> int:

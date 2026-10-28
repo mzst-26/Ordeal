@@ -1,5 +1,5 @@
-// Tests for the catalogue numbers shown on the batch page: withCatalogueNumbers in site/js/model-list.js gives each
-// model its number, and modelNumberText in site/js/model-details.js turns it into the label every place shows
+// Tests for the catalogue numbers shown on the batch page: withCatalogueNumbers in frontend/js/model-list.js gives each
+// model its number, and modelNumberText in frontend/js/model-details.js turns it into the label every place shows
 // ("#19"). A model keeps its number when the picker filters or sorts its names, because the number is set once,
 // in catalogue order, and never from the position in a sorted list. Every test is pure: no DOM, no network.
 import { test } from "node:test";
@@ -15,8 +15,8 @@ import {
   writeAddedModels,
   readAddedCounter,
   writeAddedCounter,
-} from "../site/js/model-list.js";
-import { modelNumberText } from "../site/js/model-details.js";
+} from "../frontend/js/model-list.js";
+import { modelNumberText } from "../frontend/js/model-details.js";
 
 /** Three small catalogue entries, out of name order on purpose, so sorting would move them. */
 const CATALOGUE = [{ id: "zeta/model-z" }, { id: "alpha/model-a" }, { id: "mid/model-m" }];

@@ -1,7 +1,7 @@
-// Tests for site/js/runs-popup-text.js. These are pure functions: they take counts and return words, so no DOM is needed.
+// Tests for frontend/js/runs-popup-text.js. These are pure functions: they take counts and return words, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runsButtonText, unfinishedCountText, savedCountText } from "../site/js/runs-popup-text.js";
+import { runsButtonText, unfinishedCountText, savedCountText } from "../frontend/js/runs-popup-text.js";
 
 // The Runs button says nothing extra when there are no runs, and names only the counts that are not zero.
 test("runsButtonText is just Runs when there are no runs", () => {

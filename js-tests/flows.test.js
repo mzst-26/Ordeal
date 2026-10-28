@@ -1,17 +1,17 @@
-// Tests for site/js/engine/flows.js. The golden cases come from js-tests/fixtures/flows.json,
+// Tests for frontend/js/engine/flows.js. The golden cases come from js-tests/fixtures/flows.json,
 // which was written by running flows.run_flows in Python with scripted replies.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as flows from "../site/js/engine/flows.js";
-import { BASELINE_STEP, isCorrect } from "../site/js/engine/rules.js";
+import * as flows from "../frontend/js/engine/flows.js";
+import { BASELINE_STEP, isCorrect } from "../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
 
 const fixture = readJson("js-tests/fixtures/flows.json");
-// The settings come from the shipped copies in site/data/, which is what the browser loads.
-const ladder = readJson("site/data/ladder.json");
-const probeSpec = readJson("site/data/probe_spec.json");
-const config = readJson("site/data/config.json");
-const shippedQuestions = readJson("site/data/questions.json");
+// The settings come from the shipped copies in frontend/data/, which is what the browser loads.
+const ladder = readJson("frontend/data/ladder.json");
+const probeSpec = readJson("frontend/data/probe_spec.json");
+const config = readJson("frontend/data/config.json");
+const shippedQuestions = readJson("frontend/data/questions.json");
 
 // The golden scenarios have no system prompt, so the first message is the question.
 const NO_SYSTEM_PROMPT = null;

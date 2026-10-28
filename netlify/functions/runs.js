@@ -1,7 +1,7 @@
 // The saved-runs API, served at /api/runs. Anyone may read the list or one run. Anyone may save a run, and the browser
 // that saves it is named by the X-Browser-Id header. A browser may hold up to 100 MB of runs, and it may delete only
 // the runs it saved. A save first makes room under the 1.5 GB store cap by removing the oldest runs. Every rule used
-// here is in netlify/lib and site/js/run-retention.js.
+// here is in netlify/lib and frontend/js/run-retention.js.
 
 import { randomUUID } from "node:crypto";
 import { checkNewRun, buildRecord, runIdIsValid, browserIdIsValid, toRetentionRuns } from "../lib/run-rules.js";
@@ -12,7 +12,7 @@ import {
   readRecord,
   removeRecord,
 } from "../lib/run-store.js";
-import { planSizeCleanup, fitsBrowserCap } from "../../site/js/run-retention.js";
+import { planSizeCleanup, fitsBrowserCap } from "../../frontend/js/run-retention.js";
 
 // Netlify reads this to route the address /api/runs to this function.
 export const config = { path: "/api/runs" };

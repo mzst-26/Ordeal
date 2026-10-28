@@ -1,4 +1,4 @@
-// Build for the static site. Vite reads the pages in site/ and writes the built site to dist/, which Netlify publishes.
+// Build for the static site. Vite reads the pages in frontend/ and writes the built site to dist/, which Netlify publishes.
 // The data files and the classic fallback script are not bundled, so they are copied across as they are.
 
 import { cpSync, existsSync, readFileSync } from "node:fs";
@@ -7,9 +7,9 @@ import { extname, resolve, sep } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const SITE_DIR = fileURLToPath(new URL("./site", import.meta.url));
+const FRONTEND_DIR = fileURLToPath(new URL("./frontend", import.meta.url));
 const DIST_DIR = fileURLToPath(new URL("./dist", import.meta.url));
-// Paths under site/ that the pages request as they are, so they are copied into dist/ unchanged.
+// Paths under frontend/ that the pages request as they are, so they are copied into dist/ unchanged.
 const COPIED_PATHS = ["data", "_redirects", "js/load-fallback.js"];
 
 // The full-run summary lives in docs/ and is the only copy. It is served under SUMMARY_URL, so the same
@@ -28,7 +28,7 @@ function copyStaticFiles() {
     apply: "build",
     closeBundle() {
       for (const path of COPIED_PATHS) {
-        const source = resolve(SITE_DIR, path);
+        const source = resolve(FRONTEND_DIR, path);
         if (existsSync(source)) {
           cpSync(source, resolve(DIST_DIR, path), { recursive: true });
         }
@@ -67,8 +67,8 @@ function serveFullRunSummaryInDev() {
 }
 
 export default defineConfig({
-  root: SITE_DIR,
-  // The public folder is off, so Vite does not copy all of site/ into dist/.
+  root: FRONTEND_DIR,
+  // The public folder is off, so Vite does not copy all of frontend/ into dist/.
   publicDir: false,
   plugins: [react(), copyStaticFiles(), serveFullRunSummaryInDev()],
   build: {
@@ -76,12 +76,12 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        index: resolve(SITE_DIR, "index.html"),
-        compare: resolve(SITE_DIR, "compare.html"),
-        batch: resolve(SITE_DIR, "batch.html"),
-        live: resolve(SITE_DIR, "live.html"),
-        pacing: resolve(SITE_DIR, "pacing.html"),
-        runs: resolve(SITE_DIR, "runs.html"),
+        index: resolve(FRONTEND_DIR, "index.html"),
+        compare: resolve(FRONTEND_DIR, "compare.html"),
+        batch: resolve(FRONTEND_DIR, "batch.html"),
+        live: resolve(FRONTEND_DIR, "live.html"),
+        pacing: resolve(FRONTEND_DIR, "pacing.html"),
+        runs: resolve(FRONTEND_DIR, "runs.html"),
       },
     },
   },

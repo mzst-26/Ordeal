@@ -1,4 +1,4 @@
-// Tests for site/js/platforms.js. The platform list is the shared file site/data/providers.json, which the
+// Tests for frontend/js/platforms.js. The platform list is the shared file frontend/data/providers.json, which the
 // export script copies from ordeal/data/providers.json. Every test is pure: no network and no browser storage,
 // except the storage tests, which use a small fake storage object.
 import { test } from 'node:test';
@@ -13,10 +13,10 @@ import {
   findModel,
   readChoice,
   writeChoice,
-} from '../site/js/platforms.js';
+} from '../frontend/js/platforms.js';
 import { readJson } from './helpers.js';
 
-const PROVIDERS = readJson('site/data/providers.json');
+const PROVIDERS = readJson('frontend/data/providers.json');
 const ALL = platformList(PROVIDERS);
 const HF = findPlatform(ALL, 'huggingface');
 const LOCAL = findPlatform(ALL, 'ollama');

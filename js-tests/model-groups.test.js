@@ -1,8 +1,8 @@
 // Tests for the two pure helpers that the model picker uses to sort names under letter headings and to split them into
-// pages: groupByLetter and pageOf in site/js/model-list.js. No DOM and no network.
+// pages: groupByLetter and pageOf in frontend/js/model-list.js. No DOM and no network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { groupByLetter, pageOf, sortModelIds, letterGroups } from '../site/js/model-list.js';
+import { groupByLetter, pageOf, sortModelIds, letterGroups } from '../frontend/js/model-list.js';
 
 // groupByLetter: names are sorted by their full id, ignoring case, and each letter gets one group.
 

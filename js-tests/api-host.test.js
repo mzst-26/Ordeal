@@ -7,14 +7,14 @@ import {
   createChatClient,
   fetchModelIds,
   platformAddressFor,
-} from '../site/js/engine/api.js';
-import { platformList, browserPlatforms, findPlatform } from '../site/js/platforms.js';
+} from '../frontend/js/engine/api.js';
+import { platformList, browserPlatforms, findPlatform } from '../frontend/js/platforms.js';
 import { readJson } from './helpers.js';
 
 // A fake key used only by these tests. Tests never print it.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);
 const WRONG_ADDRESS = 'The API address is not the one this site is allowed to use.';
-const ALL = platformList(readJson('site/data/providers.json'));
+const ALL = platformList(readJson('frontend/data/providers.json'));
 const OPENROUTER = findPlatform(browserPlatforms(ALL), 'openrouter');
 const NEBIUS = findPlatform(browserPlatforms(ALL), 'nebius');
 

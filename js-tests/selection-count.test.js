@@ -1,7 +1,7 @@
-// Tests for site/js/selection-count.js. The element is a small stand-in object: only textContent is used.
+// Tests for frontend/js/selection-count.js. The element is a small stand-in object: only textContent is used.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { selectionCountText, updateSelectionCount } from "../site/js/selection-count.js";
+import { selectionCountText, updateSelectionCount } from "../frontend/js/selection-count.js";
 
 // Wording of the "N of M things selected" label: normal counts, the all-selected case, and an empty list.
 test("selectionCountText reads 3 of 29 models selected", () => {

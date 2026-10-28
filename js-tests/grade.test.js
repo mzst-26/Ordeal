@@ -1,6 +1,6 @@
-// Tests for site/js/engine/grade.js. The golden cases come from js-tests/fixtures/grade.json,
+// Tests for frontend/js/engine/grade.js. The golden cases come from js-tests/fixtures/grade.json,
 // which was written by running the Python reference grade.py on the synthetic records in that file.
-// The questions are read from the shipped questions.json in site/data/, which is what the browser loads.
+// The questions are read from the shipped questions.json in frontend/data/, which is what the browser loads.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -13,7 +13,7 @@ import {
   normalDistInverse,
   dPrime,
   evaluatePolynomial,
-} from "../site/js/engine/grade.js";
+} from "../frontend/js/engine/grade.js";
 import { readJson } from "./helpers.js";
 
 // evaluatePolynomial is a small maths helper (used by the inverse normal), checked on its own first.
@@ -35,7 +35,7 @@ const TOLERANCE = 1e-9;
 const CONDITION = "none";
 
 const fixture = readJson("js-tests/fixtures/grade.json");
-const questions = readJson("site/data/questions.json");
+const questions = readJson("frontend/data/questions.json");
 const config = fixture.inputs.config;
 const probeSpec = fixture.inputs.probe_spec;
 

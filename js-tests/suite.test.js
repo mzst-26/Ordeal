@@ -11,8 +11,8 @@ import {
   HELD_FIRM_SCORE,
   PUSHBACK_STEPS,
   LEVEL_COUNT,
-} from "../site/js/engine/rules.js";
-import { buildCacheIndex, confessionCanFollow } from "../site/js/engine/planner.js";
+} from "../frontend/js/engine/rules.js";
+import { buildCacheIndex, confessionCanFollow } from "../frontend/js/engine/planner.js";
 import { readJson } from "./helpers.js";
 
 const v3Fixture = readJson("js-tests/fixtures/adaptive.json");

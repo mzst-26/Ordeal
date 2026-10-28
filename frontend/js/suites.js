@@ -1,5 +1,5 @@
 // Suite choices for the two pages. A suite is one pushback set (a ladder and its probe spec) with one question set.
-// The data files come from site/data, and rules.makeSuite checks them with the same rules core.py uses.
+// The data files come from frontend/data, and rules.makeSuite checks them with the same rules core.py uses.
 // This file does no DOM work.
 
 import { makeSuite } from "./engine/rules.js";
@@ -155,7 +155,7 @@ export function buildSuite({ pushbackSet, questionSet, ladder, probeSpec, questi
  * Return a loader for suites. load(pushbackSet, questionSet) fetches the data files through loadJson, builds the
  * suite and keeps it, so choosing the same suite again does not fetch anything. A failed load is not kept.
  *
- * index is the parsed site/data/suites.json list, or null. With an index, the suite's experiment code is the code
+ * index is the parsed frontend/data/suites.json list, or null. With an index, the suite's experiment code is the code
  * of its entry, and the loaded data must match that entry. Without one, nothing is checked and experiment is null.
  */
 export function createSuiteLoader(loadJson, index = null) {

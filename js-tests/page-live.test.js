@@ -1,4 +1,4 @@
-// Tests for the Live page module (site/js/page-live.js). The router imports the module and calls
+// Tests for the Live page module (frontend/js/page-live.js). The router imports the module and calls
 // mountLive(root) once, when the view is first shown. Importing must therefore do nothing: no fetch and no
 // page work, because there is no document under node and the view may never be opened.
 import { test } from "node:test";
@@ -14,7 +14,7 @@ test("importing the Live page does not fetch or build the page, and exports moun
     throw new Error("fetch should not run at import");
   };
   try {
-    const page = await import("../site/js/page-live.js");
+    const page = await import("../frontend/js/page-live.js");
     assert.equal(typeof page.mountLive, "function");
     assert.equal(fetchCalls, 0);
   } finally {

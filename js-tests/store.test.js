@@ -1,9 +1,9 @@
-// Tests for the saved-run store in site/js/store/. Storage is the memory adapter, so nothing touches a
+// Tests for the saved-run store in frontend/js/store/. Storage is the memory adapter, so nothing touches a
 // browser or the network. The IndexedDB adapter is only checked for its available() false path, using fakes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMemoryAdapter } from '../site/js/store/memory-adapter.js';
-import { createIdbAdapter, IDB_NAME, IDB_VERSION, IDB_STORE } from '../site/js/store/idb-adapter.js';
+import { createMemoryAdapter } from '../frontend/js/store/memory-adapter.js';
+import { createIdbAdapter, IDB_NAME, IDB_VERSION, IDB_STORE } from '../frontend/js/store/idb-adapter.js';
 import {
   RUNS_STORE,
   STATUSES,
@@ -21,7 +21,7 @@ import {
   interruptedRuns,
   assertNoSecrets,
   openRunStorage,
-} from '../site/js/store/run-store.js';
+} from '../frontend/js/store/run-store.js';
 
 // The fixed messages, as the store words them. A test fails if the wording changes by accident.
 const TRANSITION_MESSAGE = 'That status change is not allowed for this run.';

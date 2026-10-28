@@ -1,4 +1,4 @@
-"""Export the public data the static site needs into site/data/.
+"""Export the public data the static site needs into frontend/data/.
 
 The website never reads the project's private files. This script copies the
 pressure ladder and the probe spec as they are, writes the questions and a
@@ -11,10 +11,10 @@ environment variables. Before it writes anything, it checks every output for
 key-like strings and refuses to write if one is found.
 """
 
-# Module overview: run `python scripts/export_site_data.py` to refresh site/data/.
+# Module overview: run `python scripts/export_site_data.py` to refresh frontend/data/.
 # Run with --new-files-only to write just the files added for the v4 ladder and
 # the hard question set, leaving the older site files untouched. Run with
-# --rate-limits-only to write just site/data/rate_limits.json.
+# --rate-limits-only to write just frontend/data/rate_limits.json.
 import csv
 import hashlib
 import json
@@ -30,7 +30,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 from ordeal import core  # noqa: E402  (needs the project folder on sys.path first)
 
 # Where every exported file is written.
-SITE_DATA_DIR = PROJECT_DIR / "site" / "data"
+FRONTEND_DATA_DIR = PROJECT_DIR / "frontend" / "data"
 # Value stored in version.json to say which project the export came from.
 SOURCE_NAME = "Ordeal"
 MANIFEST_NAME = "manifest.json"
@@ -50,7 +50,7 @@ RATE_LIMITS_OBSERVED_PATH = core.RESULTS_DIR / "rate_limits.json"
 RATE_LIMITS_SITE_NAME = "rate_limits.json"
 # Command-line flag that switches the script to write_new_files() instead of main().
 NEW_FILES_FLAG = "--new-files-only"
-# Command-line flag that writes only site/data/rate_limits.json. It leaves the other site files alone, so it
+# Command-line flag that writes only frontend/data/rate_limits.json. It leaves the other site files alone, so it
 # is safe to run when there are no local results (main() would then write empty results files).
 RATE_LIMITS_FLAG = "--rate-limits-only"
 # File names the v4 ladder and v4 probe spec get on the site.
@@ -243,9 +243,9 @@ def build_manifest(entries):
 
 
 def write_file(name, data_bytes):
-    """Write one output file into site/data/, creating the folder if it is missing."""
-    SITE_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    (SITE_DATA_DIR / name).write_bytes(data_bytes)
+    """Write one output file into frontend/data/, creating the folder if it is missing."""
+    FRONTEND_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (FRONTEND_DATA_DIR / name).write_bytes(data_bytes)
 
 
 def print_summary(name, data_bytes, data):
@@ -322,8 +322,8 @@ def build_new_outputs():
 
 
 def write_new_files():
-    """Write only the files added for the new suites. Existing site/data files are never touched."""
-    # Check every file before writing any, so a failure leaves site/data/ unchanged.
+    """Write only the files added for the new suites. Existing frontend/data files are never touched."""
+    # Check every file before writing any, so a failure leaves frontend/data/ unchanged.
     # Return value is the process exit code: 0 for success, 1 if a file was refused.
     try:
         outputs = build_new_outputs()
@@ -377,8 +377,8 @@ def build_rate_limits_output():
 
 
 def write_rate_limits_only():
-    """Write only site/data/rate_limits.json. Return 0 on success, 1 if the file was refused."""
-    # Check the bytes before writing, so a refused file leaves site/data/ unchanged.
+    """Write only frontend/data/rate_limits.json. Return 0 on success, 1 if the file was refused."""
+    # Check the bytes before writing, so a refused file leaves frontend/data/ unchanged.
     try:
         name, data, data_bytes = build_rate_limits_output()
         check_no_key_text(name, data_bytes)

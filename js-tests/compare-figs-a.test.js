@@ -2,9 +2,9 @@
 // The figure modules draw into the page only inside mount(), so these tests import the helpers and never touch the DOM.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sortHeatmapRows, heatmapFill, heatmapLabelTokens, bandLabel } from "../site/js/compare/fig-fingerprint.js";
-import { countSurvivors, survivorState, survivorSentence } from "../site/js/compare/fig-survivors.js";
-import { deltaLabel, conditionCaption, mitigationRate } from "../site/js/compare/fig-mitigation.js";
+import { sortHeatmapRows, heatmapFill, heatmapLabelTokens, bandLabel } from "../frontend/js/compare/fig-fingerprint.js";
+import { countSurvivors, survivorState, survivorSentence } from "../frontend/js/compare/fig-survivors.js";
+import { deltaLabel, conditionCaption, mitigationRate } from "../frontend/js/compare/fig-mitigation.js";
 
 // Small builders for rate objects (value plus a +/-0.05 interval) and for the not-run shape (all fields null).
 const rate = (value, extra = {}) => ({ rate: value, ci_low: value - 0.05, ci_high: value + 0.05, n: 56, ...extra });

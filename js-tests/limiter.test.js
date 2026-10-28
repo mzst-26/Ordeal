@@ -1,7 +1,7 @@
-// Tests for the per-model limiter (site/js/engine/limiter.js): each model gets its own places, and a failed task frees its place.
+// Tests for the per-model limiter (frontend/js/engine/limiter.js): each model gets its own places, and a failed task frees its place.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createModelLimiter } from '../site/js/engine/limiter.js';
+import { createModelLimiter } from '../frontend/js/engine/limiter.js';
 
 /** A task that records how many tasks of its model are running at the same time, then waits for a release. */
 function gatedTask(counter, model, release) {

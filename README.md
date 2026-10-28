@@ -221,7 +221,7 @@ which file a set uses.
 
 ## Saved runs and presets (web)
 
-The website (`site/`) has two pages that run the experiment in the browser: The Gauntlet and The Batch.
+The website (`frontend/`) has two pages that run the experiment in the browser: The Gauntlet and The Batch.
 
 - **Saved runs** are kept in the browser's IndexedDB, in the database `sycophancy-meter`. Each unit is saved
   when it finishes. A run can be resumed after a reload, and a resumed run does not repeat any saved call.
@@ -399,7 +399,7 @@ The browser side is built with Vite and React. Install the packages once, then b
 ```bash
 npm ci
 npm run build    # writes dist/, the folder Netlify publishes
-npm run dev      # live preview of site/ while you edit it
+npm run dev      # live preview of frontend/ while you edit it
 npm test         # Node tests for the browser code
 ```
 
@@ -407,7 +407,7 @@ The Python backend is separate. Its commands above do not need npm.
 
 ## Files
 
-The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the build and check tools are in `scripts/`. Run a module from the project folder with `python -m ordeal.<name>`, as the commands above do. The static site is in `site/`.
+The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the build and check tools are in `scripts/`. Run a module from the project folder with `python -m ordeal.<name>`, as the commands above do. The static site is in `frontend/`.
 
 | File | What it is |
 | --- | --- |
@@ -434,8 +434,8 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `requirements.txt` | The libraries: openai, numpy and matplotlib. |
 | `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
 | `tests/` | Unit tests for the scripts and the data files. |
-| `js-tests/` | Node tests for the browser code in `site/js/`, which must match the Python reference. |
-| `site/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `site/data/`. The header is React (`site/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
+| `js-tests/` | Node tests for the browser code in `frontend/js/`, which must match the Python reference. |
+| `frontend/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `frontend/data/`. The header is React (`frontend/js/react/`); the view pages are plain modules. `npm run build` writes it to `dist/`. |
 | `vite.config.js` | Vite settings: the four pages, and the data files copied into `dist/`. |
 | `package.json` | npm scripts (`dev`, `build`, `test`), and the React and Vite packages. |
 | `results/` | Everything the scripts write: saved replies, the CSV files and the pictures. Not in git. |

@@ -1,4 +1,4 @@
-// Tests for site/js/engine/custom-model.js. The golden cases come from js-tests/fixtures/custom_model.json,
+// Tests for frontend/js/engine/custom-model.js. The golden cases come from js-tests/fixtures/custom_model.json,
 // which was written by running the Python rules in model_client.py (scripts/make_golden.py).
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import {
   modelNameProblem,
   CUSTOM_MODEL_REASONS,
   MODEL_NAME_REASONS,
-} from "../site/js/engine/custom-model.js";
+} from "../frontend/js/engine/custom-model.js";
 import { readJson } from "./helpers.js";
 
 const fixture = readJson("js-tests/fixtures/custom_model.json");
