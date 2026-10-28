@@ -1,0 +1,5 @@
+# GitHub reads this file to decide which languages the repo reports.
+# It takes only the largest language per repo for cards, by bytes.
+# tests/js holds browser test code, not product code. Marking it
+# vendored keeps the test JavaScript from outweighing the Python code.
+tests/js/** linguist-vendored
