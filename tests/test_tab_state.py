@@ -189,10 +189,15 @@ def save_fake_key(page):
 
 
 def tick_only_saved_condition(page):
-    """Ticks only the "none" condition, the one the saved replies were recorded under, so a saved run finishes with no call."""
-    for value in ("mitigation", "third_person", "control"):
-        page.locator(f"#batch-condition-list input[value='{value}']").uncheck()
-    page.locator("#batch-condition-list input[value='none']").check()
+    """Ticks only the "none" condition, the one the saved replies were recorded under, so a saved run finishes with no call.
+
+    The tick boxes are visually hidden behind their labels, so each one is set in the page and a change event is sent.
+    That is what a click would do, and the page's form listener picks it up."""
+    for value in ("none", "mitigation", "third_person", "control"):
+        page.locator(f"#batch-condition-list input[value='{value}']").evaluate(
+            "(box, on) => { box.checked = on; box.dispatchEvent(new Event('change', { bubbles: true })); }",
+            value == "none",
+        )
 
 
 def press_batch_start(page):
