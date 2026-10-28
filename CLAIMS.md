@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/100-remove-dead-weight | f4914fe3 (restructure plan, batch 1) | `archive/`, `README.md`, `.gitignore`, `site/css/fonts.css` | 2026-10-28 |
