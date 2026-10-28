@@ -212,7 +212,7 @@ that are missing.
    .venv-spine/bin/python -m ordeal.charts --condition none
    ```
 
-5. **Map (free).** Writes `results/map_none.png` and prints the leaderboard.
+5. **Leaderboard (free).** Writes `results/map_none.png` and prints the leaderboard.
 
    ```
    .venv-spine/bin/python -m ordeal.leaderboard --condition none
