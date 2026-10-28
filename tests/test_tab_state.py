@@ -188,6 +188,13 @@ def save_fake_key(page):
     expect(dialog).to_be_hidden(timeout=SHORT_MS)
 
 
+def tick_only_saved_condition(page):
+    """Ticks only the "none" condition, the one the saved replies were recorded under, so a saved run finishes with no call."""
+    for value in ("mitigation", "third_person", "control"):
+        page.locator(f"#batch-condition-list input[value='{value}']").uncheck()
+    page.locator("#batch-condition-list input[value='none']").check()
+
+
 def press_batch_start(page):
     """Presses Start on the Batch page and gets past the key and the confirmation step, if they appear."""
     # The site currently repeats these two ids, so the first match is the one the page script binds to.
@@ -231,6 +238,7 @@ class TabStateTests(unittest.TestCase):
             picker.get_by_role("button", name="Done").click()
             ticked = checked_models(page)
             self.assertEqual(len(ticked), 2, "Two models should be ticked before the switch")
+            tick_only_saved_condition(page)
 
             press_batch_start(page)
             status = page.locator("#batch-status-line")

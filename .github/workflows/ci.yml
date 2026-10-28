@@ -69,7 +69,9 @@ jobs:
         with:
           node-version: 22
 
-      # The tests import the site modules directly and need no installed packages.
+      # The server function tests import the Netlify Blobs package, so the packages are installed first.
+      - run: npm ci
+
       - run: npm test
 
   build:
