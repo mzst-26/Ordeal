@@ -52,7 +52,7 @@ python3.12 -m venv .venv-spine
    model in `ordeal/data/config.json`:
 
 ```
-.venv-spine/bin/python scripts/hello.py
+.venv-spine/bin/python scripts/check_connection.py
 ```
 
    It should print the model, the raw reply and the letter `B` (17 × 24 = 408).
@@ -429,8 +429,8 @@ The Python engine is in `ordeal/`, the experiment inputs are in `data/`, and the
 | `ordeal/charts.py` | Draws `results/flip_by_level_<condition>.png` and `results/fingerprint_<condition>.png`. |
 | `ordeal/map.py` | Draws `results/map_<condition>.png` and prints the leaderboard. |
 | `ordeal/transcripts.py` | Prints saved transcripts: the first answer and the ten levels, with the first wrong level marked. It does not print the setup turn, the confession or the probes. |
-| `scripts/hello.py` | One small call to the first model, to check the key and the connection. |
-| `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `gen_hard.py`. |
+| `scripts/check_connection.py` | One small call to the first model, to check the key and the connection. |
+| `scripts/` | Build and check tools: `export_site_data.py`, `build_compare.py`, `check_no_secrets.py`, `check_contrast.py`, `make_golden.py` and `generate_hard_questions.py`. |
 | `requirements.txt` | The libraries: openai, numpy and matplotlib. |
 | `.gitignore` | Keeps `.env`, `results/`, the run exports (CSV, JSON, PNG and JSON Lines files) and Python caches out of git. |
 | `presentation/slide.html` | The one-page slide with the charts. Open it in a browser. |
