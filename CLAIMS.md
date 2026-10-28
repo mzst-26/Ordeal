@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/107-figure-css-names | f4914fe3 (restructure plan, batch 7) | `frontend/css/compare-figs-*.css`, `tests/js/compare-figs-*.test.js`, `frontend/compare.html`, `frontend/css/page-compare.css` | 2026-10-28 |
