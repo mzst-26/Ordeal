@@ -6,6 +6,10 @@ import { startApp } from "./app.js";
 import { vault } from "./engine/token.js";
 import { SiteHeader } from "./react/SiteHeader.jsx";
 import { mountPlatformSection } from "./models/platform-section.js";
+import { keepBannerHeight } from "./ui/banner-height.js";
+
+// Place the levels-drawer offset under the storage banner before the header and views are drawn.
+keepBannerHeight();
 
 startApp({
   renderHeader(navigate) {
