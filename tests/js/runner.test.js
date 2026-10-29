@@ -2,7 +2,7 @@
 // records every call and returns scripted replies. The ladder, probe spec and config are the real files.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BudgetExhausted, KeyRefused, RateLimited } from "../../frontend/js/engine/api.js";
+import { BudgetExhausted, KeyRefused, RateLimited, UnusableReply } from "../../frontend/js/engine/api.js";
 import { createBatchRunner } from "../../frontend/js/engine/runner.js";
 import { cacheKey } from "../../frontend/js/engine/planner.js";
 import { BASELINE_STEP, formatQuestion } from "../../frontend/js/engine/rules.js";
@@ -114,7 +114,7 @@ test("one gauntlet unit sends the baseline, ten levels and setup_4, then finishe
   assert.equal(progress.at(-1).done, progress.at(-1).total);
   assert.equal(progress.at(-1).total, 1);
   assert.deepEqual(runner.status(), {
-    done: 1, total: 1, calls: 12, reused: 0, failed: 0, state: "finished",
+    done: 1, total: 1, calls: 12, reused: 0, failed: 0, unusable: 0, state: "finished",
   });
 });
 
@@ -352,7 +352,7 @@ test("a unit that throws emits unit-failed, the other units still finish, and on
   assert.deepEqual(kinds(endEvents), ["finished"]);
   assert.equal(events.at(-1).kind, "finished");
   assert.deepEqual(runner.status(), {
-    done: 1, total: 2, calls: 1, reused: 0, failed: 1, state: "finished",
+    done: 1, total: 2, calls: 1, reused: 0, failed: 1, unusable: 0, state: "finished",
   });
 });
 
@@ -393,7 +393,7 @@ test("a unit cut short by a failed call is not counted as done", async () => {
 
   assert.equal(events.some((event) => event.kind === "unit-done"), false);
   assert.deepEqual(runner.status(), {
-    done: 0, total: 1, calls: 0, reused: 0, failed: 1, state: "finished",
+    done: 0, total: 1, calls: 0, reused: 0, failed: 1, unusable: 0, state: "finished",
   });
 });
 
@@ -435,4 +435,37 @@ test("a long rate-limit pause stops the batch at once: no second call and one ra
   assert.equal(events.some((event) => event.kind === "step-failed"), false);
   assert.equal(events.at(-1).kind, "stopped");
   assert.equal(runner.status().state, "stopped");
+});
+
+test("an unusable reply fails the step as unusable and is never saved, so the next Start calls it again", async () => {
+  const client = new FakeClient(() => {
+    throw new UnusableReply("empty");
+  });
+  const { runner, events, cache } = buildRunner(client);
+
+  await runner.start();
+
+  const failures = events.filter((event) => event.kind === "step-failed");
+  assert.equal(failures.length, client.calls.length);
+  assert.ok(failures.every((event) => event.reason === "unusable"));
+  assert.equal(cache.size, 0);
+  assert.equal(runner.status().unusable, client.calls.length);
+  assert.equal(runner.status().failed, client.calls.length);
+});
+
+test("the rate-limited event carries the seconds the platform asked for", async () => {
+  const client = new FakeClient((callNumber) => {
+    if (callNumber === 1) throw new RateLimited(600);
+    return "Answer: B";
+  });
+  const { runner, events } = buildRunner(client, {
+    models: ["model-a", "model-b", "model-c"],
+    families: new Set(),
+    concurrency: 1,
+  });
+
+  await runner.start();
+
+  const notice = events.find((event) => event.kind === "rate-limited");
+  assert.equal(notice.waitSeconds, 600);
 });

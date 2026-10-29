@@ -1,7 +1,7 @@
 // Runs many units (one model, one question, one repeat each) in the browser. It reuses saved replies,
 // limits how many calls are in flight, and can be paused, resumed and stopped. This is the browser port
 // of run_all in runner.py. It never reads the API key: the client holds it, and no event carries it.
-import { BudgetExhausted, KeyRefused, RateLimited } from "./api.js";
+import { BudgetExhausted, KeyRefused, RateLimited, UnusableReply } from "./api.js";
 import { runFlows } from "./flows.js";
 import { cacheKey, makeUnits } from "./planner.js";
 import { BASELINE_STEP, formatQuestion, systemPromptFor } from "./rules.js";
@@ -114,7 +114,10 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
       shared.reportRateLimited(error);
     } else if (!shared.stopRequested) {
       shared.counts.failed += 1;
-      shared.emit({ kind: "step-failed", ...unitFields(unit), step, message: errorMessage(error) });
+      const unusable = error instanceof UnusableReply;
+      if (unusable) shared.counts.unusable += 1;
+      const reason = unusable ? "unusable" : "other";
+      shared.emit({ kind: "step-failed", ...unitFields(unit), step, reason, message: errorMessage(error) });
     }
     return null;
   }
@@ -240,7 +243,7 @@ export function createBatchRunner({
 
   /** Emit rate-limited once, then stop the batch. A long pause is not waited out, so the run can be resumed later. */
   function reportRateLimited(error) {
-    endWithNotice({ kind: "rate-limited", message: errorMessage(error) });
+    endWithNotice({ kind: "rate-limited", message: errorMessage(error), waitSeconds: error.waitSeconds });
   }
 
   const shared = {
@@ -248,7 +251,7 @@ export function createBatchRunner({
     stopRequested: false,
     noticeSent: false,
     controller: new AbortController(),
-    counts: { done: 0, calls: 0, reused: 0, failed: 0 },
+    counts: { done: 0, calls: 0, reused: 0, failed: 0, unusable: 0 },
     emit: (event) => {
       log.record(event.kind, event);
       onEvent(event);
@@ -382,8 +385,8 @@ export function createBatchRunner({
     },
     /** Return the counts and the state name. */
     status() {
-      const { done, calls, reused, failed } = shared.counts;
-      return { done, total, calls, reused, failed, state: currentState() };
+      const { done, calls, reused, failed, unusable } = shared.counts;
+      return { done, total, calls, reused, failed, unusable, state: currentState() };
     },
   };
 }

@@ -6,6 +6,7 @@ import {
   BudgetExhausted,
   KeyRefused,
   RateLimited,
+  UnusableReply,
   MAX_ATTEMPTS_PER_STEP,
   MAX_RETRIES,
   createBudget,
@@ -91,6 +92,7 @@ function makeClient({
   hasKey = true,
   sleepImpl = null,
   pacer = undefined,
+  onWait = undefined,
 }) {
   const vault = createTokenVault();
   if (hasKey) vault.set(FAKE_KEY, { platform: 'test' });
@@ -114,6 +116,7 @@ function makeClient({
     sleep: sleepImpl ?? recordingSleep,
     pacer: pacer ?? createPlatformPacer({ now: () => clock.now }),
     random: () => 0,
+    onWait,
   });
   return { client, calls: fake.calls, sleeps };
 }
@@ -703,4 +706,69 @@ test('accepted calls still use up the cap', async () => {
   const error = await errorFrom(client.complete(sampleRequest()));
   assert.ok(error instanceof BudgetExhausted);
   assert.equal(budget.used(), 1);
+});
+
+// Unusable replies: an empty reply, or one cut short at the reply size limit. The same settings would give the same
+// reply, so these are not retried. The runner counts them, so the page can suggest a larger reply size.
+test('a reply cut short at the reply size limit throws UnusableReply with reason length, and is not retried', async () => {
+  const cutShort = { choices: [{ finish_reason: 'length', message: { content: 'Answer:' } }] };
+  const { client, calls } = makeClient({ script: [fakeResponse(200, cutShort), replyWith('ok')] });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof UnusableReply, 'a cut-short reply should throw UnusableReply');
+  assert.equal(error.reason, 'length');
+  assert.equal(calls.length, 1);
+});
+
+test('a reply that is only a control token counts as having no text', async () => {
+  const { client, calls } = makeClient({ script: [replyWith('<|start|>assistant<|channel|>'), replyWith('ok')] });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof UnusableReply, 'a control-token reply should throw UnusableReply');
+  assert.equal(error.reason, 'empty');
+  assert.equal(error.message, NO_TEXT);
+  assert.equal(calls.length, 1);
+});
+
+test('a reply of only spaces counts as having no text', async () => {
+  const { client } = makeClient({ script: [replyWith('   ')] });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof UnusableReply);
+  assert.equal(error.reason, 'empty');
+});
+
+test('a real reply that is cut short but has text is still returned as the reply', async () => {
+  const { client } = makeClient({
+    script: [fakeResponse(200, { choices: [{ finish_reason: 'stop', message: { content: 'Answer: B' } }] })],
+  });
+  assert.equal(await client.complete(sampleRequest()), 'Answer: B');
+});
+
+test('a long pause carries the seconds the platform asked for', async () => {
+  const { client } = makeClient({ script: [fakeResponse(429, {}, { 'retry-after': '3600' })] });
+  const error = await errorFrom(client.complete(sampleRequest()));
+  assert.ok(error instanceof RateLimited);
+  assert.equal(error.waitSeconds, 3600);
+});
+
+test('onWait reports a rate-limit wait before the client sleeps', async () => {
+  const waits = [];
+  const { client, sleeps } = makeClient({
+    script: [fakeResponse(429, {}, { 'retry-after': '7' }), replyWith('ok')],
+    onWait: (wait) => waits.push(wait),
+  });
+  await client.complete(sampleRequest());
+  assert.deepEqual(waits, [{ model: 'test-model', reason: 'rate-limit', seconds: 7, afterTry: 1 }]);
+  assert.deepEqual(sleeps, [7]);
+});
+
+test('onWait reports a wait for a platform that is still parked, as a platform pause', async () => {
+  const waits = [];
+  const pacer = createPlatformPacer({ now: () => 0 });
+  pacer.recordRateLimit(3);
+  const { client } = makeClient({
+    script: [replyWith('ok')],
+    pacer,
+    onWait: (wait) => waits.push(wait),
+  });
+  await client.complete(sampleRequest());
+  assert.deepEqual(waits, [{ model: 'test-model', reason: 'platform-pause', seconds: 3, afterTry: 0 }]);
 });

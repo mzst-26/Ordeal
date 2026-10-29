@@ -12,6 +12,13 @@ const OTHER_PLATFORM_KEY_MESSAGE = 'The saved key belongs to another platform. E
 const KEY_REFUSED_MESSAGE = 'The key was refused. Check the key and try again.';
 const STOPPED_MESSAGE = 'Stopped by you.';
 const NO_TEXT_MESSAGE = 'The reply had no text.';
+const CUT_SHORT_MESSAGE = 'The reply was cut short at the reply size limit.';
+// Some reasoning models write their own control tokens, such as <|start|>assistant<|channel|>, instead of an answer.
+// Those tokens, and the role word a model writes after <|start|>, are not text.
+const CONTROL_TOKEN = /<\|[^|>]*\|>/g;
+const LEFTOVER_ROLE_WORD = /^\s*assistant\s*/i;
+// Where the batch's wait callback is not given, a wait is reported to nobody.
+const NO_WAIT = () => {};
 const NETWORK_MESSAGE = 'A network problem stopped the request. Check your connection and try again.';
 const TIMEOUT_MESSAGE = 'The request timed out.';
 const WRONG_ADDRESS_MESSAGE = 'The API address is not the one this site is allowed to use.';
@@ -53,9 +60,24 @@ export class KeyRefused extends Error {
  * is usually a cap that resets later, such as a daily one. Waiting would hold the batch for hours, so it stops instead.
  */
 export class RateLimited extends Error {
-  constructor() {
+  // waitSeconds is the pause the platform asked for, or null when it did not say. The page shows it with a resume time.
+  constructor(waitSeconds = null) {
     super(RATE_LIMITED_MESSAGE);
     this.name = 'RateLimited';
+    this.waitSeconds = waitSeconds;
+  }
+}
+
+/**
+ * A reply that cannot be used: it was cut short at the reply size limit ('length'), or it has no words in it ('empty').
+ * It is not retried, because the same settings would give the same reply. The runner counts these, so the page can
+ * suggest a larger reply size.
+ */
+export class UnusableReply extends Error {
+  constructor(reason) {
+    super(reason === 'length' ? CUT_SHORT_MESSAGE : NO_TEXT_MESSAGE);
+    this.name = 'UnusableReply';
+    this.reason = reason;
   }
 }
 
@@ -175,11 +197,21 @@ function describeStatus(status) {
   return `The service rejected the request (HTTP ${status}).`;
 }
 
+/** Return the first choice of a parsed reply, or undefined when there is none. */
+function firstChoice(json) {
+  return json && json.choices ? json.choices[0] : undefined;
+}
+
 /** Return the reply text from a parsed reply, or null when it is missing. */
 function readReplyText(json) {
-  const choice = json && json.choices ? json.choices[0] : undefined;
+  const choice = firstChoice(json);
   const content = choice && choice.message ? choice.message.content : undefined;
   return typeof content === 'string' ? content : null;
+}
+
+/** Return true when a reply has words in it, not only spaces, control tokens or a leftover role word. */
+function hasWords(text) {
+  return text.replace(CONTROL_TOKEN, '').replace(LEFTOVER_ROLE_WORD, '').trim() !== '';
 }
 
 /** Parse the JSON body of a response, or return null if the body is not valid JSON. */
@@ -237,8 +269,11 @@ function retryAfterSeconds(response) {
 /** Turn a completed HTTP response into a reply, a retry decision, or a final error. */
 function interpretResponse(status, json, retryAfter) {
   if (isSuccess(status)) {
+    const choice = firstChoice(json);
+    // The platform says so itself when the reply ran out of room, so this is checked before the text.
+    if (choice && choice.finish_reason === 'length') throw new UnusableReply('length');
     const text = readReplyText(json);
-    if (text === null) throw new Error(NO_TEXT_MESSAGE);
+    if (text === null || !hasWords(text)) throw new UnusableReply('empty');
     return { ok: true, text, status };
   }
   if (status === 401 || status === 403) throw new KeyRefused();
@@ -365,6 +400,7 @@ export function createChatClient({
   perModelLimit = DEFAULT_PER_MODEL_LIMIT,
   pacer = createPlatformPacer(),
   random = Math.random,
+  onWait = NO_WAIT,
 }) {
   // Check the address before any request is made and before the key is read. The chat address comes from the platform.
   const chatUrl = platformAddressFor(platform, 'chat/completions');
@@ -379,7 +415,10 @@ export function createChatClient({
    */
   async function attemptWithPacing(context) {
     const parkedMs = pacer.waitMs();
-    if (parkedMs > 0) await waitUnlessStopped(sleep(parkedMs / 1000, context.signal), context.signal);
+    if (parkedMs > 0) {
+      onWait({ model: context.model, reason: 'platform-pause', seconds: parkedMs / 1000, afterTry: context.attempt });
+      await waitUnlessStopped(sleep(parkedMs / 1000, context.signal), context.signal);
+    }
     const outcome = await limiter.run(context.model, () => platformLimiter.run(PLATFORM_QUEUE, () => attemptOnce(context)));
     if (outcome.ok) pacer.recordSuccess();
     return outcome;
@@ -392,7 +431,7 @@ export function createChatClient({
    */
   function waitBeforeRetry(outcome, attempt) {
     if (outcome.status !== 429) return backoffSeconds(attempt);
-    if (isLongWait(outcome.retryAfter)) throw new RateLimited();
+    if (isLongWait(outcome.retryAfter)) throw new RateLimited(outcome.retryAfter);
     return pacer.recordRateLimit(rateLimitSeconds(outcome.retryAfter, attempt, random));
   }
 
@@ -422,7 +461,9 @@ export function createChatClient({
     let outcome = await attemptWithPacing(context);
     while (!outcome.ok && outcome.retryable && context.attempt < maxRetries) {
       const seconds = waitBeforeRetry(outcome, context.attempt);
+      const reason = outcome.status === 429 ? 'rate-limit' : 'retry';
       log.record('retry-wait', { model, after_attempt: context.attempt + 1, seconds });
+      onWait({ model, reason, seconds, afterTry: context.attempt + 1 });
       await waitUnlessStopped(sleep(seconds, signal), signal);
       context.attempt += 1;
       outcome = await attemptWithPacing(context);
