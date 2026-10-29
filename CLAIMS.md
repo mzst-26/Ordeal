@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/continue-older-set | session 4b71b7c1 (Claude) | frontend/js/runs/run-housekeeping.js, frontend/js/store/run-store.js, frontend/js/pages/page-batch.js, tests/js/run-housekeeping.test.js, tests/js/store.test.js | 2026-10-29 |
