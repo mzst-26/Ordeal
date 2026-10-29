@@ -10,6 +10,8 @@ import {
   buildRecord,
   summaryOf,
   toRetentionRuns,
+  savedUnitCount,
+  wouldShrink,
 } from "../../netlify/lib/run-rules.js";
 
 const VALID_ID = "3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f";
@@ -75,3 +77,18 @@ test("the runs handler answers 400 to a save or delete that names no browser", a
   assert.equal(deleted.status, 400);
   assert.equal(saved.status, 400);
 });
+
+// A saved run only grows, so a save with fewer saved units than the copy on the server would throw units away. It is refused.
+test("a save with fewer saved units than the stored copy is refused, and one that keeps or adds units is allowed", () => {
+  const stored = { results: { a: {}, b: {}, c: {} } };
+  assert.equal(savedUnitCount(stored), 3);
+  assert.equal(wouldShrink(stored, { results: { a: {}, b: {} } }), true);
+  assert.equal(wouldShrink(stored, { results: { a: {}, b: {}, c: {} } }), false);
+  assert.equal(wouldShrink(stored, { results: { a: {}, b: {}, c: {}, d: {} } }), false);
+});
+
+test("a run with no saved units counts as zero, so an empty save never shrinks a copy that has units", () => {
+  assert.equal(savedUnitCount({}), 0);
+  assert.equal(wouldShrink({ results: { a: {} } }, {}), true);
+});
+

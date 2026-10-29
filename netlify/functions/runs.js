@@ -4,7 +4,7 @@
 // here is in netlify/lib and frontend/js/web-runs/run-retention.js.
 
 import { randomUUID } from "node:crypto";
-import { checkNewRun, buildRecord, runIdIsValid, browserIdIsValid, toRetentionRuns } from "../lib/run-rules.js";
+import { checkNewRun, buildRecord, runIdIsValid, browserIdIsValid, toRetentionRuns, wouldShrink } from "../lib/run-rules.js";
 import {
   openRunStore,
   listSummaries,
@@ -95,6 +95,10 @@ async function handlePost(request) {
   const existing = await readRecord(store, body.id);
   if (existing !== null && existing.owner !== owner) {
     return jsonResponse(403, { error: "That run was saved from another browser." });
+  }
+  // Saved units are never removed, so a save with fewer units than the server's copy is refused, not written over it.
+  if (existing !== null && wouldShrink(existing.run, body.run)) {
+    return jsonResponse(409, { error: "This save has fewer saved units than the copy on the server, so it was refused." });
   }
   const createdAt = existing === null ? Date.now() : existing.createdAt;
   const record = buildRecord(body, createdAt, owner);
