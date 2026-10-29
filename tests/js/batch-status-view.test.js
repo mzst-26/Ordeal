@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildStatusView } from '../../frontend/js/pages/batch-status-view.js';
-import { MIN_ACTIVE_SECONDS_FOR_ESTIMATE, MIN_CALLS_FOR_ESTIMATE } from '../../frontend/js/engine/run-pace.js';
+import { MIN_ACTIVE_SECONDS_FOR_ESTIMATE } from '../../frontend/js/engine/run-pace.js';
 
 const NOW = 1_000_000;
 
@@ -16,6 +16,7 @@ function input(overrides = {}) {
     saved: null,
     activeSeconds: 600,
     callsPerMinute: 4,
+    unitsInWindow: 3,
     estimate: { state: 'estimating' },
     wait: null,
     nowMs: NOW,
@@ -31,20 +32,35 @@ test('a run with no numbers yet says it is measuring speed and estimating', () =
   assert.match(view.eta, /^Estimating/);
 });
 
-test('the estimate names the typical time and the range', () => {
-  const view = buildStatusView(input({
-    estimate: { state: 'ready', seconds: 3600, lowSeconds: 1800, highSeconds: 5400 },
-  }));
-  assert.equal(view.eta, 'About 1 h 0 min left (between 30 min and 1 h 30 min).');
+test('the estimate gives the time left at the pace of the last window', () => {
+  const view = buildStatusView(input({ estimate: { state: 'ready', seconds: 3600 } }));
+  assert.equal(view.eta, 'About 1 h 0 min left at the pace of the last 10 minutes.');
+  assert.equal(view.warning, null);
 });
 
-test('the estimate explains how much data it still needs, in words', () => {
+test('the estimate says what it still needs, in words, before there is enough data', () => {
   const view = buildStatusView(input({ estimate: { state: 'estimating' } }));
-  assert.match(view.eta, new RegExp(`${MIN_CALLS_FOR_ESTIMATE} calls`));
   assert.match(view.eta, new RegExp(`${MIN_ACTIVE_SECONDS_FOR_ESTIMATE / 60} minutes`));
+  assert.match(view.eta, /one finished unit/);
 });
 
-test('a platform wait shows the time left, counting down from the wait it was given', () => {
+test('a stalled run has no estimate, names how long no unit has finished, and gets a warning', () => {
+  const view = buildStatusView(input({
+    unitsInWindow: 0,
+    estimate: { state: 'stalled', minutes: 12 },
+  }));
+  assert.equal(view.eta, 'No estimate. No unit has finished in the last 12 min of active time.');
+  assert.match(view.warning, /units are not finishing/);
+});
+
+test('units finished are shown for the window, with the right word for one and for many', () => {
+  assert.equal(buildStatusView(input({ unitsInWindow: 1, activeSeconds: 360 })).units,
+    '1 unit has finished in the last 6 min of active time.');
+  assert.equal(buildStatusView(input({ unitsInWindow: 2, activeSeconds: 3600 })).units,
+    '2 units have finished in the last 10 min of active time.');
+});
+
+test('a wait in progress shows its countdown, counting down from the wait it was given', () => {
   const view = buildStatusView(input({ wait: { reason: 'rate-limit', seconds: 42, untilMs: NOW + 42_000 } }));
   assert.match(view.wait, /Waiting 42 s/);
   assert.match(view.wait, /tried again/);

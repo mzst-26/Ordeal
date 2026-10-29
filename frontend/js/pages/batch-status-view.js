@@ -3,7 +3,10 @@
 // the user reads about the run (the state, the wait, the speed, the estimate) must agree with the numbers, and a single
 // place that builds them makes that easy to check.
 
-import { MIN_ACTIVE_SECONDS_FOR_ESTIMATE, MIN_CALLS_FOR_ESTIMATE, formatDuration } from '../engine/run-pace.js';
+import { MIN_ACTIVE_SECONDS_FOR_ESTIMATE, PACE_WINDOW_SECONDS, formatDuration } from '../engine/run-pace.js';
+
+// The pace window in minutes, for the wording. It is the window the tracker uses.
+const PACE_WINDOW_MINUTES = PACE_WINDOW_SECONDS / 60;
 
 // The words shown for each phase of the page. A phase the page does not know is shown as Ready, so nothing is claimed.
 const STATE_WORDS = {
@@ -21,7 +24,8 @@ const STATE_WORDS = {
  *   counts: { done, total, calls, reused, failed, unusable } for this Start.
  *   saved: { failed, unusable } for the earlier Starts of this batch, or null when there are none to show.
  *   activeSeconds, callsPerMinute: the speed of the run from the pace tracker.
- *   estimate: the result of estimateRemaining.
+ *   unitsInWindow: how many units finished in the last window of active time.
+ *   estimate: the result of estimateRemaining, which can be 'estimating', 'stalled' or 'ready'.
  *   wait: { reason, seconds, untilMs } for a wait in progress, or null.
  *   nowMs: the time now, so a wait that has passed is not shown.
  *   advice: rows of { label, control, value, note }; a row with no note is not a suggestion and is left out.
@@ -35,7 +39,11 @@ export function buildStatusView(input) {
     wait: waitText(input.wait, input.nowMs),
     elapsed: `Active time ${formatDuration(input.activeSeconds)}. Paused time is not counted.`,
     speed: speedText(input.callsPerMinute),
+    units: unitsText(input.unitsInWindow, input.activeSeconds),
     eta: etaText(input.estimate),
+    warning: input.estimate.state === 'stalled'
+      ? 'Calls are still being made, but units are not finishing. The suggestions below say what to change.'
+      : null,
     progress: `${input.counts.done} of ${input.counts.total} units done.`,
     failures: failuresText(input.counts, input.saved),
     advice: input.advice.filter((row) => row.note).map((row) => ({ text: row.note, control: row.control, value: row.value })),
@@ -71,16 +79,29 @@ function formatRate(callsPerMinute) {
 }
 
 /**
- * Return the time-left sentence. Until there is enough data, it says what is missing, so the user knows the wait is for
- * data and not a fault. Once there is data, it gives the typical time and the range.
+ * Return the sentence for units finished in the window. It names the window, so the number is not read as all time.
+ * Units are what the user counts, so this is the line that says whether the run is moving.
+ */
+function unitsText(unitsInWindow, activeSeconds) {
+  const minutes = Math.max(1, Math.min(PACE_WINDOW_MINUTES, Math.round(activeSeconds / 60)));
+  const word = unitsInWindow === 1 ? 'unit has' : 'units have';
+  return `${unitsInWindow} ${word} finished in the last ${minutes} min of active time.`;
+}
+
+/**
+ * Return the time-left sentence. Until there is enough data, it says what is missing. When no unit has finished for a
+ * whole window, it says there is no estimate, rather than giving a time the run will not keep. Otherwise it gives the
+ * time left at the current pace.
  */
 function etaText(estimate) {
+  if (estimate.state === 'stalled') {
+    return `No estimate. No unit has finished in the last ${estimate.minutes} min of active time.`;
+  }
   if (estimate.state !== 'ready') {
     const minutes = MIN_ACTIVE_SECONDS_FOR_ESTIMATE / 60;
-    return `Estimating. Needs ${MIN_CALLS_FOR_ESTIMATE} calls and ${minutes} minutes of active time.`;
+    return `Estimating. Needs ${minutes} minutes of active time and one finished unit.`;
   }
-  return `About ${formatDuration(estimate.seconds)} left (between ${formatDuration(estimate.lowSeconds)} and `
-    + `${formatDuration(estimate.highSeconds)}).`;
+  return `About ${formatDuration(estimate.seconds)} left at the pace of the last ${PACE_WINDOW_MINUTES} minutes.`;
 }
 
 /**

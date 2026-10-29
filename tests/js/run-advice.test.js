@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_CAP,
   MAX_TOKEN_CHOICES,
-  MIN_REPLIES_FOR_ADVICE,
+  MIN_UNITS_FOR_ADVICE,
   adviseCap,
   adviseConcurrency,
   adviseMaxTokens,
@@ -46,27 +46,27 @@ test('retries seen so far raise the calls needed for the steps left', () => {
 });
 
 test('max tokens is kept when too few replies have been seen', () => {
-  const advice = adviseMaxTokens({ maxTokens: 2048, replies: MIN_REPLIES_FOR_ADVICE - 1, unusable: 10 });
+  const advice = adviseMaxTokens({ maxTokens: 2048, units: MIN_UNITS_FOR_ADVICE - 1, stopped: 10 });
   assert.equal(advice.value, 2048);
   assert.equal(advice.note, null);
 });
 
 test('max tokens is kept when unusable replies are at or below the alert share', () => {
   // 4 of 20 is exactly 20 percent, the alert share, so nothing changes.
-  const advice = adviseMaxTokens({ maxTokens: 2048, replies: 20, unusable: 4 });
+  const advice = adviseMaxTokens({ maxTokens: 2048, units: 20, stopped: 4 });
   assert.equal(advice.value, 2048);
   assert.equal(advice.note, null);
 });
 
 test('max tokens steps up to the next setting when many replies are empty or cut short', () => {
-  const advice = adviseMaxTokens({ maxTokens: 2048, replies: 20, unusable: 9 });
+  const advice = adviseMaxTokens({ maxTokens: 2048, units: 20, stopped: 9 });
   assert.equal(advice.value, 4096);
-  assert.match(advice.note, /45% of replies/);
+  assert.match(advice.note, /45% of units/);
 });
 
 test('max tokens says so when even the largest setting is not enough', () => {
   const largest = MAX_TOKEN_CHOICES[MAX_TOKEN_CHOICES.length - 1];
-  const advice = adviseMaxTokens({ maxTokens: largest, replies: 20, unusable: 9 });
+  const advice = adviseMaxTokens({ maxTokens: largest, units: 20, stopped: 9 });
   assert.equal(advice.value, largest);
   assert.match(advice.note, /largest setting/);
 });

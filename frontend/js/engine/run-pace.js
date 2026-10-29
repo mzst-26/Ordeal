@@ -5,9 +5,7 @@
 
 // The speed is measured over this many seconds of active time, or less while the run is young.
 export const PACE_WINDOW_SECONDS = 600;
-// No estimate is shown until this many calls have been made. Fewer calls give a guess, not a measurement.
-export const MIN_CALLS_FOR_ESTIMATE = 20;
-// No estimate is shown until this many seconds of active time have passed, for the same reason.
+// No estimate is shown until this many seconds of active time have passed. Less time gives a guess, not a measurement.
 export const MIN_ACTIVE_SECONDS_FOR_ESTIMATE = 120;
 
 /**
@@ -21,10 +19,19 @@ export function createPaceTracker({ now = Date.now } = {}) {
   let runningSince = null;
   // The active time of each finished call, in milliseconds, in the order the calls finished.
   const callTimes = [];
+  // The active time of each finished unit, in milliseconds. A unit is what the user counts, so its pace is what matters.
+  const unitTimes = [];
 
   /** Return the active time so far, in milliseconds. */
   function activeMs() {
     return banked + (runningSince === null ? 0 : now() - runningSince);
+  }
+
+  /** Return how many of the given active times fall inside the window that ends now. */
+  function countInWindow(times) {
+    const nowActive = activeMs();
+    const windowStart = nowActive - Math.min(PACE_WINDOW_SECONDS * 1000, nowActive);
+    return times.filter((time) => time > windowStart).length;
   }
 
   return {
@@ -42,6 +49,26 @@ export function createPaceTracker({ now = Date.now } = {}) {
     noteCall() {
       callTimes.push(activeMs());
     },
+    /** Record that one unit has finished at the current active time. */
+    noteUnit() {
+      unitTimes.push(activeMs());
+    },
+    /** Return how many units finished in the last PACE_WINDOW_SECONDS of active time. */
+    unitsInWindow() {
+      return countInWindow(unitTimes);
+    },
+    /** Return the units finished per active minute over the last window. Returns 0 before any active time. */
+    unitsPerMinute() {
+      const nowActive = activeMs();
+      if (nowActive <= 0) return 0;
+      const windowMs = Math.min(PACE_WINDOW_SECONDS * 1000, nowActive);
+      return countInWindow(unitTimes) / (windowMs / 60000);
+    },
+    /** Return the active seconds since the last unit finished, or null when no unit has finished yet. */
+    secondsSinceLastUnit() {
+      if (unitTimes.length === 0) return null;
+      return Math.floor((activeMs() - unitTimes[unitTimes.length - 1]) / 1000);
+    },
     /** Return the number of calls recorded so far. */
     callCount() {
       return callTimes.length;
@@ -58,41 +85,33 @@ export function createPaceTracker({ now = Date.now } = {}) {
       const nowActive = activeMs();
       if (nowActive <= 0) return 0;
       const windowMs = Math.min(PACE_WINDOW_SECONDS * 1000, nowActive);
-      const windowStart = nowActive - windowMs;
-      const inWindow = callTimes.filter((time) => time > windowStart).length;
-      return inWindow / (windowMs / 60000);
+      return countInWindow(callTimes) / (windowMs / 60000);
     },
   };
 }
 
 /**
- * Estimate the seconds left for the units that have not finished. Each unit may take a different number of calls, so
- * the estimate uses the calls the finished units took: the average gives the typical time, and the smallest and
- * largest give the range. Returns { state: 'estimating' } until there is enough data to say anything honest.
+ * Estimate the time left for the units that have not finished, at the pace of the last window. The estimate needs
+ * active time and at least one unit finished. When no unit has finished for a whole window, it says so as a stall,
+ * instead of giving a time that the stalled run cannot keep.
  *
- * unitSteps is the number of fresh calls each finished unit made (replies reused from earlier Starts are not counted,
- * since they took no time). callsPerMinute comes from the tracker above.
+ * The result is one of:
+ *   { state: 'estimating' }        not enough active time, or no unit has finished yet
+ *   { state: 'stalled', minutes }  no unit has finished for a whole window of active time
+ *   { state: 'ready', seconds }    the time left at the current pace
  */
-export function estimateRemaining({ unitsLeft, unitSteps, callsPerMinute, callCount, activeSeconds }) {
-  const enoughCalls = callCount >= MIN_CALLS_FOR_ESTIMATE;
-  const enoughTime = activeSeconds >= MIN_ACTIVE_SECONDS_FOR_ESTIMATE;
-  if (!enoughCalls || !enoughTime || unitSteps.length === 0 || callsPerMinute <= 0) {
-    return { state: 'estimating' };
+export function estimateRemaining({ unitsLeft, unitsFinished, unitsPerMinute, activeSeconds, secondsSinceLastUnit }) {
+  if (unitsLeft <= 0) return { state: 'ready', seconds: 0 };
+  if (activeSeconds < MIN_ACTIVE_SECONDS_FOR_ESTIMATE) return { state: 'estimating' };
+  if (unitsFinished === 0) {
+    if (activeSeconds < PACE_WINDOW_SECONDS) return { state: 'estimating' };
+    return { state: 'stalled', minutes: Math.round(activeSeconds / 60) };
   }
-  const average = unitSteps.reduce((sum, steps) => sum + steps, 0) / unitSteps.length;
-  const fewest = Math.min(...unitSteps);
-  const most = Math.max(...unitSteps);
-  return {
-    state: 'ready',
-    seconds: secondsFor(unitsLeft * average, callsPerMinute),
-    lowSeconds: secondsFor(unitsLeft * fewest, callsPerMinute),
-    highSeconds: secondsFor(unitsLeft * most, callsPerMinute),
-  };
-}
-
-/** Return the seconds needed for a number of calls at a speed in calls per minute, rounded to whole seconds. */
-function secondsFor(calls, callsPerMinute) {
-  return Math.round((calls / callsPerMinute) * 60);
+  if (secondsSinceLastUnit !== null && secondsSinceLastUnit >= PACE_WINDOW_SECONDS) {
+    return { state: 'stalled', minutes: Math.round(secondsSinceLastUnit / 60) };
+  }
+  if (unitsPerMinute <= 0) return { state: 'stalled', minutes: Math.round(activeSeconds / 60) };
+  return { state: 'ready', seconds: Math.round((unitsLeft / unitsPerMinute) * 60) };
 }
 
 /**

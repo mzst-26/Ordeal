@@ -596,6 +596,11 @@ fieldset:disabled .check-box {
   color: var(--ink);
 }
 
+.run-panel-warning {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .run-advice {
   display: grid;
   gap: 0.5rem;
