@@ -234,6 +234,8 @@ const IDS = {
   runFailures: "batch-run-failures",
   runAdviceBlock: "batch-run-advice-block",
   runAdvice: "batch-run-advice",
+  runUnits: "batch-run-units",
+  runWarning: "batch-run-warning",
   statusLine: VIEW_IDS.batch["status-line"],
   saveStatus: "batch-save-status",
   logList: "log-list",
@@ -303,6 +305,8 @@ const page = {
   conditionStartSeconds: 0,   // the active seconds when this condition began
   freshByUnit: new Map(),     // the fresh calls each unit still running has made, by unit key
   finishedUnitCalls: [],      // the fresh calls each finished unit made, for the time estimate
+  unitsStarted: new Set(),    // the units this Start has started, by unit key, each counted once
+  unitsUnusable: new Set(),   // the units that stopped at an empty or cut-short reply, by unit key, each counted once
   wait: null,                 // a wait in progress: { reason, seconds, untilMs }, or null
   statusTimer: null,          // the timer that redraws the status panel while a run is on, or null
   stop: null,                 // { title, why, next } for the stop the panel shows, or null while none
@@ -1901,6 +1905,8 @@ async function beginRun(confirmedId) {
   page.finishedUnitCalls = [];
   page.freshByUnit = new Map();
   page.unitSteps.clear();
+  page.unitsStarted = new Set();
+  page.unitsUnusable = new Set();
   page.wait = null;
   page.stop = null;
   startStatusTimer();
@@ -2285,8 +2291,12 @@ function handleEvent(event) {
     case "unit-failed":
       onUnitFailed(event);
       break;
+    case "unit-start":
+      page.unitsStarted.add(eventUnitKey(event));
+      break;
     case "unit-done":
       saveFinishedUnit(event);
+      page.tracker?.noteUnit();
       break;
     case "progress":
       onProgress(event);
@@ -2382,7 +2392,10 @@ function onStepDone(event) {
  */
 function onStepFailed(event) {
   countOne("failed");
-  if (event.reason === "unusable") countOne("unusable");
+  if (event.reason === "unusable") {
+    countOne("unusable");
+    page.unitsUnusable.add(eventUnitKey(event));
+  }
   page.condition.failures.push({
     model: event.model,
     question: event.questionId,
@@ -2639,10 +2652,10 @@ function estimateNow() {
   if (page.tracker === null) return { state: "estimating" };
   return estimateRemaining({
     unitsLeft: page.counts.total - page.counts.done,
-    unitSteps: page.finishedUnitCalls,
-    callsPerMinute: page.tracker.callsPerMinute(),
-    callCount: page.tracker.callCount(),
+    unitsFinished: page.counts.done,
+    unitsPerMinute: page.tracker.unitsPerMinute(),
     activeSeconds: page.tracker.activeSeconds(),
+    secondsSinceLastUnit: page.tracker.secondsSinceLastUnit(),
   });
 }
 
@@ -2664,10 +2677,11 @@ function adviceRows() {
   const unitsLeft = page.counts.total - page.counts.done;
   const cap = capAdvice(unitsLeft);
   if (cap !== null) rows.push(cap);
+  // The reply size is judged by units, because one bad reply stops the unit it is in.
   const maxTokens = adviseMaxTokens({
     maxTokens: choices.maxTokens,
-    replies: page.counts.calls + page.counts.unusable,
-    unusable: page.counts.unusable,
+    units: page.unitsStarted.size,
+    stopped: page.unitsUnusable.size,
   });
   rows.push({ label: "Reply size", control: "batch-max-tokens-select", value: maxTokens.value, note: maxTokens.note });
   return rows;
@@ -2700,6 +2714,8 @@ function averageOf(numbers) {
 function updateStatusPanel() {
   const dom = page.dom;
   if (!dom || !dom.runState) return;
+  // The progress line is redrawn here too, so it cannot lag behind the counts the panel shows.
+  renderProgress();
   const savedRows = page.runBase.failed > 0 || page.runBase.unusable > 0 ? page.runBase : null;
   const view = buildStatusView({
     phase: page.phase,
@@ -2708,6 +2724,7 @@ function updateStatusPanel() {
     saved: savedRows === null ? null : { failed: savedRows.failed, unusable: savedRows.unusable },
     activeSeconds: page.tracker ? page.tracker.activeSeconds() : 0,
     callsPerMinute: page.tracker ? page.tracker.callsPerMinute() : 0,
+    unitsInWindow: page.tracker ? page.tracker.unitsInWindow() : 0,
     estimate: estimateNow(),
     wait: page.wait,
     nowMs: Date.now(),
@@ -2723,7 +2740,10 @@ function updateStatusPanel() {
   dom.runProgress.textContent = view.progress;
   dom.runElapsed.textContent = view.elapsed;
   dom.runSpeed.textContent = view.speed;
+  dom.runUnits.textContent = view.units;
   dom.runEta.textContent = view.eta;
+  dom.runWarning.hidden = view.warning === null;
+  dom.runWarning.textContent = view.warning ?? "";
   dom.runFailures.textContent = view.failures;
   drawAdvice(view.advice);
 }
