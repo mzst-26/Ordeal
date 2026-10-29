@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/earlier-starts | session 4b71b7c1 (Claude) | frontend/js/store/run-totals.js, frontend/js/pages/page-batch.js, tests/js/run-totals.test.js | 2026-10-29 |

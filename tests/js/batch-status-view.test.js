@@ -83,7 +83,7 @@ test('the failure line adds the earlier Starts to this Start', () => {
     counts: { done: 2, total: 10, calls: 3, reused: 0, failed: 2, unusable: 1 },
     saved: { failed: 5, unusable: 3, rateLimits: 1, retries: 0 },
   }));
-  assert.equal(view.failures, '2 failed in this Start, 1 of them unusable. 5 failed in earlier Starts of this run.');
+  assert.equal(view.failures, '2 failed in this Start, 1 of them unusable. 5 failed in earlier Starts of this batch.');
 });
 
 test('the failure line says there were no failures when there are none', () => {
