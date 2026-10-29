@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/stop-wording | session 4b71b7c1 (Claude) | frontend/js/engine/stop-reason.js, frontend/js/pages/page-batch.js, frontend/js/pages/page-live.js, frontend/js/pages/page-gauntlet.js, tests/js/stop-reason.test.js | 2026-10-29 |
