@@ -66,6 +66,22 @@ export function summaryOf(id, metadata) {
 }
 
 /**
+ * Return how many units a saved run holds. A saved run only grows: a unit is added when it finishes, and units are not
+ * removed except when the owner deletes the whole run.
+ */
+export function savedUnitCount(run) {
+  return isPlainObject(run?.results) ? Object.keys(run.results).length : 0;
+}
+
+/**
+ * Return true when a save would replace a fuller copy of a run with a smaller one. That would throw saved units away, so
+ * the server refuses it. A save that keeps or adds units is allowed.
+ */
+export function wouldShrink(storedRun, incomingRun) {
+  return savedUnitCount(incomingRun) < savedUnitCount(storedRun);
+}
+
+/**
  * Turn summaries into the shape the retention rules in frontend/js/web-runs/run-retention.js read: id, createdAt, bytes and owner.
  * The rules name the size "bytes", while the summary calls it "size", so this one place does the renaming.
  */

@@ -71,6 +71,7 @@ import {
 import { readReplyGroups, importReplyGroups } from "../full-run/full-run-upload.js";
 import { repliesToJsonl } from "../full-run/replies-export.js";
 import { SAVED_RUNS_CHANGED } from "../runs/saved-runs.js";
+import { savedRepliesForStart } from "../runs/reply-reuse.js";
 
 const DATA_PATHS = {
   config: "/data/config.json",
@@ -1883,10 +1884,11 @@ async function beginRun(confirmedId) {
     }
   }
   const choices = { ...readChoices(), fromScratch };
-  // A reply cut off at one max tokens limit is not the reply for another, so a change of limit clears the replies kept on
-  // this page. A resume keeps its own replies, which were restored with its own limit. The saved runs are not changed.
-  if (page.resumeRunId === null && page.batchChoices !== null && page.batchChoices.maxTokens !== choices.maxTokens) {
-    page.cache.clear();
+  // Paid replies are never thrown away. Every usable reply in the saved batch runs is put in the cache before the Start, so
+  // a Start with another reply size, or a new run, still reuses them. Only a restart from scratch sends them again.
+  if (!(await loadSavedReplies(fromScratch))) {
+    updateControls();
+    return;
   }
   const { config } = page.data;
   page.phase = "running";
@@ -2202,6 +2204,22 @@ function handleRestart() {
   // handleStart stops before the confirmation when it cannot start, so the restart is not kept then.
   if (!page.confirming) {
     page.restartFromScratch = false;
+  }
+}
+
+/**
+ * Put every usable saved reply in the page's reply cache before a Start. A restart from scratch sends every call again, so
+ * it loads nothing. If the saved replies cannot be read, the Start is refused: a Start without them would call the model
+ * again for replies that were already paid for. Returns false when the Start must stop.
+ */
+async function loadSavedReplies(fromScratch) {
+  if (fromScratch || page.storage === null) return true;
+  try {
+    addRecordsToCache(page.cache, savedRepliesForStart(await listRuns(page.storage.adapter)));
+    return true;
+  } catch {
+    setStatus("The saved replies could not be read, so the batch was not started. No call was made.");
+    return false;
   }
 }
 
