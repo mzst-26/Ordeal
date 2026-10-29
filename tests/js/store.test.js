@@ -14,6 +14,7 @@ import {
   setStatus,
   resumeRun,
   saveTotals,
+  saveRunSettings,
   pendingUnits,
   listRuns,
   getRun,
@@ -409,4 +410,16 @@ test('saving totals leaves the status and the saved results as they were', async
   const reloaded = await getRun(adapter, run.id);
   assert.equal(reloaded.status, 'planned');
   assert.equal(reloaded.label, 'Test run');
+});
+
+test('saving a run\'s settings changes only the reply size and concurrency, and keeps its units and status', async () => {
+  const adapter = createMemoryAdapter();
+  const run = await makeRun(adapter);
+  await saveResult(adapter, run.id, UNITS[0], { steps: [] });
+  const saved = await saveRunSettings(adapter, run.id, { maxTokens: 4096, concurrency: 4 });
+  assert.equal(saved.config.maxTokens, 4096);
+  assert.equal(saved.config.concurrency, 4);
+  assert.equal(saved.config.temperature, 0);
+  assert.deepEqual(Object.keys(saved.results), [UNITS[0]]);
+  assert.equal(saved.status, 'planned');
 });

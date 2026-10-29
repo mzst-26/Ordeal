@@ -94,3 +94,22 @@ test("a restore brings back no gauntlet copy when the browser is already at the 
   const localRuns = [1, 2, 3].map((n) => ({ id: `h${n}`, config: { kind: "gauntlet" } }));
   assert.deepEqual(planRestore(summaries, localRuns), []);
 });
+
+// The reply size is not part of which set a Start continues. The replies saved for a set are answers to its questions, so
+// a new reply size carries the same set on, and the saved replies are reused. Changing a model, question or repeat is still
+// a different set.
+test("a Start with a different reply size carries on the same set", () => {
+  const stopped = { id: "run-1", status: "stopped", config: { ...CONFIG, maxTokens: 2048 } };
+  assert.equal(resumeSignature(CONFIG), resumeSignature({ ...CONFIG, maxTokens: 4096 }));
+  assert.equal(findResumableRun([stopped], resumeSignature({ ...CONFIG, maxTokens: 4096 })), stopped);
+});
+
+// A run left as running after the page was closed or reloaded is not running anywhere. It is carried on once it has not
+// been saved for a while, so a reload never turns a run into a new set. A run saved a moment ago may belong to another tab.
+test("a run left running is carried on when it has not been saved for five minutes, and not before", () => {
+  const now = Date.parse("2026-10-29T22:40:00Z");
+  const quiet = { id: "run-2", status: "running", config: CONFIG, updatedAt: "2026-10-29T22:30:00Z" };
+  const busy = { id: "run-3", status: "running", config: CONFIG, updatedAt: "2026-10-29T22:39:00Z" };
+  assert.equal(findResumableRun([quiet], resumeSignature(CONFIG), now), quiet);
+  assert.equal(findResumableRun([busy], resumeSignature(CONFIG), now), null);
+});

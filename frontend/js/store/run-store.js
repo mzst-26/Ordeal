@@ -263,6 +263,19 @@ export async function importRunDocument(adapter, { label, config, status, planne
 }
 
 /**
+ * Save the settings a run is continued with, when a Start carries it on with a new reply size or concurrency. Only those
+ * two settings change; the set of models, questions and repeats stays as it was. Returns the run.
+ */
+export async function saveRunSettings(adapter, runId, { maxTokens, concurrency }) {
+  const run = await loadRun(adapter, runId);
+  run.config = { ...run.config, maxTokens, concurrency };
+  run.updatedAt = nextTimestamp();
+  assertNoSecrets(run);
+  await adapter.put(RUNS_STORE, run);
+  return run;
+}
+
+/**
  * Change the status of a run. Only the transitions in ALLOWED_TRANSITIONS are made; any other change throws
  * TRANSITION_MESSAGE and nothing is saved. Returns the run.
  */
