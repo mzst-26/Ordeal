@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/cli-empty-reply | session 4b71b7c1 (Claude) | ordeal/model_client.py, tests/python/test_model_client.py, tests/python/test_runner.py | 2026-10-29 |
