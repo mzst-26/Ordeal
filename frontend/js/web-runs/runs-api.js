@@ -27,6 +27,10 @@ const NOT_OWN_TEXT = "You can only delete runs saved from this browser.";
 const GONE_TEXT = "That run is no longer stored.";
 const DELETE_ERROR_TEXT = "The run could not be deleted.";
 const SAVE_ERROR_TEXT = "The run could not be saved.";
+// The server's own plain message is used when it sends one. Without it, the status says why: a 404 means the address
+// has no save server, which is the case under the plain dev server, and anything else names the HTTP status.
+const NO_SAVE_SERVER_TEXT = 'The save server is not running at this address (HTTP 404). Saving to the server needs '
+  + 'the Netlify functions, which "npm run dev" does not serve.';
 
 /** Call the browser's fetch. Passed as a function, so a test can replace it without touching the global. */
 function defaultFetch(url, init) {
@@ -68,8 +72,18 @@ export async function saveRunOnServer(run, kind, browserId, fetchFn = defaultFet
     body: JSON.stringify({ id: run.id, kind, run }),
   });
   if (response.status === 200 || response.status === 201) return response.json();
-  const body = await response.json().catch(() => ({}));
-  throw new Error(body.error ?? SAVE_ERROR_TEXT);
+  const body = await response.json().catch(() => null);
+  throw new Error(saveFailureText(response.status, body));
+}
+
+/**
+ * Return the plain message for a refused save. The server's own message comes first. A 404 means the address has no
+ * save server, and any other failure names its HTTP status, so the visitor can tell the cases apart.
+ */
+function saveFailureText(status, body) {
+  if (body !== null && typeof body.error === "string") return body.error;
+  if (status === 404) return NO_SAVE_SERVER_TEXT;
+  return `${SAVE_ERROR_TEXT} The server answered HTTP ${status}.`;
 }
 
 /**
