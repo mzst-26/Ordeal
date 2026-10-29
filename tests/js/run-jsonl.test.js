@@ -37,6 +37,12 @@ test("the first line is the run header and each later line is one saved unit", (
   assert.equal(rows[1].kind, "unit");
 });
 
+test("the totals of a run are kept in the file, and a file without totals reads back with none", () => {
+  const run = { ...sampleRun(), totals: { calls: 7, failed: 2, failures: [] } };
+  assert.deepEqual(parseRunJsonl(runToJsonl(run)).totals, run.totals);
+  assert.equal(parseRunJsonl(runToJsonl(sampleRun())).totals, undefined);
+});
+
 test("a run written as JSON Lines reads back with the same settings and units", () => {
   const run = sampleRun();
   const back = parseRunJsonl(runToJsonl(run));

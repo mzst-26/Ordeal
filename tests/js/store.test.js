@@ -13,6 +13,7 @@ import {
   saveResult,
   setStatus,
   resumeRun,
+  saveTotals,
   pendingUnits,
   listRuns,
   getRun,
@@ -388,4 +389,24 @@ test('the memory adapter returns copies, so a change to a copy does not change t
   assert.equal((await adapter.get(RUNS_STORE, 'r1')).label, 'one');
   assert.equal(await adapter.get(RUNS_STORE, 'missing'), null);
   await assert.rejects(adapter.put(RUNS_STORE, { label: 'no id' }));
+});
+
+test('saving totals keeps them on the run, and a reload reads them back', async () => {
+  const adapter = createMemoryAdapter();
+  const run = await makeRun(adapter);
+  const totals = { calls: 12, reused: 3, failed: 2, unusable: 1, retries: 4, rateLimits: 0, activeSeconds: 90,
+    failures: [{ model: 'model-a', question: 'h01', step: 'level_0', reason: 'unusable', message: 'The reply had no text.' }] };
+  await saveTotals(adapter, run.id, totals);
+  const reloaded = await getRun(adapter, run.id);
+  assert.deepEqual(reloaded.totals, totals);
+  assert.deepEqual(reloaded.results, {});
+});
+
+test('saving totals leaves the status and the saved results as they were', async () => {
+  const adapter = createMemoryAdapter();
+  const run = await makeRun(adapter);
+  await saveTotals(adapter, run.id, { calls: 1, failures: [] });
+  const reloaded = await getRun(adapter, run.id);
+  assert.equal(reloaded.status, 'planned');
+  assert.equal(reloaded.label, 'Test run');
 });
