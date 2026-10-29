@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/run-pace | session 4b71b7c1 (Claude) | frontend/js/engine/run-pace.js, run-advice.js, stop-reason.js, api.js, runner.js, platform-pacer.js, store/run-totals.js, store/run-store.js, store/run-jsonl.js, pages/batch-status-view.js, pages/page-batch.js, index.html, css/page-batch.css, web-runs/runs-api.js, README.md, tests/js/batch-status-view.test.js, tests/js/runs-api.test.js, tests/js/run-pace.test.js, run-advice.test.js, stop-reason.test.js, run-totals.test.js, api.test.js, runner.test.js, platform-pacer.test.js, store.test.js, run-jsonl.test.js | 2026-10-29 |
