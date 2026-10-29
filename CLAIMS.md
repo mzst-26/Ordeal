@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/resume-keeps-settings | session 4b71b7c1 (Claude) | frontend/js/pages/page-batch.js, tests/js/batch-resume-button.test.js | 2026-10-29 |
