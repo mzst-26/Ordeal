@@ -4,6 +4,7 @@
 import { isSafeCustomUrl, validateCustomModel } from './custom-model.js';
 import { createModelLimiter } from './limiter.js';
 import { createPlatformPacer, isLongWait, rateLimitSeconds } from './platform-pacer.js';
+import { hasWords } from './reply-words.js';
 
 const MAX_BACKOFF_SECONDS = 60;
 const DEFAULT_TIMEOUT_MS = 120000;
@@ -13,10 +14,6 @@ const KEY_REFUSED_MESSAGE = 'The key was refused. Check the key and try again.';
 const STOPPED_MESSAGE = 'Stopped by you.';
 const NO_TEXT_MESSAGE = 'The reply had no text.';
 const CUT_SHORT_MESSAGE = 'The reply was cut short at the reply size limit.';
-// Some reasoning models write their own control tokens, such as <|start|>assistant<|channel|>, instead of an answer.
-// Those tokens, and the role word a model writes after <|start|>, are not text.
-const CONTROL_TOKEN = /<\|[^|>]*\|>/g;
-const LEFTOVER_ROLE_WORD = /^\s*assistant\s*/i;
 // Where the batch's wait callback is not given, a wait is reported to nobody.
 const NO_WAIT = () => {};
 const NETWORK_MESSAGE = 'A network problem stopped the request. Check your connection and try again.';
@@ -209,10 +206,6 @@ function readReplyText(json) {
   return typeof content === 'string' ? content : null;
 }
 
-/** Return true when a reply has words in it, not only spaces, control tokens or a leftover role word. */
-function hasWords(text) {
-  return text.replace(CONTROL_TOKEN, '').replace(LEFTOVER_ROLE_WORD, '').trim() !== '';
-}
 
 /** Parse the JSON body of a response, or return null if the body is not valid JSON. */
 async function readJson(response) {
