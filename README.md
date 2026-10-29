@@ -423,6 +423,8 @@ Blobs, and the runs page lists them.
 - **Automatic saving:** batch and gauntlet runs are sent to the server as they change, at most every 10 seconds, and at
   the end of a run. A run is sent under its own id, so a resumed or carried-on run replaces its copy and is never saved
   twice. The status line on the page says whether a run is on the server or only in this browser.
+  Saving needs the Netlify functions. `npm run dev` does not serve them, so runs stay in the browser there, and the status
+  line says why.
 - **Carrying on:** a Start with the same settings as a stopped, paused or failed run carries on that run, so a run that
   is stopped and started again stays one saved run.
 - **Anyone can save:** no password is needed. Each browser keeps a random browser id in its own storage and sends it
