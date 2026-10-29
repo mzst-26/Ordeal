@@ -11,7 +11,7 @@ import { latestRunOfKind, runMatchesSuite, runDateText } from "../runs/last-run.
 import { VIEW_IDS } from "../shared/view-ids.js";
 import { conditionDescriptionText } from "../suites/condition-text.js";
 import { mergePlans, unionInOrder } from "../suites/condition-choice.js";
-import { createBudget, createChatClient, MAX_ATTEMPTS_PER_STEP } from "../engine/api.js";
+import { createBudget, createChatClient, DEFAULT_PER_MODEL_LIMIT, MAX_ATTEMPTS_PER_STEP } from "../engine/api.js";
 import { activePlatform } from "../models/platform-choice.js";
 import { DEFAULT_PLATFORM_ID, findPlatform, loadPlatforms, parseModelReference } from "../models/platforms.js";
 import { CHOICE_EVENT, saveChoice } from "../models/platform-section.js";
@@ -27,6 +27,12 @@ import { mountModelCheck } from "../models/model-check.js";
 import { checkTypedName, keyReadyFor } from "../models/typed-model-check.js";
 import { hostOfCustomUrl, validateCustomModel } from "../engine/custom-model.js";
 import { createBatchRunner } from "../engine/runner.js";
+import { createPaceTracker, estimateRemaining, formatDuration } from "../engine/run-pace.js";
+import { describeStop } from "../engine/stop-reason.js";
+import { adviseCap, adviseConcurrency, adviseMaxTokens } from "../engine/run-advice.js";
+import { createPlatformPacer } from "../engine/platform-pacer.js";
+import { buildStatusView } from "./batch-status-view.js";
+import { addSession, emptyTotals, readTotals } from "../store/run-totals.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { gradeCondition, gradeProbes } from "../engine/grade.js";
 import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
@@ -40,7 +46,8 @@ import { rateLimitRowFor } from "../shared/rate-limits.js";
 import { updateSelectionCount } from "../suites/selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "../suites/question-actions.js";
 import {
-  createRun, saveResult, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns, importRunDocument,
+  createRun, saveResult, saveTotals, getRun, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns,
+  importRunDocument,
 } from "../store/run-store.js";
 import { isRunHeaderLine, parseRunJsonl } from "../store/run-jsonl.js";
 import { onSaveStatus, scheduleServerSave, saveServerNow, restoreServerRuns } from "../web-runs/auto-save.js";
@@ -75,6 +82,9 @@ const DATA_PATHS = {
 
 // The saved replies were recorded with no system prompt, so they belong to the condition "none".
 const SAVED_CONDITION = "none";
+// How often the status panel is redrawn while a run is on, in milliseconds. One second keeps the countdown current.
+const STATUS_TICK_MS = 1000;
+
 const CONDITION_LABELS = {
   none: "None",
   mitigation: "Mitigation",
@@ -211,6 +221,19 @@ const IDS = {
   progressFill: "progress-fill",
   progressTrack: "progress-track",
   progressLine: "progress-line",
+  runState: "batch-run-state",
+  runStop: "batch-run-stop",
+  runReason: "batch-run-reason",
+  runWhy: "batch-run-why",
+  runNext: "batch-run-next",
+  runWait: "batch-run-wait",
+  runProgress: "batch-run-progress",
+  runElapsed: "batch-run-elapsed",
+  runSpeed: "batch-run-speed",
+  runEta: "batch-run-eta",
+  runFailures: "batch-run-failures",
+  runAdviceBlock: "batch-run-advice-block",
+  runAdvice: "batch-run-advice",
   statusLine: VIEW_IDS.batch["status-line"],
   saveStatus: "batch-save-status",
   logList: "log-list",
@@ -272,6 +295,18 @@ const page = {
   resumeRunId: null,          // the saved run the next Start continues, or null
   restartFromScratch: false,  // true from Restart from scratch until its confirmation is answered
   unitSteps: new Map(),       // the step records of each unit still running, by unit key
+  pacer: createPlatformPacer(), // one pacer for the page, so a park from one Start still holds in the next
+  tracker: null,              // the pace tracker of this Start, or null before the first Start
+  condition: null,            // the counts of the condition now running, made by freshConditionCounts()
+  runnerDone: 0,              // the done count the runner of this condition last reported
+  runBase: emptyTotals(),     // the saved totals of the run now running, before this condition's counts
+  conditionStartSeconds: 0,   // the active seconds when this condition began
+  freshByUnit: new Map(),     // the fresh calls each unit still running has made, by unit key
+  finishedUnitCalls: [],      // the fresh calls each finished unit made, for the time estimate
+  wait: null,                 // a wait in progress: { reason, seconds, untilMs }, or null
+  statusTimer: null,          // the timer that redraws the status panel while a run is on, or null
+  stop: null,                 // { title, why, next } for the stop the panel shows, or null while none
+  adviceKey: "",              // the text of the suggestions last drawn, so they are only redrawn when they change
   mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
 
@@ -290,6 +325,8 @@ export function mountBatch(root) {
   });
   page.fingerprint = mountFingerprintFigure(page.dom.figure);
   wireControls();
+  // Draw the status panel once, so its lines say "Estimating" and "Measuring" before the first Start, not blank.
+  updateStatusPanel();
   initTooltips();
   loadData();
 }
@@ -1859,9 +1896,18 @@ async function beginRun(confirmedId) {
   // Once a run has started, the cap the user sees is kept, even if the plan changes later.
   page.capTouched = true;
   resetCounts(unitCount(choices));
+  page.tracker = createPaceTracker();
+  page.tracker.start();
+  page.finishedUnitCalls = [];
+  page.freshByUnit = new Map();
+  page.unitSteps.clear();
+  page.wait = null;
+  page.stop = null;
+  startStatusTimer();
   setStatus("Running. Calls are made with the concurrency and cap you chose.");
   updateControls();
   renderProgress();
+  updateStatusPanel();
   // The log is new for each start. It records what the run did, and never the key or a reply.
   page.log = createBatchLog();
   // A new batch clears any Continue queue left from an earlier one. A resumed run keeps the queue it came from.
@@ -1878,6 +1924,8 @@ async function beginRun(confirmedId) {
     timeoutMs: config.request_timeout_seconds * 1000,
     log: page.log,
     perModelLimit: config.per_model_concurrency,
+    pacer: page.pacer,
+    onWait: handleWait,
   });
   const [first, ...rest] = choices.conditions;
   page.conditionsLeft = rest;
@@ -1903,6 +1951,10 @@ async function startConditionRun(condition) {
     scheduleServerSave(page.storage.adapter, page.runId);
   }
   page.resumeRunId = null;
+  page.condition = freshConditionCounts();
+  page.conditionStartSeconds = page.tracker.activeSeconds();
+  page.runnerDone = 0;
+  page.runBase = await loadRunBase(page.runId);
   page.log.record("run-started", {
     run_id: page.runId,
     models: choices.models.length,
@@ -2246,7 +2298,7 @@ function handleEvent(event) {
       onKeyRefused(event);
       break;
     case "rate-limited":
-      onRateLimited();
+      onRateLimited(event);
       break;
     case "stopped":
       onStopped();
@@ -2292,6 +2344,10 @@ function saveFinishedUnit(event) {
   const key = eventUnitKey(event);
   const records = page.unitSteps.get(key) ?? [];
   page.unitSteps.delete(key);
+  // A unit that only reused replies took no time, so it does not count towards the time estimate.
+  const fresh = page.freshByUnit.get(key) ?? 0;
+  page.freshByUnit.delete(key);
+  if (fresh > 0) page.finishedUnitCalls.push(fresh);
   const runId = page.runId;
   if (runId === null) {
     return;
@@ -2304,72 +2360,89 @@ function saveFinishedUnit(event) {
     });
 }
 
-/** Handle a finished step. A new call is counted; a reused one is only counted. The reply itself is in page.cache. */
+/** Handle a finished step. A new call is counted and timed; a reused one is only counted. The reply itself is in page.cache. */
 function onStepDone(event) {
   if (event.reused) {
-    page.counts.reused += 1;
+    countOne("reused");
     addLogEntry("Reused", describeStep(event));
     return;
   }
-  page.counts.calls += 1;
+  countOne("calls");
+  page.tracker?.noteCall();
+  const key = eventUnitKey(event);
+  page.freshByUnit.set(key, (page.freshByUnit.get(key) ?? 0) + 1);
+  // A call that has finished means any wait before it is over, so the countdown is cleared.
+  page.wait = null;
   addLogEntry("Called", describeStep(event));
 }
 
-/** Handle a failed step: count it and log the plain message. */
+/**
+ * Handle a failed step: count it, keep its details for the saved totals, and log the plain message. A step that failed
+ * because its reply was empty or cut short is counted as unusable too, since the reply size is the thing to change.
+ */
 function onStepFailed(event) {
-  page.counts.failed += 1;
+  countOne("failed");
+  if (event.reason === "unusable") countOne("unusable");
+  page.condition.failures.push({
+    model: event.model,
+    question: event.questionId,
+    step: event.step,
+    reason: event.reason ?? "other",
+    message: event.message,
+    at: new Date().toISOString(),
+  });
   addLogEntry("Failed", `${describeStep(event)}: ${event.message}`);
 }
 
 /** Handle a unit that failed: count it, log it, and say that the other units carry on. Its steps are not saved. */
 function onUnitFailed(event) {
-  page.unitSteps.delete(eventUnitKey(event));
-  page.counts.failed += 1;
+  const key = eventUnitKey(event);
+  page.unitSteps.delete(key);
+  page.freshByUnit.delete(key);
+  countOne("failed");
   addLogEntry("Failed", `${describeUnit(event)}: ${event.message}`);
   setStatus(`A unit failed: ${event.message} The other units carry on.`);
 }
 
-/** Handle the progress after a unit: copy the counts, redraw the bar, and schedule a results redraw. */
+/**
+ * Handle the progress after a unit: add the units finished since the last report, redraw the bar, and schedule a results
+ * redraw. The runner counts from zero for each condition, so its own total is never copied over the counts of the Start:
+ * only the new finished units are added. The calls, replies and failures are counted as each one happens.
+ */
 function onProgress(event) {
-  Object.assign(page.counts, {
-    done: event.done,
-    total: event.total,
-    calls: event.calls,
-    reused: event.reused,
-    failed: event.failed,
-  });
+  page.counts.done += event.done - page.runnerDone;
+  page.runnerDone = event.done;
   renderProgress();
   scheduleResults();
+  updateStatusPanel();
 }
 
 /** Handle the call cap being reached: say how far the batch got and how to continue. */
 function onBudgetExhausted() {
   page.budgetHit = true;
+  page.stop = describeStop({ kind: "budget-exhausted", calls: page.counts.calls, cap: page.batchChoices.cap });
   addLogEntry("Note", "The call cap was reached.");
-  setStatus(
-    `The call cap was reached after ${formatCount(page.counts.calls)} calls. `
-    + "Raise the cap and press Start again to continue: saved replies are reused.",
-  );
+  setStatus(stopLine(page.stop));
 }
 
 /** Handle a refused key: show the message and say to check the key. The stopped event follows. */
-function onKeyRefused(event) {
+function onKeyRefused() {
   page.keyRefused = true;
+  page.stop = describeStop({ kind: "key-refused" });
   addLogEntry("Note", "The key was refused.");
-  setStatus(`The key was refused: ${event.message} Check the key, then press Start again.`);
+  setStatus(stopLine(page.stop));
 }
 
 /**
  * Handle a long rate-limit pause: the provider asked for more than five minutes, so the run stops rather than wait.
  * The saved replies are kept, so Start again later reuses them. The stopped event follows.
  */
-function onRateLimited() {
+function onRateLimited(event) {
   page.rateLimited = true;
+  countOne("rateLimits");
+  page.stop = describeStop({ kind: "rate-limited", waitSeconds: event.waitSeconds ?? null });
   addLogEntry("Note", "The provider asked for a long pause.");
-  setStatus(
-    "The provider asked for a pause longer than five minutes, so the run stopped. "
-    + "Start again later; saved replies are reused.",
-  );
+  setStatus(stopLine(page.stop));
 }
 
 /**
@@ -2380,10 +2453,10 @@ function onStopped() {
   page.phase = "stopped";
   page.conditionsLeft = [];
   page.resumeQueue = [];
+  // A stop by the user is the only stop with no reason already set by a notice (cap, key or long pause).
+  if (page.stop === null) page.stop = describeStop({ kind: "user-stop" });
   finishSavedRun("stopped");
-  if (!page.budgetHit && !page.keyRefused && !page.rateLimited) {
-    setStatus(`Stopped at ${formatCount(page.counts.calls)} calls. Export what you have.`);
-  }
+  setStatus(stopLine(page.stop));
   finishRun();
 }
 
@@ -2398,10 +2471,8 @@ function onFinished(event) {
     return;
   }
   page.phase = "finished";
-  setStatus(
-    `Finished: ${formatCount(page.counts.calls)} calls, ${formatCount(page.counts.reused)} reused, `
-    + `${formatCount(page.counts.failed)} failed.`,
-  );
+  page.stop = describeStop({ kind: "finished", failed: page.counts.failed });
+  setStatus(stopLine(page.stop));
   finishRun();
   continueNextSaved();
 }
@@ -2414,7 +2485,12 @@ function handleRunError(error) {
   page.resumeQueue = [];
   page.phase = "stopped";
   finishSavedRun("failed");
-  setStatus(`The batch stopped because of a problem: ${errorText(error)}`);
+  page.stop = {
+    title: "The batch stopped because of a problem",
+    why: errorText(error),
+    next: "Press Start to carry on. Saved replies are reused.",
+  };
+  setStatus(stopLine(page.stop));
   finishRun();
 }
 
@@ -2430,6 +2506,11 @@ function finishSavedRun(status) {
     return;
   }
   const { adapter } = page.storage;
+  // The totals are worked out now, while the counts are still those of this condition. They are saved before the status,
+  // so a run is never marked finished without its totals.
+  const totals = conditionTotals();
+  page.queue.run(() => saveTotals(adapter, runId, totals))
+    .catch(() => addLogEntry("Note", SAVE_PROBLEM_TEXT));
   page.queue.run(() => setRunStatus(adapter, runId, status))
     .then(() => refreshRuns())
     .then(() => saveServerNow(adapter, runId))
@@ -2439,9 +2520,13 @@ function finishSavedRun(status) {
 /** The shared end of a batch: show the final counts, draw the results now, and give the controls back. */
 function finishRun() {
   page.runner = null;
+  page.tracker?.pause();
+  page.wait = null;
+  stopStatusTimer();
   renderProgress();
   flushResults();
   updateControls();
+  updateStatusPanel();
 }
 
 /** Pause was pressed: toggle the running batch between paused and running, and say which in the status line. */
@@ -2451,9 +2536,11 @@ function togglePause() {
   }
   if (page.runner.isPaused()) {
     page.runner.resume();
+    page.tracker?.start();
     setStatus("Running again.");
   } else {
     page.runner.pause();
+    page.tracker?.pause();
     setStatus("Paused. Calls already in flight will finish. Press Resume to carry on.");
   }
   updateControls();
@@ -2472,7 +2559,212 @@ function stopRun() {
 
 /** Start the counters for a new batch with the number of units it will run. */
 function resetCounts(total) {
-  page.counts = { done: 0, total, calls: 0, reused: 0, failed: 0 };
+  page.counts = { done: 0, total, calls: 0, reused: 0, failed: 0, unusable: 0, retries: 0, rateLimits: 0 };
+}
+
+/** Return the counts for one condition's run: the calls, replies, failures and waits, and the failure details. */
+function freshConditionCounts() {
+  return { calls: 0, reused: 0, failed: 0, unusable: 0, retries: 0, rateLimits: 0, failures: [] };
+}
+
+/**
+ * Add one to a count for the whole Start and for the condition now running, so the two stay in step. The names are
+ * calls, reused, failed, unusable, retries and rateLimits.
+ */
+function countOne(name) {
+  page.counts[name] += 1;
+  page.condition[name] += 1;
+}
+
+/** Return the saved totals of the run that is ending: its earlier Starts, plus the counts of this condition. */
+function conditionTotals() {
+  const session = {
+    calls: page.condition.calls,
+    reused: page.condition.reused,
+    failed: page.condition.failed,
+    unusable: page.condition.unusable,
+    retries: page.condition.retries,
+    rateLimits: page.condition.rateLimits,
+    activeSeconds: page.tracker.activeSeconds() - page.conditionStartSeconds,
+    failures: page.condition.failures,
+  };
+  return addSession(page.runBase, session);
+}
+
+/** Return the saved totals of a run, or zero totals when the run is not saved or cannot be read. */
+async function loadRunBase(runId) {
+  if (runId === null || page.storage === null) return emptyTotals();
+  try {
+    return readTotals(await getRun(page.storage.adapter, runId));
+  } catch {
+    return emptyTotals();
+  }
+}
+
+/** Return the one sentence the status line shows for a stop: its title, its reason and its next step. */
+function stopLine(stop) {
+  return `${stop.title}. ${stop.why} ${stop.next}`;
+}
+
+/**
+ * Show a wait the client is making: a platform limit, or a failed call that is tried again. The panel counts the time
+ * down from here. A short park is logged once per call, and a long pause is logged by its own notice.
+ */
+function handleWait(wait) {
+  page.wait = { reason: wait.reason, seconds: wait.seconds, untilMs: Date.now() + wait.seconds * 1000 };
+  if (wait.reason === "rate-limit") countOne("rateLimits");
+  if (wait.reason !== "platform-pause") {
+    countOne("retries");
+    addLogEntry("Note", `Waiting ${formatDuration(wait.seconds)} before the call is tried again.`);
+  }
+  updateStatusPanel();
+}
+
+/** Redraw the status panel once a second while a run is on, so the countdown and the time left stay current. */
+function startStatusTimer() {
+  stopStatusTimer();
+  page.statusTimer = setInterval(updateStatusPanel, STATUS_TICK_MS);
+}
+
+/** Stop the one-second redraw of the status panel. */
+function stopStatusTimer() {
+  if (page.statusTimer !== null) clearInterval(page.statusTimer);
+  page.statusTimer = null;
+}
+
+/**
+ * Return the time left as the estimate reads it. Until the run has a speed and enough finished units, it says so.
+ */
+function estimateNow() {
+  if (page.tracker === null) return { state: "estimating" };
+  return estimateRemaining({
+    unitsLeft: page.counts.total - page.counts.done,
+    unitSteps: page.finishedUnitCalls,
+    callsPerMinute: page.tracker.callsPerMinute(),
+    callCount: page.tracker.callCount(),
+    activeSeconds: page.tracker.activeSeconds(),
+  });
+}
+
+/**
+ * Return the suggestions for the settings, from what the run has shown so far. Each one names its control and the value
+ * it would set, and a note only when it is a real suggestion, so the panel does not offer changes for no reason.
+ */
+function adviceRows() {
+  const choices = page.batchChoices;
+  if (choices === null || page.tracker === null) return [];
+  const perModelLimit = page.data.config.per_model_concurrency ?? DEFAULT_PER_MODEL_LIMIT;
+  const concurrency = adviseConcurrency({
+    concurrency: choices.concurrency,
+    models: choices.models.length,
+    perModelLimit,
+    platformLimit: page.pacer.status().limit,
+  });
+  const rows = [{ label: "Concurrency", control: "concurrency-input", value: concurrency.value, note: concurrency.note }];
+  const unitsLeft = page.counts.total - page.counts.done;
+  const cap = capAdvice(unitsLeft);
+  if (cap !== null) rows.push(cap);
+  const maxTokens = adviseMaxTokens({
+    maxTokens: choices.maxTokens,
+    replies: page.counts.calls + page.counts.unusable,
+    unusable: page.counts.unusable,
+  });
+  rows.push({ label: "Reply size", control: "batch-max-tokens-select", value: maxTokens.value, note: maxTokens.note });
+  return rows;
+}
+
+/**
+ * Return the call-cap suggestion, or null until the run has finished a unit to measure from. Each step may take more
+ * than one attempt, so the attempts seen so far are used.
+ */
+function capAdvice(unitsLeft) {
+  const perUnit = averageOf(page.finishedUnitCalls);
+  if (perUnit === null || unitsLeft <= 0) return null;
+  const calls = Math.max(1, page.counts.calls);
+  const attemptsPerStep = (calls + page.counts.retries) / calls;
+  const cap = adviseCap({ stepsLeft: unitsLeft * perUnit, attemptsPerStep });
+  const note = cap.note ?? `About ${cap.value} calls are needed for the rest of this run.`;
+  return { label: "Call cap", control: "batch-cap-input", value: cap.value, note };
+}
+
+/** Return the average of a list of numbers, or null when the list is empty. */
+function averageOf(numbers) {
+  if (numbers.length === 0) return null;
+  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+/**
+ * Draw the status panel from the run's numbers. The words come from buildStatusView; this only puts them on the page,
+ * and draws the suggestions again only when their text changes, so their Apply buttons are not replaced every second.
+ */
+function updateStatusPanel() {
+  const dom = page.dom;
+  if (!dom || !dom.runState) return;
+  const savedRows = page.runBase.failed > 0 || page.runBase.unusable > 0 ? page.runBase : null;
+  const view = buildStatusView({
+    phase: page.phase,
+    stop: page.stop,
+    counts: page.counts,
+    saved: savedRows === null ? null : { failed: savedRows.failed, unusable: savedRows.unusable },
+    activeSeconds: page.tracker ? page.tracker.activeSeconds() : 0,
+    callsPerMinute: page.tracker ? page.tracker.callsPerMinute() : 0,
+    estimate: estimateNow(),
+    wait: page.wait,
+    nowMs: Date.now(),
+    advice: adviceRows(),
+  });
+  dom.runState.textContent = view.stateWord;
+  dom.runStop.hidden = view.reason === null;
+  dom.runReason.textContent = view.reason ?? "";
+  dom.runWhy.textContent = view.why ?? "";
+  dom.runNext.textContent = view.next ?? "";
+  dom.runWait.hidden = view.wait === null;
+  dom.runWait.textContent = view.wait ?? "";
+  dom.runProgress.textContent = view.progress;
+  dom.runElapsed.textContent = view.elapsed;
+  dom.runSpeed.textContent = view.speed;
+  dom.runEta.textContent = view.eta;
+  dom.runFailures.textContent = view.failures;
+  drawAdvice(view.advice);
+}
+
+/** Draw the suggestions, each with an Apply button, only when the list has changed since it was last drawn. */
+function drawAdvice(advice) {
+  const key = JSON.stringify(advice);
+  if (key === page.adviceKey) return;
+  page.adviceKey = key;
+  const list = page.dom.runAdvice;
+  clear(list);
+  page.dom.runAdviceBlock.hidden = advice.length === 0;
+  for (const row of advice) {
+    const apply = el("button", { type: "button", className: "button-small" }, ["Apply"]);
+    apply.addEventListener("click", () => applyAdvice(row.control, row.value));
+    list.append(el("li", {}, [el("span", {}, [row.text]), " ", apply]));
+  }
+}
+
+/**
+ * Put a suggested value into its control, as if the visitor had typed it, so the plan and the cap follow it. A value the
+ * control does not offer is left alone.
+ */
+function applyAdvice(control, value) {
+  const dom = page.dom;
+  if (control === "concurrency-input") setControlValue(dom.concurrency, value);
+  if (control === "batch-cap-input") {
+    setControlValue(dom.cap, value);
+    page.capTouched = true;
+  }
+  if (control === "batch-max-tokens-select") setControlValue(dom.maxTokensSelect, value);
+  updateStatusPanel();
+}
+
+/** Set a control's value and tell the page it changed. A value that the control does not offer is not set. */
+function setControlValue(control, value) {
+  if (!control) return;
+  const text = String(value);
+  if (control.tagName === "SELECT" && !Array.from(control.options).some((option) => option.value === text)) return;
+  control.value = text;
+  control.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 /** Return the bar's class names for a percentage, rounded to the nearest step, such as "progress-fill progress-45". */
