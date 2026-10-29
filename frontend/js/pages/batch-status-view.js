@@ -19,7 +19,7 @@ const STATE_WORDS = {
  *   phase: the page's phase name, such as 'running' or 'stopped'.
  *   stop: the { title, why, next } from describeStop, or null while nothing has stopped the run.
  *   counts: { done, total, calls, reused, failed, unusable } for this Start.
- *   saved: { failed, unusable } for the earlier Starts of this run, or null when there are none to show.
+ *   saved: { failed, unusable } for the earlier Starts of this batch, or null when there are none to show.
  *   activeSeconds, callsPerMinute: the speed of the run from the pace tracker.
  *   estimate: the result of estimateRemaining.
  *   wait: { reason, seconds, untilMs } for a wait in progress, or null.
@@ -91,5 +91,5 @@ function failuresText(counts, saved) {
   if (counts.failed === 0 && (saved === null || saved.failed === 0)) return 'No failed calls.';
   const thisStart = `${counts.failed} failed in this Start, ${counts.unusable} of them unusable.`;
   if (saved === null || saved.failed === 0) return thisStart;
-  return `${thisStart} ${saved.failed} failed in earlier Starts of this run.`;
+  return `${thisStart} ${saved.failed} failed in earlier Starts of this batch.`;
 }

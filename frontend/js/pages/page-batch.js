@@ -32,7 +32,7 @@ import { describeStop, stopSentence } from "../engine/stop-reason.js";
 import { adviseCap, adviseConcurrency, adviseMaxTokens } from "../engine/run-advice.js";
 import { createPlatformPacer } from "../engine/platform-pacer.js";
 import { buildStatusView } from "./batch-status-view.js";
-import { addSession, emptyTotals, readTotals } from "../store/run-totals.js";
+import { addSession, emptyTotals, readTotals, sumTotals } from "../store/run-totals.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { gradeCondition, gradeProbes } from "../engine/grade.js";
 import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
@@ -301,6 +301,7 @@ const page = {
   condition: null,            // the counts of the condition now running, made by freshConditionCounts()
   runnerDone: 0,              // the done count the runner of this condition last reported
   runBase: emptyTotals(),     // the saved totals of the run now running, before this condition's counts
+  startBases: {},            // the saved totals of each condition's run before this Start, keyed by condition
   conditionStartSeconds: 0,   // the active seconds when this condition began
   freshByUnit: new Map(),     // the fresh calls each unit still running has made, by unit key
   finishedUnitCalls: [],      // the fresh calls each finished unit made, for the time estimate
@@ -1929,6 +1930,8 @@ async function beginRun(confirmedId) {
     pacer: page.pacer,
     onWait: handleWait,
   });
+  // Read before the first condition starts, so the failures of earlier Starts are the same for every condition.
+  page.startBases = await loadStartBases(choices, fromScratch);
   const [first, ...rest] = choices.conditions;
   page.conditionsLeft = rest;
   await startConditionRun(first);
@@ -2609,6 +2612,33 @@ function conditionTotals() {
   return addSession(page.runBase, session);
 }
 
+/**
+ * Return the saved totals of each condition's run as they were before this Start, keyed by condition. Each condition is
+ * its own saved run, so the panel adds them up to show the failures of the whole batch, not only the condition running.
+ * A restart from scratch starts every condition at zero, and so does a condition with no saved run yet. The run a resume
+ * continues is the one for the first condition, the same as openRunFor uses.
+ */
+async function loadStartBases(choices, fromScratch) {
+  const bases = {};
+  if (page.storage === null || fromScratch) {
+    for (const condition of choices.conditions) bases[condition] = emptyTotals();
+    return bases;
+  }
+  let runs = [];
+  try {
+    runs = await listRuns(page.storage.adapter);
+  } catch {
+    runs = [];
+  }
+  const [first] = choices.conditions;
+  for (const condition of choices.conditions) {
+    const resumed = condition === first && page.resumeRunId !== null ? runs.find((run) => run.id === page.resumeRunId) : undefined;
+    const carried = resumed ?? findResumableRun(runs, resumeSignature(batchConfig({ ...choices, condition })));
+    bases[condition] = readTotals(carried);
+  }
+  return bases;
+}
+
 /** Return the saved totals of a run, or zero totals when the run is not saved or cannot be read. */
 async function loadRunBase(runId) {
   if (runId === null || page.storage === null) return emptyTotals();
@@ -2713,7 +2743,8 @@ function averageOf(numbers) {
 function updateStatusPanel() {
   const dom = page.dom;
   if (!dom || !dom.runState) return;
-  const savedRows = page.runBase.failed > 0 || page.runBase.unusable > 0 ? page.runBase : null;
+  const saved = sumTotals(Object.values(page.startBases));
+  const savedRows = saved.failed > 0 || saved.unusable > 0 ? saved : null;
   const view = buildStatusView({
     phase: page.phase,
     stop: page.stop,

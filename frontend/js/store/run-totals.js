@@ -50,3 +50,11 @@ export function addSession(totals, session) {
   const failures = [...totals.failures, ...session.failures].slice(-MAX_RECENT_FAILURES);
   return { ...numbers, failures };
 }
+
+/**
+ * Return the totals of several runs added together, such as the runs of every condition in one batch. The failure
+ * lists are joined in order, and only the most recent MAX_RECENT_FAILURES are kept.
+ */
+export function sumTotals(list) {
+  return list.reduce((total, totals) => addSession(total, totals), emptyTotals());
+}
