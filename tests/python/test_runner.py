@@ -345,6 +345,18 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([failure.message for failure in stats.failures], ["TruncatedReply: cut off"])
         self.assertEqual(core.load_cache(self.cache_path), {})
 
+    async def test_empty_reply_is_one_failure_with_no_retry_and_nothing_saved(self) -> None:
+        """A reply with no words is recorded as one failure, is not retried, and never reaches the cache."""
+        client = FakeClient(script=[model_client.EmptyReply("The reply had no text.")])
+        waits: list[float] = []
+        settings = replace(make_settings(waits=waits), is_retryable=model_client.is_retryable)
+        stats, _ = await self.run_quietly(client, [make_question("q1")], settings)
+        self.assertEqual(len(client.sent), 1)
+        self.assertEqual(waits, [])
+        self.assertEqual(stats.calls_made, 0)
+        self.assertEqual([failure.message for failure in stats.failures], ["EmptyReply: The reply had no text."])
+        self.assertEqual(core.load_cache(self.cache_path), {})
+
 
 # Guards the pacing in the runner: a rate limit that names a wait parks only that model, the reply after the
 # park is still saved, a rate limit with no wait is left to the normal retry backoff, and a failed call never
