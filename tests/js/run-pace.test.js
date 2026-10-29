@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MIN_ACTIVE_SECONDS_FOR_ESTIMATE,
-  MIN_CALLS_FOR_ESTIMATE,
+  PACE_WINDOW_SECONDS,
   createPaceTracker,
   estimateRemaining,
   formatDuration,
@@ -19,11 +19,13 @@ function fakeClock() {
   };
 }
 
-test('a new tracker has made no calls and has no active time', () => {
+test('a new tracker has made no calls, finished no unit, and has no active time', () => {
   const tracker = createPaceTracker({ now: fakeClock().now });
   assert.equal(tracker.callCount(), 0);
   assert.equal(tracker.activeSeconds(), 0);
   assert.equal(tracker.callsPerMinute(), 0);
+  assert.equal(tracker.unitsInWindow(), 0);
+  assert.equal(tracker.secondsSinceLastUnit(), null);
 });
 
 test('time while the tracker is paused does not count as active time', () => {
@@ -62,51 +64,107 @@ test('calls older than the window do not change the speed', () => {
   assert.equal(tracker.callCount(), 3);
 });
 
-test('estimateRemaining says it is estimating until enough calls and active time are seen', () => {
+test('units finished are counted in the window, and the time since the last one is kept', () => {
+  const clock = fakeClock();
+  const tracker = createPaceTracker({ now: clock.now });
+  tracker.start();
+  clock.advanceSeconds(60);
+  tracker.noteUnit();
+  clock.advanceSeconds(30);
+  tracker.noteUnit();
+  clock.advanceSeconds(90);
+  assert.equal(tracker.unitsInWindow(), 2);
+  assert.equal(tracker.secondsSinceLastUnit(), 90);
+});
+
+test('units per minute counts the units in the window per active minute', () => {
+  const clock = fakeClock();
+  const tracker = createPaceTracker({ now: clock.now });
+  tracker.start();
+  clock.advanceSeconds(120);
+  tracker.noteUnit();
+  tracker.noteUnit();
+  // Two units in two active minutes: one unit a minute.
+  assert.equal(tracker.unitsPerMinute(), 1);
+});
+
+test('a unit finished long ago is not in the window, but still counts as the last unit', () => {
+  const clock = fakeClock();
+  const tracker = createPaceTracker({ now: clock.now });
+  tracker.start();
+  tracker.noteUnit();
+  clock.advanceSeconds(PACE_WINDOW_SECONDS + 60);
+  assert.equal(tracker.unitsInWindow(), 0);
+  assert.equal(tracker.secondsSinceLastUnit(), PACE_WINDOW_SECONDS + 60);
+});
+
+test('estimateRemaining says it is estimating until there is enough active time', () => {
   const result = estimateRemaining({
     unitsLeft: 100,
-    unitSteps: [4, 5, 6],
-    callsPerMinute: 2,
-    callCount: MIN_CALLS_FOR_ESTIMATE - 1,
-    activeSeconds: MIN_ACTIVE_SECONDS_FOR_ESTIMATE * 2,
+    unitsFinished: 3,
+    unitsPerMinute: 2,
+    activeSeconds: MIN_ACTIVE_SECONDS_FOR_ESTIMATE - 1,
+    secondsSinceLastUnit: 10,
   });
   assert.equal(result.state, 'estimating');
 });
 
-test('estimateRemaining says it is estimating when no unit has finished yet', () => {
+test('estimateRemaining says it is estimating early in a run, before any unit has finished', () => {
   const result = estimateRemaining({
     unitsLeft: 100,
-    unitSteps: [],
-    callsPerMinute: 6,
-    callCount: 500,
-    activeSeconds: 3600,
-  });
-  assert.equal(result.state, 'estimating');
-});
-
-test('estimateRemaining gives a typical time and a range from the steps seen per unit', () => {
-  // Two units left, each about 4 calls on average, between 3 and 5. At 6 calls a minute:
-  // typical 8 calls = 80 s, low 6 calls = 60 s, high 10 calls = 100 s.
-  const result = estimateRemaining({
-    unitsLeft: 2,
-    unitSteps: [3, 4, 5],
-    callsPerMinute: 6,
-    callCount: MIN_CALLS_FOR_ESTIMATE,
+    unitsFinished: 0,
+    unitsPerMinute: 0,
     activeSeconds: MIN_ACTIVE_SECONDS_FOR_ESTIMATE,
+    secondsSinceLastUnit: null,
+  });
+  assert.equal(result.state, 'estimating');
+});
+
+test('estimateRemaining gives the time left at the pace of the window', () => {
+  // 40 units left at 4 units a minute: ten minutes, which is 600 seconds.
+  const result = estimateRemaining({
+    unitsLeft: 40,
+    unitsFinished: 12,
+    unitsPerMinute: 4,
+    activeSeconds: 900,
+    secondsSinceLastUnit: 30,
   });
   assert.equal(result.state, 'ready');
-  assert.equal(result.seconds, 80);
-  assert.equal(result.lowSeconds, 60);
-  assert.equal(result.highSeconds, 100);
+  assert.equal(result.seconds, 600);
+});
+
+test('estimateRemaining reports a stall when no unit has finished for the whole window', () => {
+  // Calls are being made, but the last unit finished 12 active minutes ago: there is no honest estimate.
+  const result = estimateRemaining({
+    unitsLeft: 100,
+    unitsFinished: 30,
+    unitsPerMinute: 0,
+    activeSeconds: 3000,
+    secondsSinceLastUnit: 12 * 60,
+  });
+  assert.equal(result.state, 'stalled');
+  assert.equal(result.minutes, 12);
+});
+
+test('estimateRemaining reports a stall when no unit has finished after a whole window of active time', () => {
+  const result = estimateRemaining({
+    unitsLeft: 135,
+    unitsFinished: 0,
+    unitsPerMinute: 0,
+    activeSeconds: PACE_WINDOW_SECONDS,
+    secondsSinceLastUnit: null,
+  });
+  assert.equal(result.state, 'stalled');
+  assert.equal(result.minutes, 10);
 });
 
 test('estimateRemaining says there is nothing left when no unit is left', () => {
   const result = estimateRemaining({
     unitsLeft: 0,
-    unitSteps: [4],
-    callsPerMinute: 6,
-    callCount: MIN_CALLS_FOR_ESTIMATE,
-    activeSeconds: MIN_ACTIVE_SECONDS_FOR_ESTIMATE,
+    unitsFinished: 135,
+    unitsPerMinute: 0,
+    activeSeconds: 3000,
+    secondsSinceLastUnit: 5,
   });
   assert.equal(result.state, 'ready');
   assert.equal(result.seconds, 0);

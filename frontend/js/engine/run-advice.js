@@ -9,10 +9,11 @@ export const MAX_CAP = 400;
 const CAP_STEP = 10;
 // The reply sizes the batch page offers, smallest first. Matches the choices in index.html.
 export const MAX_TOKEN_CHOICES = [2048, 4096, 8192, 16384, 32768];
-// No advice about reply size until this many replies have been seen. A few bad replies are not a pattern.
-export const MIN_REPLIES_FOR_ADVICE = 20;
-// If more than this share of replies are empty or cut short, the reply size is too small. Matches
-// health_max_unparsed_rate in ordeal/data/config.json, so the web page and the command line agree.
+// No advice about reply size until this many units have been started. A few bad units are not a pattern.
+export const MIN_UNITS_FOR_ADVICE = 20;
+// If more than this share of units stopped at an empty or cut-short reply, the reply size is too small. A unit has about
+// twelve replies, so a small share of bad replies stops most units; the share is measured by unit for that reason.
+// The limit matches health_max_unparsed_rate in ordeal/data/config.json.
 export const UNUSABLE_ALERT_SHARE = 0.2;
 
 /**
@@ -48,24 +49,26 @@ export function adviseCap({ stepsLeft, attemptsPerStep }) {
 }
 
 /**
- * Suggest a reply size. When many replies come back empty or cut short, the model ran out of room, which happens with
+ * Suggest a reply size. When many units stop at an empty or cut-short reply, the model ran out of room, which happens with
  * reasoning models that spend the reply size on reasoning. The next size up is suggested. If the largest is already in
  * use, the note says so, because no setting here can fix it.
+ *
+ * units is how many units have been started, and stopped is how many of them stopped at an unusable reply.
  */
-export function adviseMaxTokens({ maxTokens, replies, unusable }) {
-  const share = replies > 0 ? unusable / replies : 0;
-  if (replies < MIN_REPLIES_FOR_ADVICE || share <= UNUSABLE_ALERT_SHARE) return { value: maxTokens, note: null };
+export function adviseMaxTokens({ maxTokens, units, stopped }) {
+  const share = units > 0 ? stopped / units : 0;
+  if (units < MIN_UNITS_FOR_ADVICE || share <= UNUSABLE_ALERT_SHARE) return { value: maxTokens, note: null };
   const percent = Math.round(share * 100);
   const larger = MAX_TOKEN_CHOICES.find((choice) => choice > maxTokens);
   if (larger === undefined) {
     return {
       value: maxTokens,
-      note: `${percent}% of replies were empty or cut short, even at the largest setting. Check the model before running more.`,
+      note: `${percent}% of units stopped at an empty or cut-short reply, even at the largest setting. Check the model before running more.`,
     };
   }
   return {
     value: larger,
-    note: `${percent}% of replies were empty or cut short at ${maxTokens} tokens. Reasoning models often need more room.`,
+    note: `${percent}% of units stopped at an empty or cut-short reply at ${maxTokens} tokens. Reasoning models often need more room.`,
   };
 }
 
