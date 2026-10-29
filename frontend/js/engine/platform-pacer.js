@@ -40,6 +40,8 @@ export function createPlatformPacer({ ceiling = DEFAULT_PLATFORM_LIMIT, now = Da
   let allowed = ceiling;
   let parkedUntil = 0;
   let successRun = 0;
+  // How many 429s the platform has sent in this run. Shown in the status panel, so the user can see the pressure.
+  let rateLimitCount = 0;
 
   return {
     /** Return how many calls may be in flight to the platform right now. */
@@ -59,9 +61,14 @@ export function createPlatformPacer({ ceiling = DEFAULT_PLATFORM_LIMIT, now = Da
       if (parkedUntil <= now()) {
         allowed = Math.max(1, Math.floor(allowed / 2));
       }
+      rateLimitCount += 1;
       successRun = 0;
       parkedUntil = Math.max(parkedUntil, now() + seconds * 1000);
       return seconds;
+    },
+    /** Return the pacer's state for the status panel: calls allowed, the time the park ends, and the 429s seen so far. */
+    status() {
+      return { limit: allowed, parkedUntil, rateLimitCount };
     },
     /** Record a successful call. After SUCCESSES_TO_RAISE in a row, allow one more call in flight, up to the ceiling. */
     recordSuccess() {

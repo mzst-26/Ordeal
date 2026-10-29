@@ -574,6 +574,43 @@ fieldset:disabled .check-box {
   font-variant-numeric: tabular-nums;
 }
 
+/* The run status panel: plain lines under the progress bar. The stop reason stands out, and suggestions are a short list. */
+.run-panel {
+  display: grid;
+  gap: 0.35rem;
+  font-family: var(--font-sans);
+  font-size: var(--size-sm);
+  color: var(--ink-soft);
+}
+
+.run-panel p {
+  margin: 0;
+}
+
+.run-panel-reason {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.run-panel-wait {
+  color: var(--ink);
+}
+
+.run-advice {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-advice li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 [data-view="batch"] .status-line {
   margin: 0;
   font-family: var(--font-sans);

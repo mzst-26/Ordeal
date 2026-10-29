@@ -149,3 +149,16 @@ test("rowText names the kind, size and hours left", () => {
   assert.match(row.meta, /kept 24 more hours/);
   assert.equal(rowText({ id: ID_B, kind: "batch", createdAt: NOW, size: 1 }, NOW).title, "Batch run");
 });
+
+// A save that gets no JSON back (for example, the dev server has no save server at that address) says why, with the
+// status, rather than the generic message.
+test("saveRunOnServer says the save server is missing when the address answers 404 with no body", async () => {
+  const fetchFn = async () => ({ status: 404, ok: false, json: async () => { throw new SyntaxError("no body"); } });
+  await assert.rejects(saveRunOnServer({ id: ID_A }, "batch", BROWSER, fetchFn), /HTTP 404.*npm run dev/s);
+});
+
+test("saveRunOnServer shows the HTTP status when the server fails without a plain message", async () => {
+  const fetchFn = async () => ({ status: 500, ok: false, json: async () => { throw new SyntaxError("html"); } });
+  await assert.rejects(saveRunOnServer({ id: ID_A }, "batch", BROWSER, fetchFn), /could not be saved\. The server answered HTTP 500/);
+});
+

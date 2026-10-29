@@ -230,7 +230,7 @@ export async function saveResult(adapter, runId, unitKey, record) {
  * units, and the run gets a new id, the same as createRun gives. The status is set as given, so a loaded run can be
  * opened with Resume. Returns the saved run.
  */
-export async function importRunDocument(adapter, { label, config, status, plannedUnits, results }) {
+export async function importRunDocument(adapter, { label, config, status, plannedUnits, results, totals }) {
   const plainConfig = toPlainData(config);
   if (!isPlainObject(plainConfig)) throw new Error(NOT_PLAIN_MESSAGE);
   if (serialisedBytes(plainConfig) > MAX_RECORD_BYTES) throw new Error(RECORD_SIZE_MESSAGE);
@@ -255,6 +255,8 @@ export async function importRunDocument(adapter, { label, config, status, planne
     // defineProperty keeps a unit key such as "__proto__" as an ordinary entry, as saveResult does.
     Object.defineProperty(run.results, key, { value: checkedRecord(results[key]), enumerable: true, writable: true, configurable: true });
   }
+  // A file from before totals existed has none, and the run then reads as zero totals.
+  if (totals !== undefined) run.totals = toPlainData(totals);
   assertNoSecrets(run);
   await adapter.put(RUNS_STORE, run);
   return run;
@@ -269,6 +271,19 @@ export async function setStatus(adapter, runId, status) {
   assertTransition(run.status, status);
   run.status = status;
   run.updatedAt = nextTimestamp();
+  await adapter.put(RUNS_STORE, run);
+  return run;
+}
+
+/**
+ * Save the totals of a run: the counts added up over every Start, with the most recent failures. Only the totals
+ * change; the status and the saved results stay as they are. Returns the run.
+ */
+export async function saveTotals(adapter, runId, totals) {
+  const run = await loadRun(adapter, runId);
+  run.totals = toPlainData(totals);
+  run.updatedAt = nextTimestamp();
+  assertNoSecrets(run);
   await adapter.put(RUNS_STORE, run);
   return run;
 }
@@ -344,6 +359,8 @@ export function exportRun(run) {
     plannedUnits: run.plannedUnits,
     results: run.results,
   };
+  // Totals are left out of older runs, so the file only has them when the run has them.
+  if (run.totals !== undefined) doc.totals = run.totals;
   const text = JSON.stringify(doc, null, 2);
   assertNoSecrets(JSON.parse(text));
   return text;

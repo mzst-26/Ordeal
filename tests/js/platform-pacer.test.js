@@ -116,3 +116,11 @@ test('a Retry-After longer than five minutes is a long wait, which stops the bat
   assert.equal(isLongWait(LONG_WAIT_SECONDS), false);
   assert.equal(isLongWait(LONG_WAIT_SECONDS + 1), true);
 });
+
+test('status reports the calls allowed, when the park ends, and how many 429s were seen', () => {
+  const clock = fakeClock();
+  const pacer = createPlatformPacer({ now: clock.now });
+  pacer.recordRateLimit(7);
+  pacer.recordRateLimit(7);
+  assert.deepEqual(pacer.status(), { limit: 4, parkedUntil: 7000, rateLimitCount: 2 });
+});

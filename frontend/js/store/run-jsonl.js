@@ -47,6 +47,8 @@ export function parseRunJsonl(text) {
     config: header.config,
     plannedUnits: header.plannedUnits,
     results,
+    // Older files have no totals, so the field is left out and the run starts with zero totals.
+    totals: header.totals,
   };
 }
 
