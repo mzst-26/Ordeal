@@ -2,7 +2,7 @@
 // so a Stop, a Start again or a rerun does not forget the calls that failed before it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_RECENT_FAILURES, addSession, emptyTotals, readTotals } from '../../frontend/js/store/run-totals.js';
+import { MAX_RECENT_FAILURES, addSession, emptyTotals, readTotals, sumTotals } from '../../frontend/js/store/run-totals.js';
 
 /** Return one failure as the batch page records it. */
 function failure(step) {
@@ -66,4 +66,29 @@ test('adding totals does not change the totals it was given', () => {
   const snapshot = JSON.stringify(before);
   addSession(before, session({ calls: 9, failures: [failure('level_1')] }));
   assert.equal(JSON.stringify(before), snapshot);
+});
+
+test('summing totals adds the counts of every run, such as every condition of one batch', () => {
+  const first = addSession(emptyTotals(), session({ calls: 4, failed: 1, failures: [failure('level_0')] }));
+  const second = addSession(emptyTotals(), session({ calls: 6, failed: 2, unusable: 1, failures: [failure('level_2')] }));
+  const total = sumTotals([first, second]);
+  assert.equal(total.calls, 10);
+  assert.equal(total.failed, 3);
+  assert.equal(total.unusable, 1);
+  assert.deepEqual(total.failures.map((item) => item.step), ['level_0', 'level_2']);
+});
+
+test('summing no totals gives zero totals', () => {
+  assert.deepEqual(sumTotals([]), emptyTotals());
+});
+
+test('summing keeps only the most recent failures across the runs', () => {
+  const many = Array.from({ length: MAX_RECENT_FAILURES }, (_, index) => failure(`a_${index}`));
+  const total = sumTotals([
+    addSession(emptyTotals(), session({ failed: many.length, failures: many })),
+    addSession(emptyTotals(), session({ failed: 1, failures: [failure('b_0')] })),
+  ]);
+  assert.equal(total.failed, MAX_RECENT_FAILURES + 1);
+  assert.equal(total.failures.length, MAX_RECENT_FAILURES);
+  assert.equal(total.failures.at(-1).step, 'b_0');
 });
