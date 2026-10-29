@@ -2,7 +2,7 @@
 // plain sentences: what happened, why, and what to do next. It reads no clock; the caller passes the times it needs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { describeStop } from '../../frontend/js/engine/stop-reason.js';
+import { describeStop, stopSentence } from '../../frontend/js/engine/stop-reason.js';
 
 test('a stop by the user says so and says that saved replies are reused', () => {
   const reason = describeStop({ kind: 'user-stop' });
@@ -53,4 +53,9 @@ test('an unknown stop kind is said plainly rather than guessed at', () => {
   const reason = describeStop({ kind: 'something-new' });
   assert.equal(reason.title, 'Stopped');
   assert.match(reason.why, /does not know/);
+});
+
+test('a stop reads as one line: title, reason and next step, in that order', () => {
+  const line = stopSentence({ title: 'Stopped by you', why: 'You pressed Stop.', next: 'Press Start.' });
+  assert.equal(line, 'Stopped by you. You pressed Stop. Press Start.');
 });
