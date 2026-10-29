@@ -531,6 +531,8 @@
               </div>
 
               <div class="button-row">
+                <!-- After a Stop: continue the stopped run with its own settings, so nothing it saved is reset. -->
+                <button type="button" class="btn btn-primary" id="batch-resume-button" hidden>Resume</button>
                 <button type="button" class="btn btn-primary" id="batch-start-button" disabled>Start</button>
                 <!-- A new run with the same settings. Every call is sent again; the saved run it replaces stays as it is. -->
                 <button type="button" class="btn" id="batch-restart-button" disabled>Restart from scratch</button>
