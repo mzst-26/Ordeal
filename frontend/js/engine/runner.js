@@ -179,6 +179,11 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
   return { runUnit };
 }
 
+// How many times a unit that a failed call cut short is tried in one Start. A retry sends only what was not answered yet,
+// because the answered steps are saved and reused, so a retry costs little. Without a retry, one bad reply dropped the
+// whole unit until a later Start, and most units with twelve steps never finished.
+export const MAX_UNIT_TRIES = 3;
+
 /**
  * Create a batch runner for every unit of the models, questions and repeats given.
  * start() runs the batch and resolves when it ends. concurrency must be a whole number from 1 to 300,
@@ -192,6 +197,8 @@ export function createBatchRunner({
   const limit = checkConcurrency(concurrency ?? config.concurrency);
   const pending = makeUnits(models, questions, repeats);
   const total = pending.length;
+  // How many tries each unit has had in this Start, by its unit tag. A unit is tried again only up to MAX_UNIT_TRIES.
+  const tries = new Map();
   // The phase is "idle", "running", "stopped" or "finished". status() adds "paused" and "stopping".
   let phase = "idle";
   let paused = false;
@@ -303,7 +310,22 @@ export function createBatchRunner({
       shared.counts.done += 1;
       shared.emit({ kind: "unit-done", ...unitFields(unit) });
       emitProgress();
+      return;
     }
+    if (!shared.stopRequested) queueRetry(unit);
+  }
+
+  /**
+   * Put a unit that a failed call cut short at the back of the queue, if it has tries left. Its answered steps are reused
+   * when it runs again. A stop is not retried, and a unit that used all its tries stays failed.
+   */
+  function queueRetry(unit) {
+    const tag = [unit.model, unit.question.id, unit.repeat].join(" ");
+    const used = (tries.get(tag) ?? 0) + 1;
+    tries.set(tag, used);
+    if (used >= MAX_UNIT_TRIES) return;
+    shared.emit({ kind: "unit-retry", ...unitFields(unit), tries: used });
+    pending.push(unit);
   }
 
   /** Take units one at a time, until none are left or a stop is requested. */

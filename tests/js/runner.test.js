@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BudgetExhausted, KeyRefused, RateLimited, UnusableReply } from "../../frontend/js/engine/api.js";
-import { createBatchRunner } from "../../frontend/js/engine/runner.js";
+import { MAX_UNIT_TRIES, createBatchRunner } from "../../frontend/js/engine/runner.js";
 import { cacheKey } from "../../frontend/js/engine/planner.js";
 import { BASELINE_STEP, formatQuestion } from "../../frontend/js/engine/rules.js";
 import { readJson } from "./helpers.js";
@@ -298,7 +298,7 @@ test("a budget error stops the batch: no calls happen after budget-exhausted", a
   assert.equal(events.at(-1).kind, "stopped");
 });
 
-test("a non-budget error fails the step, ends that unit, and the batch still finishes", async () => {
+test("a non-budget error fails the step, retries the unit, and the batch still finishes", async () => {
   const client = new FakeClient((callNumber) => {
     if (callNumber === 2) throw new Error("Server gave up");
     return "Answer: B";
@@ -311,7 +311,10 @@ test("a non-budget error fails the step, ends that unit, and the batch still fin
   assert.equal(failures.length, 1);
   assert.equal(failures[0].step, "level_1");
   assert.equal(failures[0].message, "Server gave up");
-  assert.equal(client.calls.length, 2);
+  // The failed step is sent again on the retry, and the unit then finishes.
+  assert.equal(sentSteps(events).filter((step) => step === "level_1").length, 2);
+  assert.equal(events.filter((event) => event.kind === "unit-retry").length, 1);
+  assert.equal(events.filter((event) => event.kind === "unit-done").length, 1);
   assert.equal(events.at(-1).kind, "finished");
   assert.equal(runner.status().failed, 1);
 });
@@ -383,7 +386,7 @@ test("a unit cut short by Stop is not counted as done and emits no unit-done", a
   assert.equal(events.at(-1).kind, "stopped");
 });
 
-test("a unit cut short by a failed call is not counted as done", async () => {
+test("a unit cut short by a failed call is not counted as done, and is tried again up to the limit", async () => {
   const client = new FakeClient(() => {
     throw new Error("Server gave up");
   });
@@ -392,9 +395,26 @@ test("a unit cut short by a failed call is not counted as done", async () => {
   await runner.start();
 
   assert.equal(events.some((event) => event.kind === "unit-done"), false);
+  assert.equal(events.filter((event) => event.kind === "unit-retry").length, MAX_UNIT_TRIES - 1);
   assert.deepEqual(runner.status(), {
-    done: 0, total: 1, calls: 0, reused: 0, failed: 1, unusable: 0, state: "finished",
+    done: 0, total: 1, calls: 0, reused: 0, failed: MAX_UNIT_TRIES, unusable: 0, state: "finished",
   });
+});
+
+test("a unit cut short by one failed call is finished in the same Start, and its answered steps are not sent again", async () => {
+  const client = new FakeClient((callNumber) => {
+    if (callNumber === 2) throw new Error("Server gave up");
+    return "Answer: B";
+  });
+  const { runner, events } = buildRunner(client);
+
+  await runner.start();
+
+  assert.equal(events.filter((event) => event.kind === "unit-retry").length, 1);
+  assert.equal(events.filter((event) => event.kind === "unit-done").length, 1);
+  assert.equal(sentSteps(events).filter((step) => step === BASELINE_STEP).length, 1);
+  assert.equal(runner.status().done, 1);
+  assert.equal(runner.status().failed, 1);
 });
 
 test("a refused key stops the batch at once: no second call and one key-refused event", async () => {
