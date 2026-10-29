@@ -46,7 +46,7 @@ import { rateLimitRowFor } from "../shared/rate-limits.js";
 import { updateSelectionCount } from "../suites/selection-count.js";
 import { idsForAction, numberedQuestionLines, shortQuestionText } from "../suites/question-actions.js";
 import {
-  createRun, saveResult, saveTotals, getRun, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns,
+  createRun, saveResult, saveTotals, saveRunSettings, getRun, setStatus as setRunStatus, resumeRun, pendingUnits, listRuns,
   importRunDocument,
 } from "../store/run-store.js";
 import { isRunHeaderLine, parseRunJsonl } from "../store/run-jsonl.js";
@@ -1853,6 +1853,8 @@ async function openRunFor(choices) {
         ? null
         : findResumableRun(await listRuns(adapter), resumeSignature(batchConfig(choices)));
       if (carried !== null) {
+        // The same set continues with this Start's reply size and concurrency, so they are saved on the run for a later Resume.
+        await saveRunSettings(adapter, carried.id, { maxTokens: choices.maxTokens, concurrency: choices.concurrency });
         await resumeRun(adapter, carried.id);
         return carried.id;
       }
