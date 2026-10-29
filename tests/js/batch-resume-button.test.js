@@ -26,3 +26,20 @@ test("Resume goes through resumeBatchRun, so the run's own settings are restored
   assert.ok(body.includes("resumeBatchRun(run)"));
   assert.ok(body.includes("getRun("));
 });
+
+// Resume continues the set, but the reply size, concurrency and cap are the visitor's current choices. Resume keeps them,
+// and the continued run stores them, so the run and the calls sent agree.
+test("Resume keeps the form's reply size, concurrency and cap, not the saved run's", () => {
+  const body = PAGE.slice(PAGE.indexOf("async function resumeBatchRun("), PAGE.indexOf("// The source name that a resume gives"));
+  assert.ok(body.includes("const kept = { maxTokens: readMaxTokens(), concurrency: dom.concurrency.value, cap: dom.cap.value };"),
+    "the form's values must be read before the saved settings are restored");
+  assert.ok(body.includes("restoreChoices(config);"));
+  assert.ok(body.indexOf("restoreChoices(config);") > body.indexOf("const kept = {"), "the form values are read before the restore");
+  assert.ok(body.includes("restoreMaxTokens(kept.maxTokens)"), "the kept reply size must be put back after the restore");
+});
+
+test("a resumed run stores the Start's reply size and concurrency, as a carried run does", () => {
+  const open = PAGE.slice(PAGE.indexOf("async function openRunFor("), PAGE.indexOf("/**\n * Start the batch from the choices on screen"));
+  const resumed = open.slice(open.indexOf("if (page.resumeRunId !== null) {"), open.indexOf("// A Start with the same settings"));
+  assert.ok(resumed.includes("saveRunSettings(adapter, resumedId, { maxTokens: choices.maxTokens, concurrency: choices.concurrency })"));
+});

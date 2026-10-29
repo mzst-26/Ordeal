@@ -1844,6 +1844,7 @@ async function openRunFor(choices) {
       // A resume keeps its original run and id; only a fresh batch creates a new saved run.
       if (page.resumeRunId !== null) {
         const resumedId = page.resumeRunId;
+        await saveRunSettings(adapter, resumedId, { maxTokens: choices.maxTokens, concurrency: choices.concurrency });
         await resumeRun(adapter, resumedId);
         return resumedId;
       }
@@ -2180,7 +2181,14 @@ async function resumeBatchRun(run) {
   const remaining = pendingUnits(run).length;
   // The charts and tables read the models, questions and saved replies from the form and the cache, so a run that is
   // complete gets the same restore as one with units left. Only the sending is skipped for a complete run.
+  // The reply size, concurrency and cap are the visitor's current choices, so they are read before the saved settings are
+  // put back and then restored. The continued run is given them when it is resumed (openRunFor).
+  const dom = page.dom;
+  const kept = { maxTokens: readMaxTokens(), concurrency: dom.concurrency.value, cap: dom.cap.value };
   restoreChoices(config);
+  dom.concurrency.value = kept.concurrency;
+  dom.cap.value = kept.cap;
+  restoreMaxTokens(kept.maxTokens);
   addRecordsToCache(page.cache, resumeState(run).records);
   onSelectionChanged();
   // Nothing is left to send, so the status is not changed. A stopped run can only move to running, not to done, and
