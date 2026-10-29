@@ -337,6 +337,42 @@ class TruncatedReplyTests(unittest.TestCase):
         self.assertFalse(is_retryable(model_client.TruncatedReply("cut off")))
 
 
+# Guards the empty reply: a reply with no words in it (no content, only spaces, or only control tokens) is an error,
+# not an answer, so the runner records a failure instead of saving it. The web batch does the same.
+class EmptyReplyTests(unittest.TestCase):
+    """A reply with no words in it is an error, not a reply."""
+
+    def _reply_with(self, text):
+        async def scenario(server):
+            client = model_client.TokenFactoryClient(server.base_url, DEFAULT_KEY, timeout_seconds=10)
+            try:
+                return await client.complete_detailed("org/model", MESSAGE, 0.7, 16)
+            finally:
+                await client.close()
+
+        with MockOpenAIServer(responder=lambda body: text) as server, mock.patch.dict(os.environ, LOOPBACK_NO_PROXY):
+            return asyncio.run(scenario(server))
+
+    def test_empty_content_raises_empty_reply(self):
+        with self.assertRaises(model_client.EmptyReply):
+            self._reply_with("")
+
+    def test_spaces_only_raise_empty_reply(self):
+        with self.assertRaises(model_client.EmptyReply):
+            self._reply_with("   \n ")
+
+    def test_control_tokens_only_raise_empty_reply(self):
+        with self.assertRaises(model_client.EmptyReply):
+            self._reply_with("<|start|>assistant<|channel|>")
+
+    def test_empty_reply_is_not_retryable(self):
+        """The same request would give the same empty reply, so the runner must not spend the cap on a retry."""
+        self.assertFalse(is_retryable(model_client.EmptyReply("no text")))
+
+    def test_a_reply_with_words_is_still_returned(self):
+        self.assertEqual(self._reply_with("<|channel|>Answer: B").text, "<|channel|>Answer: B")
+
+
 # Guards the link between the router and the pacer: the limits in a reply's headers must reach the pacer for
 # that model, so the snapshot shows the provider's own limit and says it came from the headers.
 class RouterReplyHeaderTests(unittest.TestCase):

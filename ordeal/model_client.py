@@ -27,6 +27,9 @@ RETRYABLE_ERROR_TYPES = (
 )
 # The finish_reason the provider sends when max_tokens stopped the reply before it was finished.
 FINISH_REASON_LENGTH = "length"
+# Control tokens such as <|channel|> that some models write instead of an answer, and the role word after <|start|>.
+CONTROL_TOKEN = re.compile(r"<\|[^|>]*\|>")
+LEFTOVER_ROLE_WORD = re.compile(r"^\s*assistant\s*", re.IGNORECASE)
 # Error text is cut to this length so a long server message cannot flood the output.
 MAX_ERROR_TEXT_LENGTH = 200
 # Number of hex characters of the digest added to a custom model's saved name (see record_label).
@@ -80,6 +83,15 @@ class TruncatedReply(Exception):
     """
 
 
+class EmptyReply(Exception):
+    """Raised when the reply has no words in it: no content, only spaces, or only control tokens.
+
+    Some models write only their own control tokens, such as <|start|>assistant<|channel|>, instead of an answer. That
+    is not an answer, so the runner must record it as a failure and never save it. It is not retryable, because the same
+    request would give the same empty reply and the retry would use up the call cap.
+    """
+
+
 class TokenFactoryClient:
     """Sends chat requests to one OpenAI-compatible endpoint."""
 
@@ -116,9 +128,12 @@ class TokenFactoryClient:
         finish_reason = reply_finish_reason(response)
         if finish_reason == FINISH_REASON_LENGTH:
             raise TruncatedReply(f"The reply was cut off at max_tokens={max_tokens}, so it is not a full answer.")
+        text = reply_text(response)
+        if not has_words(text):
+            raise EmptyReply("The reply had no text.")
         prompt_tokens, completion_tokens = usage_counts(response)
         return Reply(
-            text=reply_text(response),
+            text=text,
             headers=lower_case_headers(raw.headers),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
@@ -171,6 +186,16 @@ def reply_text(response: Any) -> str:
     if content is None:
         return ""
     return content
+
+
+def has_words(text: str) -> bool:
+    """Return True when a reply has words in it, not only spaces, control tokens or a leftover role word.
+
+    The control tokens are removed first, then the role word a model writes after <|start|> (such as "assistant"),
+    because the browser batch treats the same text the same way.
+    """
+    without_tokens = CONTROL_TOKEN.sub("", text)
+    return LEFTOVER_ROLE_WORD.sub("", without_tokens).strip() != ""
 
 
 def reply_finish_reason(response: Any) -> str | None:
