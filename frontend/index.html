@@ -486,6 +486,25 @@
                 <div class="progress-fill" id="progress-fill"></div>
               </div>
               <p class="progress-line" id="progress-line"></p>
+              <!-- The run's state, and why it stopped or is waiting, with what happens next. The page fills it as the run goes. -->
+              <section class="run-panel" aria-label="Run status">
+                <p class="run-panel-state">Run: <strong id="batch-run-state">Ready</strong></p>
+                <div class="run-panel-stop" id="batch-run-stop" role="status" hidden>
+                  <p class="run-panel-reason" id="batch-run-reason"></p>
+                  <p id="batch-run-why"></p>
+                  <p id="batch-run-next"></p>
+                </div>
+                <p class="run-panel-wait" id="batch-run-wait" hidden></p>
+                <p id="batch-run-progress"></p>
+                <p id="batch-run-elapsed"></p>
+                <p id="batch-run-speed"></p>
+                <p id="batch-run-eta"></p>
+                <p id="batch-run-failures"></p>
+                <div id="batch-run-advice-block" hidden>
+                  <h3 class="label sub-heading">Suggestions</h3>
+                  <ul class="run-advice" id="batch-run-advice"></ul>
+                </div>
+              </section>
               <!-- Says whether this batch is on the server or only in this browser. The page fills it. -->
           <p class="field-hint" id="batch-save-status" aria-live="polite"></p>
           <p class="status-line" id="batch-status-line" aria-live="polite" data-loading-status>
