@@ -11,6 +11,7 @@ import { loadJson } from "../shared/data-cache.js";
 import { createBudget, createChatClient } from "../engine/api.js";
 import { activePlatform } from "../models/platform-choice.js";
 import { createBatchRunner } from "../engine/runner.js";
+import { describeStop, stopSentence } from "../engine/stop-reason.js";
 import { ALL_FAMILIES } from "../engine/flows.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { openPageStorage } from "../runs/persistence-ui.js";
@@ -123,6 +124,9 @@ const live = {
   budgetHit: false,
   keyRefused: false,
   keyMessage: "",
+  rateLimited: false,
+  rateLimitSeconds: null,
+  cap: 0,
 };
 // The elements of the view. They are looked up when the view is mounted, never at import.
 const dom = {};
@@ -1235,22 +1239,30 @@ function endLive(message, status = "stopped") {
   refreshCharts();
 }
 
-/** Return the status line for a run that the call cap stopped. */
+/** Return the status line for a run that the call cap stopped. The wording is the same as the batch page's. */
 function capReachedText() {
-  return `The call cap was reached after ${live.calls} calls. `
-    + "Raise the cap and press Start again: saved replies are reused.";
+  return stopSentence(describeStop({ kind: "budget-exhausted", calls: live.calls, cap: live.cap }));
 }
 
 /** Return the status line for a run whose key the service refused. */
-function keyRefusedText(message) {
-  return `The key was refused: ${message} Check the key, then press Start again.`;
+function keyRefusedText() {
+  return stopSentence(describeStop({ kind: "key-refused" }));
 }
 
-/** Return the status line after a stop: the cap or the refused key when one of them ended the run. */
+/** Return the status line for a run the provider paused for longer than five minutes. */
+function rateLimitedText() {
+  return stopSentence(describeStop({ kind: "rate-limited", waitSeconds: live.rateLimitSeconds }));
+}
+
+/**
+ * Return the status line after a stop: the reason that ended the run, when one did. A long pause is remembered too, so
+ * the line that the stopped event brings does not replace the reason with "Stopped by you".
+ */
 function stoppedText() {
   if (live.budgetHit) return capReachedText();
-  if (live.keyRefused) return keyRefusedText(live.keyMessage);
-  return "Stopped by you.";
+  if (live.keyRefused) return keyRefusedText();
+  if (live.rateLimited) return rateLimitedText();
+  return stopSentence(describeStop({ kind: "user-stop" }));
 }
 
 /** Map one event from the batch runner onto the lanes, ticker, status and charts. */
@@ -1288,11 +1300,13 @@ function handleLiveEvent(event) {
       live.keyRefused = true;
       live.keyMessage = event.message;
       addTicker("Key", "The key was refused, so the run stopped.");
-      setStatus(keyRefusedText(event.message));
+      setStatus(keyRefusedText());
       break;
     case "rate-limited":
+      live.rateLimited = true;
+      live.rateLimitSeconds = event.waitSeconds ?? null;
       addTicker("Problem", "The provider asked for a pause longer than five minutes, so the run stopped.");
-      setStatus("The provider asked for a long pause, so the run stopped. Start it again later.");
+      setStatus(rateLimitedText());
       break;
     case "progress":
       live.calls = event.calls;
@@ -1509,6 +1523,9 @@ function beginLiveRun(questions, cap, platform) {
   live.budgetHit = false;
   live.keyRefused = false;
   live.keyMessage = "";
+  live.rateLimited = false;
+  live.rateLimitSeconds = null;
+  live.cap = cap;
   live.questionCount = questions.length;
   setLiveControls(true);
   renderKpis();

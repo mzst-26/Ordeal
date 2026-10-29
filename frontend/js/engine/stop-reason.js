@@ -23,7 +23,7 @@ export function describeStop(event) {
     case 'budget-exhausted':
       return {
         title: 'The call cap was reached',
-        why: `${event.calls} of ${event.cap} calls were used for this Start.`,
+        why: `${event.calls} of ${event.cap} calls were used.`,
         next: 'Raise the cap or wait, then press Start. Saved replies are reused and do not use the cap.',
       };
     case 'key-refused':
@@ -43,6 +43,14 @@ export function describeStop(event) {
         next: 'Press Start to carry on. Saved replies are reused.',
       };
   }
+}
+
+/**
+ * Return the three sentences of a stop as one line, for a status line: the title, the reason and the next step. Every
+ * page shows a stop this way, so the wording is the same everywhere.
+ */
+export function stopSentence(stop) {
+  return `${stop.title}. ${stop.why} ${stop.next}`;
 }
 
 /**

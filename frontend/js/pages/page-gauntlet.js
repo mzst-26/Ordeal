@@ -10,7 +10,8 @@ import { vault } from "../engine/token.js";
 import { VIEW_IDS } from "../shared/view-ids.js";
 import { updateConditionDescription } from "../suites/condition-text.js";
 import { loadJson } from "../shared/data-cache.js";
-import { createBudget, createChatClient, BudgetExhausted } from "../engine/api.js";
+import { createBudget, createChatClient, BudgetExhausted, KeyRefused, RateLimited, UnusableReply } from "../engine/api.js";
+import { formatDuration } from "../engine/run-pace.js";
 import * as rules from "../engine/rules.js";
 import * as adaptive from "../engine/adaptive.js";
 import { el } from "../ui/ui.js";
@@ -119,6 +120,8 @@ function createPageState() {
     segments: [],      // the spine boxes, one per possible score
     budget: createBudget(GAUNTLET_SESSION_CAP), // API attempts left in this page session, shared by live calls
     client: null,      // the chat client for live calls, made on the first live call
+    waitUntil: 0,      // when the wait in progress ends, in milliseconds, or 0 when no wait is going
+    waitTimer: null,   // the timer that counts a wait down in the status line, or null
     liveConfirmed: false, // true once the visitor has pressed Continue in the live confirmation
     storage: null,     // { adapter, fallback } from the run storage
     queue: createSerialQueue(), // run writes, one at a time
@@ -838,12 +841,55 @@ function showStatus(text) {
   page.dom.status.textContent = text;
 }
 
-/** Return the message to show for an error. Only plain messages are shown, never the key. */
+/**
+ * Return the message to show for an error. Only plain messages are shown, never the key. A long pause says how long the
+ * provider asked for; an unusable reply says that nothing was saved, so the visitor knows the step can be pressed again.
+ */
 function errorText(error) {
   if (error instanceof BudgetExhausted) {
     return CAP_REACHED_TEXT;
   }
+  if (error instanceof RateLimited) {
+    return error.waitSeconds === null
+      ? "The provider asked for a pause longer than five minutes and did not say how long. Try again later. Nothing was saved."
+      : `The provider asked for a pause of ${formatDuration(error.waitSeconds)}, so the step was not sent again. `
+        + "Try again after that time. Nothing was saved.";
+  }
+  if (error instanceof KeyRefused) {
+    return "The platform did not accept the key. Check the key, then press the step again.";
+  }
+  if (error instanceof UnusableReply) {
+    return `${error.message} Nothing was saved. Press the step again to ask once more.`;
+  }
   return error instanceof Error ? error.message : "Something went wrong. Try again.";
+}
+
+/**
+ * Show a wait the client is making, and count it down in the status line once a second. A call that is tried again
+ * after a platform limit or a failure is waiting, not stuck, so the visitor sees how long is left.
+ */
+function showWait(wait) {
+  page.waitUntil = Date.now() + wait.seconds * 1000;
+  stopWaitCountdown();
+  page.waitTimer = setInterval(showWaitCountdown, 1000);
+  showWaitCountdown();
+}
+
+/** Redraw the countdown, and stop it once the wait has ended. */
+function showWaitCountdown() {
+  const left = Math.ceil((page.waitUntil - Date.now()) / 1000);
+  if (left <= 0) {
+    stopWaitCountdown();
+    return;
+  }
+  showStatus(`Waiting ${formatDuration(left)} before the call is tried again.`);
+}
+
+/** Stop the wait countdown, if one is going. */
+function stopWaitCountdown() {
+  if (page.waitTimer !== null) clearInterval(page.waitTimer);
+  page.waitTimer = null;
+  page.waitUntil = 0;
 }
 
 /** Return true once the session cap is used up, so no more live calls may be sent. */
@@ -931,7 +977,12 @@ function conversationMessages(run) {
 // The client is stored as a promise, so two calls that start together share one client and one cap.
 async function liveClient() {
   if (page.client === null) {
-    page.client = activePlatform().then((platform) => createChatClient({ platform, vault, budget: page.budget }));
+    page.client = activePlatform().then((platform) => createChatClient({
+      platform,
+      vault,
+      budget: page.budget,
+      onWait: showWait,
+    }));
   }
   return page.client;
 }
@@ -1143,6 +1194,8 @@ async function runStep(working, work) {
   } catch (error) {
     showStatus(errorText(error));
   }
+  // A wait can only be on while the step is working, so its countdown ends with the step.
+  stopWaitCountdown();
   page.busy = false;
   page.working = null;
   page.controller = null;

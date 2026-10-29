@@ -28,7 +28,7 @@ import { checkTypedName, keyReadyFor } from "../models/typed-model-check.js";
 import { hostOfCustomUrl, validateCustomModel } from "../engine/custom-model.js";
 import { createBatchRunner } from "../engine/runner.js";
 import { createPaceTracker, estimateRemaining, formatDuration } from "../engine/run-pace.js";
-import { describeStop } from "../engine/stop-reason.js";
+import { describeStop, stopSentence } from "../engine/stop-reason.js";
 import { adviseCap, adviseConcurrency, adviseMaxTokens } from "../engine/run-advice.js";
 import { createPlatformPacer } from "../engine/platform-pacer.js";
 import { buildStatusView } from "./batch-status-view.js";
@@ -2440,7 +2440,7 @@ function onBudgetExhausted() {
   page.budgetHit = true;
   page.stop = describeStop({ kind: "budget-exhausted", calls: page.counts.calls, cap: page.batchChoices.cap });
   addLogEntry("Note", "The call cap was reached.");
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
 }
 
 /** Handle a refused key: show the message and say to check the key. The stopped event follows. */
@@ -2448,7 +2448,7 @@ function onKeyRefused() {
   page.keyRefused = true;
   page.stop = describeStop({ kind: "key-refused" });
   addLogEntry("Note", "The key was refused.");
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
 }
 
 /**
@@ -2460,7 +2460,7 @@ function onRateLimited(event) {
   countOne("rateLimits");
   page.stop = describeStop({ kind: "rate-limited", waitSeconds: event.waitSeconds ?? null });
   addLogEntry("Note", "The provider asked for a long pause.");
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
 }
 
 /**
@@ -2474,7 +2474,7 @@ function onStopped() {
   // A stop by the user is the only stop with no reason already set by a notice (cap, key or long pause).
   if (page.stop === null) page.stop = describeStop({ kind: "user-stop" });
   finishSavedRun("stopped");
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
   finishRun();
 }
 
@@ -2490,7 +2490,7 @@ function onFinished(event) {
   }
   page.phase = "finished";
   page.stop = describeStop({ kind: "finished", failed: page.counts.failed });
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
   finishRun();
   continueNextSaved();
 }
@@ -2508,7 +2508,7 @@ function handleRunError(error) {
     why: errorText(error),
     next: "Press Start to carry on. Saved replies are reused.",
   };
-  setStatus(stopLine(page.stop));
+  setStatus(stopSentence(page.stop));
   finishRun();
 }
 
@@ -2617,11 +2617,6 @@ async function loadRunBase(runId) {
   } catch {
     return emptyTotals();
   }
-}
-
-/** Return the one sentence the status line shows for a stop: its title, its reason and its next step. */
-function stopLine(stop) {
-  return `${stop.title}. ${stop.why} ${stop.next}`;
 }
 
 /**
