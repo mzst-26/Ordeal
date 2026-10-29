@@ -216,6 +216,7 @@ const IDS = {
   confirmContinue: "confirm-continue",
   confirmCancel: "confirm-cancel",
   start: VIEW_IDS.batch["start-button"],
+  resume: VIEW_IDS.batch["resume-button"],
   restart: VIEW_IDS.batch["restart-button"],
   pause: "pause-button",
   stop: VIEW_IDS.batch["stop-button"],
@@ -313,6 +314,7 @@ const page = {
   statusTimer: null,          // the timer that redraws the status panel while a run is on, or null
   stop: null,                 // { title, why, next } for the stop the panel shows, or null while none
   adviceKey: "",              // the text of the suggestions last drawn, so they are only redrawn when they change
+  lastRunId: null,            // the saved run the last Start worked on, so Resume can continue it after a Stop
   mixed: null,                // with Shuffle on: { seed, slots } of the run, once picked or restored; else null
 };
 
@@ -373,6 +375,7 @@ function wireControls() {
     }
   });
   dom.start.addEventListener("click", handleStart);
+  dom.resume.addEventListener("click", resumeLastRun);
   dom.maxTokensSelect.addEventListener("change", () => {
     updateMaxTokensAdvanced();
     onSelectionChanged();
@@ -1696,6 +1699,9 @@ function updateControls() {
   const dom = page.dom;
   const running = isRunning();
   dom.start.disabled = running || page.confirming || findProblem(readChoices()) !== null;
+  // Resume is offered only after a Stop, and only when the stopped run is known. It follows the same rules as Start.
+  dom.resume.hidden = page.phase !== "stopped" || page.lastRunId === null;
+  dom.resume.disabled = dom.start.disabled;
   // Restart from scratch is offered under the same rules as Start.
   dom.restart.disabled = dom.start.disabled;
   dom.pause.disabled = page.phase !== "running";
@@ -2118,6 +2124,16 @@ function restoreRunsChoices(runs) {
 }
 
 /** Resume a saved batch from the notices or the list. The form is set back from the run, its saved units are reused. */
+async function resumeLastRun() {
+  if (page.storage === null || page.lastRunId === null) return;
+  const run = await getRun(page.storage.adapter, page.lastRunId);
+  if (run === null) {
+    setStatus("The stopped run could not be found, so it cannot be resumed.");
+    return;
+  }
+  await resumeBatchRun(run);
+}
+
 async function resumeBatchRun(run) {
   if (page.data === null || page.suite === null || run === null) {
     return;
@@ -2539,6 +2555,8 @@ function finishSavedRun(status) {
   if (runId === null) {
     return;
   }
+  // Kept so that Resume can continue this run after a Stop.
+  page.lastRunId = runId;
   const { adapter } = page.storage;
   // The totals are worked out now, while the counts are still those of this condition. They are saved before the status,
   // so a run is never marked finished without its totals.
