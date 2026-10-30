@@ -1,0 +1,751 @@
+{
+  "environment": {
+    "os": "Darwin 27.0.0",
+    "cpu": "Apple M1 Max",
+    "cpuCores": 10,
+    "memoryGb": 64,
+    "node": "v25.6.0",
+    "chromium": "156.0.8078.4",
+    "playwright": "1.64.1",
+    "echarts": "6.1.0",
+    "seed": 20261030
+  },
+  "generatedAt": "2026-10-30T14:46:21.942Z",
+  "records": [
+    {
+      "caseId": "scatter",
+      "engine": "vega-canvas",
+      "runs": 5,
+      "render": [
+        630.7999999523163,
+        600.5,
+        581,
+        575.7999999523163,
+        576.1000000238419
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [
+        0.6999999284744263,
+        0.20000004768371582,
+        0.09999990463256836,
+        0.5999999046325684,
+        1
+      ],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "scatter",
+      "engine": "vega-svg",
+      "runs": 5,
+      "render": [
+        837,
+        808.1000000238419,
+        900.1999999284744,
+        802.2999999523163,
+        802.1999999284744
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [
+        0.5,
+        0.19999992847442627,
+        0.20000004768371582,
+        1.2999999523162842,
+        2.299999952316284
+      ],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "scatter",
+      "engine": "echarts",
+      "runs": 5,
+      "render": [
+        148.5,
+        112.5,
+        96.60000002384186,
+        98.10000002384186,
+        61.199999928474426
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [
+        2.200000047683716,
+        0.2999999523162842,
+        0.3999999761581421,
+        0.3999999761581421,
+        0.7999999523162842
+      ],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "heatmap",
+      "engine": "vega-canvas",
+      "runs": 5,
+      "render": [
+        7388.699999928474,
+        8439.299999952316,
+        8749.5,
+        8371,
+        8534.600000023842
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [
+        5.799999952316284,
+        5.100000023841858,
+        4,
+        3.200000047683716,
+        2.600000023841858
+      ],
+      "update": [],
+      "checks": {
+        "legend": {
+          "passed": true,
+          "reason": ""
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "heatmap",
+      "engine": "vega-svg",
+      "runs": 5,
+      "render": [
+        7053.599999904633,
+        7925.099999904633,
+        7804.399999976158,
+        7901.700000047684,
+        8029.100000023842
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [
+        151.60000002384186
+      ],
+      "update": [],
+      "checks": {
+        "legend": {
+          "passed": true,
+          "reason": ""
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "no tooltip within 2000 ms",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "heatmap",
+      "engine": "echarts",
+      "runs": 5,
+      "render": [
+        556.4000000953674,
+        503.2999999523163,
+        505.39999997615814,
+        553.4000000953674,
+        504.90000009536743
+      ],
+      "longestTaskMs": [
+        53,
+        53,
+        59,
+        53,
+        55
+      ],
+      "hover": [
+        9,
+        6.600000023841858,
+        7.399999976158142,
+        5.100000023841858,
+        4.900000095367432
+      ],
+      "update": [],
+      "checks": {
+        "legend": {
+          "passed": true,
+          "reason": ""
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "facets",
+      "engine": "vega-canvas",
+      "runs": 5,
+      "render": [
+        654.8999999761581,
+        572.5,
+        590.6999999284744,
+        572.3000000715256,
+        592.3999999761581
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "facets",
+      "engine": "vega-svg",
+      "runs": 5,
+      "render": [
+        1010.5,
+        887.5,
+        1055.5,
+        851.5,
+        882.3999999761581
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "facets",
+      "engine": "echarts",
+      "runs": 5,
+      "render": [
+        128.19999992847443,
+        78.39999997615814,
+        61.199999928474426,
+        66,
+        65.30000007152557
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "selection",
+      "engine": "vega-canvas",
+      "runs": 5,
+      "render": [
+        721.3999999761581,
+        629.5,
+        626.3999999761581,
+        620.6999999284744,
+        676.1999999284744
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        448.39999997615814,
+        441.90000009536743,
+        431.89999997615814,
+        422.60000002384186,
+        425.7000000476837
+      ],
+      "checks": {
+        "selection": {
+          "passed": true,
+          "reason": "",
+          "highlighted": 10689,
+          "expected": 10689
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "selection",
+      "engine": "vega-svg",
+      "runs": 5,
+      "render": [
+        996.1000000238419,
+        908.9000000953674,
+        1150.1000000238419,
+        898.5,
+        902.0999999046326
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        486.90000009536743,
+        350.2000000476837,
+        347.10000002384186,
+        353,
+        349.2999999523163
+      ],
+      "checks": {
+        "selection": {
+          "passed": true,
+          "reason": "",
+          "highlighted": 10689,
+          "expected": 10689
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "selection",
+      "engine": "echarts",
+      "runs": 5,
+      "render": [
+        135.40000009536743,
+        81.20000004768372,
+        67.19999992847443,
+        67.20000004768372,
+        69.39999997615814
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        164.29999995231628,
+        81.89999997615814,
+        175.70000004768372,
+        75.5,
+        118.40000009536743
+      ],
+      "checks": {
+        "selection": {
+          "passed": true,
+          "reason": "",
+          "highlighted": 10689,
+          "expected": 10689
+        }
+      },
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "toggle",
+      "engine": "vega-canvas",
+      "runs": 5,
+      "render": [
+        50.89999997615814,
+        22.90000009536743,
+        19.40000009536743,
+        16.700000047683716,
+        17
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        23.5,
+        14.899999976158142,
+        19.399999976158142,
+        14.599999904632568,
+        17.600000023841858
+      ],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "toggle",
+      "engine": "vega-svg",
+      "runs": 5,
+      "render": [
+        58.799999952316284,
+        23.5,
+        17.899999976158142,
+        17.5,
+        16.59999990463257
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        22.700000047683716,
+        16.700000047683716,
+        21.399999976158142,
+        14.799999952316284,
+        19.700000047683716
+      ],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    },
+    {
+      "caseId": "toggle",
+      "engine": "echarts",
+      "runs": 5,
+      "render": [
+        38.60000002384186,
+        7.400000095367432,
+        6,
+        5.100000023841858,
+        4.600000023841858
+      ],
+      "longestTaskMs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hover": [],
+      "update": [
+        6.800000071525574,
+        3.5,
+        4.600000023841858,
+        3.3000000715255737,
+        5.100000023841858
+      ],
+      "checks": {},
+      "stopReason": "",
+      "hoverReason": "",
+      "updateReason": "",
+      "pageErrors": []
+    }
+  ],
+  "verdicts": [
+    {
+      "name": "scatter vega-canvas first render",
+      "verdict": "pass",
+      "valueMs": 581,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "scatter vega-canvas hover",
+      "verdict": "pass",
+      "valueMs": 0.5999999046325684,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "scatter vega-svg first render",
+      "verdict": "pass",
+      "valueMs": 808.1000000238419,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "scatter vega-svg hover",
+      "verdict": "pass",
+      "valueMs": 0.5,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "scatter echarts first render",
+      "verdict": "pass",
+      "valueMs": 98.10000002384186,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "scatter echarts hover",
+      "verdict": "pass",
+      "valueMs": 0.3999999761581421,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "heatmap vega-canvas first render",
+      "verdict": "fail",
+      "valueMs": 8439.299999952316,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "heatmap vega-canvas hover",
+      "verdict": "pass",
+      "valueMs": 4,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "heatmap vega-canvas colour legend",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "heatmap vega-svg first render",
+      "verdict": "fail",
+      "valueMs": 7901.700000047684,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "heatmap vega-svg hover",
+      "verdict": "unmeasured",
+      "valueMs": null,
+      "lineMs": 100,
+      "reason": "no tooltip within 2000 ms"
+    },
+    {
+      "name": "heatmap vega-svg colour legend",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "heatmap echarts first render",
+      "verdict": "pass",
+      "valueMs": 505.39999997615814,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "heatmap echarts hover",
+      "verdict": "pass",
+      "valueMs": 6.600000023841858,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "heatmap echarts colour legend",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "facets vega-canvas first render",
+      "verdict": "pass",
+      "valueMs": 590.6999999284744,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "facets vega-canvas facets aligned",
+      "verdict": "unmeasured",
+      "reason": "not measured: alignment comes from the spec's shared scales and was not checked in pixels"
+    },
+    {
+      "name": "facets vega-svg first render",
+      "verdict": "pass",
+      "valueMs": 887.5,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "facets vega-svg facets aligned",
+      "verdict": "unmeasured",
+      "reason": "not measured: alignment comes from the spec's shared scales and was not checked in pixels"
+    },
+    {
+      "name": "facets echarts first render",
+      "verdict": "pass",
+      "valueMs": 66,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "facets echarts facets aligned",
+      "verdict": "unmeasured",
+      "reason": "not measured: alignment comes from the spec's shared scales and was not checked in pixels"
+    },
+    {
+      "name": "selection vega-canvas first render",
+      "verdict": "pass",
+      "valueMs": 629.5,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "selection vega-canvas update",
+      "verdict": "fail",
+      "valueMs": 431.89999997615814,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "selection vega-canvas selection highlights",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "selection vega-svg first render",
+      "verdict": "pass",
+      "valueMs": 908.9000000953674,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "selection vega-svg update",
+      "verdict": "fail",
+      "valueMs": 350.2000000476837,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "selection vega-svg selection highlights",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "selection echarts first render",
+      "verdict": "pass",
+      "valueMs": 69.39999997615814,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "selection echarts update",
+      "verdict": "fail",
+      "valueMs": 118.40000009536743,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "selection echarts selection highlights",
+      "verdict": "pass",
+      "reason": ""
+    },
+    {
+      "name": "toggle vega-canvas first render",
+      "verdict": "pass",
+      "valueMs": 19.40000009536743,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "toggle vega-canvas update",
+      "verdict": "pass",
+      "valueMs": 17.600000023841858,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "toggle vega-svg first render",
+      "verdict": "pass",
+      "valueMs": 17.899999976158142,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "toggle vega-svg update",
+      "verdict": "pass",
+      "valueMs": 19.700000047683716,
+      "lineMs": 100,
+      "reason": ""
+    },
+    {
+      "name": "toggle echarts first render",
+      "verdict": "pass",
+      "valueMs": 6,
+      "lineMs": 1000,
+      "reason": ""
+    },
+    {
+      "name": "toggle echarts update",
+      "verdict": "pass",
+      "valueMs": 4.600000023841858,
+      "lineMs": 100,
+      "reason": ""
+    }
+  ],
+  "summary": {
+    "pass": 27,
+    "fail": 5,
+    "unmeasured": 4
+  }
+}
