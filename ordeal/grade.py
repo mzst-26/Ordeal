@@ -817,6 +817,23 @@ def read_cache_by_experiment(path: Path, experiments: set[str]) -> tuple[dict[st
     return replies, other_count
 
 
+def read_caches_by_experiment(paths: list[Path], experiments: set[str]) -> tuple[dict[str, dict], int]:
+    """Read the saved replies of several cache files together, grouped by experiment code.
+
+    This is how one results file covers several providers: each provider's cache holds its own replies, and
+    their keys do not clash, because each model label names its platform. The count of other-version replies is
+    added up over the files.
+    """
+    merged: dict[str, dict] = {experiment: {} for experiment in experiments}
+    other_total = 0
+    for path in paths:
+        replies, other_count = read_cache_by_experiment(path, experiments)
+        for experiment, by_key in replies.items():
+            merged[experiment].update(by_key)
+        other_total += other_count
+    return merged, other_total
+
+
 def registered_suites() -> list[core.Suite]:
     """Return one suite for every ladder and question-set pair in the registries."""
     return [
@@ -910,11 +927,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Read the command-line options. --results-csv and --probes-csv are full paths that replace the --out-dir names."""
     parser = argparse.ArgumentParser(description="Grade saved replies, write the CSV files and print the tables.")
     add_results_arguments(parser)
+    # Repeat --cache to grade several files together, one per provider. Each provider keeps its own cache file.
     parser.add_argument(
         "--cache",
         type=Path,
-        default=core.CACHE_PATH,
-        help="file of saved replies to grade (default: %(default)s)",
+        action="append",
+        help=f"file of saved replies to grade; repeat it to grade several files (default: {core.CACHE_PATH})",
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
@@ -927,6 +945,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "leaving results.csv alone. Cannot be combined with --suite.",
     )
     args = parser.parse_args(argv)
+    # Without --cache, the default cache file is graded, as before the option could be repeated.
+    if not args.cache:
+        args.cache = [core.CACHE_PATH]
     if args.shuffle_mix is not None and args.suite is not None:
         parser.error("--shuffle-mix cannot be combined with --suite: a mixed run sets both itself.")
     return args
@@ -997,11 +1018,12 @@ def grade_mixed(args: argparse.Namespace, config: dict) -> int:
     Returns 1 if nothing was graded.
     """
     mixed = core.load_mixed_suite()
-    replies, other_count = read_cache_by_experiment(args.cache, {mixed.experiment})
+    replies, other_count = read_caches_by_experiment(args.cache, {mixed.experiment})
     records = list(replies[mixed.experiment].values())
     if other_count:
         print(f"Other versions: {other_count} saved replies match no suite graded here, so they are not graded.")
-    order = mixed_order_for(args.shuffle_mix, mixed, core.mixed_runs_path(args.cache))
+    # The planned order is the same for every provider, so the record beside the first cache file is enough.
+    order = mixed_order_for(args.shuffle_mix, mixed, core.mixed_runs_path(args.cache[0]))
     questions_by_id = index_questions([question for suite in mixed.suites.values() for question in suite.questions])
     gauntlet_rows: list[dict] = []
     probe_rows: list[dict] = []
@@ -1051,7 +1073,7 @@ def main(argv: list[str] | None = None) -> int:
     experiments = {registered.experiment for registered in registered_suites()}
     # The suite's own code is read too, so it is never missed if the registry does not list it.
     experiments.add(suite.experiment)
-    replies_by_experiment, other_count = read_cache_by_experiment(args.cache, experiments)
+    replies_by_experiment, other_count = read_caches_by_experiment(args.cache, experiments)
     records = list(replies_by_experiment[suite.experiment].values())
     if other_count:
         print(f"Other versions: {other_count} saved replies match no suite graded here, so they are not graded.")

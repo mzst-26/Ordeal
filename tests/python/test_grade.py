@@ -872,5 +872,46 @@ class ProviderFieldTests(unittest.TestCase):
         self.assertEqual({row["provider"] for row in probe_rows}, {"groq"})
 
 
+# Group: grading several cache files at once, as the multi-provider test command does. One results file gets a row
+# for every provider and model, and the rows of each provider stay apart.
+class MultiCacheGradeTests(unittest.TestCase):
+    """grade.main reads every --cache file it is given and writes one results file for all of them."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+
+    def write_cache(self, name: str, label: str, provider: str) -> Path:
+        """Write one cache file with a full, correct unit for one model label, saved by one provider."""
+        cache_path = self.folder / name
+        question = V4_HARD.questions[0]
+        for step in ["level_0", *V4_STEPS]:
+            record = core.make_record(
+                CONDITION, label, question, 0, step, [], f"Answer: {question['correct']}", 0.7,
+                suite=V4_HARD, provider=provider,
+            )
+            core.append_record(record, cache_path)
+        return cache_path
+
+    def test_two_caches_give_one_results_file_with_a_row_for_each_provider(self) -> None:
+        """Two providers' caches, graded in one call, give two rows in one results file, each with its own provider."""
+        groq_cache = self.write_cache("groq.jsonl", GROQ_LABEL, "groq")
+        together_cache = self.write_cache("together.jsonl", TOGETHER_LABEL, "together")
+        out_dir = self.folder / "out"
+        argv = [
+            "grade.py", "--suite", "gauntlet_v4+hard", "--condition", CONDITION,
+            "--cache", str(groq_cache), "--cache", str(together_cache), "--out-dir", str(out_dir),
+        ]
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            status = grade.main()
+        self.assertEqual(status, 0)
+        rows = grade.read_condition_rows(out_dir / "results.csv", CONDITION, V4_HARD.name)
+        self.assertEqual(
+            sorted((row["provider"], row["model"]) for row in rows),
+            [("groq", GROQ_LABEL), ("together", TOGETHER_LABEL)],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

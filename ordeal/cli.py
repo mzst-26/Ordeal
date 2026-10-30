@@ -29,6 +29,8 @@ CHECK_REPLY_SHOWN = 80
 # Length of the digest added to a cache file name. It keeps two model names that differ only in punctuation apart.
 CACHE_DIGEST_LENGTH = 8
 RESULTS_FOLDER_NAME = "results"
+# The most providers one test command compares. Each provider is a full run, so a longer list is slow to read.
+MAX_PROVIDERS = 3
 
 
 def route_key(platform: providers.Platform) -> str:
@@ -155,21 +157,80 @@ def results_folder() -> Path:
     return Path.cwd() / RESULTS_FOLDER_NAME
 
 
-def cmd_test(args: argparse.Namespace) -> int:
-    """Run the Ordeal experiment on one model, then print its table.
+def split_names(text: str, what: str) -> list[str]:
+    """Split a comma list such as 'groq,together' into its parts.
 
-    Options after the model name (such as --limit or --probes) go to the runner unchanged. The cache
-    file is named after the platform and model, so each model's replies are kept apart.
+    An empty part is refused, so a stray comma is seen at once instead of being read as a name.
     """
-    platform = providers.get_platform(args.platform)
-    route = resolve_route(platform, args.model, args.base_url)
-    cache = results_folder() / cache_file_name(platform.id, route.api_model)
-    # Our --cache comes first, so a --cache written by hand after it still wins, as the runner's own rule says.
-    code = runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route})
-    # Grade whatever was saved, even after a failed call, so the person can see the partial table.
-    if code in (0, 1):
-        grade.main(["--cache", str(cache), "--out-dir", str(results_folder())])
-    return code
+    parts = [part.strip() for part in text.split(",")]
+    if any(not part for part in parts):
+        raise ValueError(f"The {what} list has an empty entry: '{text}'. Separate the names with commas.")
+    return parts
+
+
+def parse_platform_ids(text: str) -> list[str]:
+    """Return the platform ids named for one test: one to MAX_PROVIDERS, with none repeated.
+
+    The count is checked here, before any key is read or any request is made, so a long list is refused at once.
+    """
+    ids = split_names(text, "provider")
+    if len(ids) > MAX_PROVIDERS:
+        raise ValueError(
+            f"A test can compare at most {MAX_PROVIDERS} providers, but {len(ids)} were named. "
+            "Remove some and try again."
+        )
+    repeated = sorted({platform_id for platform_id in ids if ids.count(platform_id) > 1})
+    if repeated:
+        raise ValueError(f"Name each provider once. Repeated: {', '.join(repeated)}.")
+    return ids
+
+
+def model_references(text: str, provider_count: int) -> list[str]:
+    """Return one model name for each provider, in the order the providers were named.
+
+    One model name is used for every provider, so the same model is run on each. Otherwise a model name is needed
+    for each provider, so each provider can serve its own equivalent model.
+    """
+    names = split_names(text, "model")
+    if len(names) == 1:
+        return names * provider_count
+    if len(names) == provider_count:
+        return names
+    raise ValueError(
+        f"Name one model for all the providers, or one model per provider. "
+        f"There are {provider_count} providers and {len(names)} model names."
+    )
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    """Run the Ordeal experiment on one model per provider, then print the table of all of them.
+
+    Options after the model name (such as --limit or --probes) go to the runner unchanged, and every provider
+    gets the same options. Each provider's cache file is named after the platform and model, so its replies are
+    kept apart. All routes are built before the first run, so a missing key stops the command before any call.
+    """
+    platform_ids = parse_platform_ids(args.platform)
+    model_names = model_references(args.model, len(platform_ids))
+    plans = []
+    for platform_id, model_name in zip(platform_ids, model_names):
+        platform = providers.get_platform(platform_id)
+        route = resolve_route(platform, model_name, args.base_url)
+        cache = results_folder() / cache_file_name(platform.id, route.api_model)
+        plans.append((platform, route, cache))
+    codes = []
+    for number, (platform, route, cache) in enumerate(plans, start=1):
+        if len(plans) > 1:
+            print(f"Provider {number} of {len(plans)}: {platform.name}")
+        # Our --cache comes first, so a --cache written by hand after it still wins, as the runner's own rule says.
+        codes.append(runner.main(["--cache", str(cache), *args.extras], prebuilt_routes={route.name: route}))
+    # Grade whatever was saved, even after a failed call, so the person can see the partial table. A code other
+    # than 0 or 1 means a run did not really happen (bad option, missing key or a stop), so nothing is graded then.
+    if all(code in (0, 1) for code in codes):
+        grade_args = []
+        for _, _, cache in plans:
+            grade_args += ["--cache", str(cache)]
+        grade.main([*grade_args, "--out-dir", str(results_folder())])
+    return max(codes)
 
 
 def add_base_url_option(parser: argparse.ArgumentParser) -> None:
@@ -214,8 +275,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="run the Ordeal test on a model",
         epilog="Other options, such as --limit, --probes or --max-calls, are passed to the runner.",
     )
-    test.add_argument("platform", help="platform id")
-    test.add_argument("model", help="model id, such as org/name, or a link to its page")
+    test.add_argument(
+        "platform",
+        help=f"platform id, or up to {MAX_PROVIDERS} ids separated by commas, such as groq,together",
+    )
+    test.add_argument(
+        "model",
+        help="model id, such as org/name, or a link to its page; with several providers, one name for all of them "
+        "or one per provider, separated by commas",
+    )
     add_base_url_option(test)
     test.set_defaults(run=cmd_test)
     return parser

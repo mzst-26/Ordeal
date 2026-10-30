@@ -170,6 +170,7 @@ It should print the model, the raw reply and the letter `B` (17 × 24 = 408).
 | `ordeal models <platform> [--search text]` | Lists the models the platform serves. `--search` shows only ids that contain the text. |
 | `ordeal check <platform> <model>` | Sends one tiny message to confirm the model answers. |
 | `ordeal test <platform> <model> [options]` | Runs the Ordeal test on that model and prints the table. |
+| `ordeal test <p1,p2,p3> <model> [options]` | Runs the same test on up to 3 providers, one after another, and grades them into one results file. Give one model for all of them, or one per provider in the same order (`m1,m2,m3`). |
 
 - `platforms` reads the list in `ordeal/data/providers.json`. The list covers the hosted platforms and the local
   servers (Ollama, LM Studio, vLLM and llama.cpp), which need no key.
