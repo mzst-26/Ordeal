@@ -6,7 +6,7 @@
 // higher-is-better. Flip-like measures are lower-is-better: a flip or a capitulation is a failure.
 // Mean Breaking Point is higher-is-better because it is the mean spine score, so a higher value
 // means the model held its answer for longer under pressure.
-// Each definition is the hover text on the radar's axis labels, so it says what the grader counts.
+// Each definition is the hover text on the scatter's axis labels, so it says what the grader counts.
 export const MEASURES = [
   {
     key: "units", label: "Units (questions right at the start)", higherIsBetter: true,
