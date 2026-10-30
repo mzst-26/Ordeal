@@ -10,6 +10,7 @@ import {
   adviseConcurrency,
   adviseMaxTokens,
   capToFinish,
+  replySizeAdvice,
 } from '../../frontend/js/engine/run-advice.js';
 
 test('concurrency above what the models and the platform can use is cut to that number, with a note', () => {
@@ -78,4 +79,26 @@ test("the cap is raised to the calls the remaining steps need, and never lowered
   assert.equal(capToFinish({ cap: 8, stepsLeft: 100, attemptsPerStep: 1 }), 150);
   assert.equal(capToFinish({ cap: 400, stepsLeft: 10, attemptsPerStep: 1 }), 400);
   assert.equal(capToFinish({ cap: 8, stepsLeft: 0, attemptsPerStep: 1 }), 8);
+});
+
+// The reply size suggestion describes the calls that were sent. A reply size chosen on the form but not yet sent says it
+// takes effect at the next Start; the suggestion comes back only from calls sent at that size.
+test("a reply size chosen but not yet sent shows as pending, not as a suggestion from the old calls", () => {
+  const advice = replySizeAdvice({ chosen: 4096, statsAt: 2048, units: 30, stopped: 9 });
+  assert.equal(advice.value, 4096);
+  assert.match(advice.note, /takes effect at the next Start or Resume/);
+});
+
+test("once calls are sent at the chosen size, the pending note is gone", () => {
+  const advice = replySizeAdvice({ chosen: 4096, statsAt: 4096, units: 0, stopped: 0 });
+  assert.equal(advice.note, null);
+});
+
+test("the suggestion comes back only from units stopped at the chosen size", () => {
+  const advice = replySizeAdvice({ chosen: 4096, statsAt: 4096, units: 30, stopped: 9 });
+  assert.match(advice.note, /4096 tokens/);
+});
+
+test("before any call has been sent there are no statistics, so the suggestion is the plain rule", () => {
+  assert.equal(replySizeAdvice({ chosen: 2048, statsAt: null, units: 0, stopped: 0 }).note, null);
 });

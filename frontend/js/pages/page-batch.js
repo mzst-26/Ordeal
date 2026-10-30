@@ -29,7 +29,7 @@ import { hostOfCustomUrl, validateCustomModel } from "../engine/custom-model.js"
 import { createBatchRunner } from "../engine/runner.js";
 import { createPaceTracker, estimateRemaining, formatDuration } from "../engine/run-pace.js";
 import { describeStop, stopSentence } from "../engine/stop-reason.js";
-import { CAP_MARGIN, adviseCap, adviseConcurrency, adviseMaxTokens, capToFinish } from "../engine/run-advice.js";
+import { CAP_MARGIN, adviseCap, adviseConcurrency, capToFinish, replySizeAdvice } from "../engine/run-advice.js";
 import { createPlatformPacer } from "../engine/platform-pacer.js";
 import { buildStatusView } from "./batch-status-view.js";
 import { addSession, emptyTotals, readTotals, sumTotals } from "../store/run-totals.js";
@@ -310,6 +310,7 @@ const page = {
   startBases: {},            // the saved totals of each condition's run before this Start, keyed by condition
   conditionStartSeconds: 0,   // the active seconds when this condition began
   freshByUnit: new Map(),     // the fresh calls each unit still running has made, by unit key
+  statsMaxTokens: null,       // the reply size the unit statistics were gathered at, or null before any call
   unitsStarted: new Set(),    // the units this Start has started, by unit key, each counted once
   unitsUnusable: new Set(),   // the units that stopped at an empty or cut-short reply, by unit key, each counted once
   wait: null,                 // a wait in progress: { reason, seconds, untilMs }, or null
@@ -1927,8 +1928,15 @@ async function beginRun(confirmedId) {
   page.tracker.start();
   page.freshByUnit = new Map();
   page.unitSteps.clear();
-  page.unitsStarted = new Set();
-  page.unitsUnusable = new Set();
+  // The unit statistics belong to one reply size. A new size starts them again, and the log says when the calls use it.
+  if (page.statsMaxTokens !== choices.maxTokens) {
+    if (page.statsMaxTokens !== null) {
+      addLogEntry("Note", `Calls now use ${choices.maxTokens} reply tokens, instead of ${page.statsMaxTokens}.`);
+    }
+    page.unitsStarted = new Set();
+    page.unitsUnusable = new Set();
+    page.statsMaxTokens = choices.maxTokens;
+  }
   page.wait = null;
   page.stop = null;
   startStatusTimer();
@@ -2777,9 +2785,11 @@ function adviceRows() {
   const rows = [{ label: "Concurrency", control: "concurrency-input", value: concurrency.value, note: concurrency.note }];
   const cap = capAdvice();
   if (cap !== null) rows.push(cap);
-  // The reply size is judged by units, because one bad reply stops the unit it is in.
-  const maxTokens = adviseMaxTokens({
-    maxTokens: choices.maxTokens,
+  // The reply size is judged by units, because one bad reply stops the unit it is in. The size on the form is what counts:
+  // a size that no call has used yet stays pending until a Start sends calls with it.
+  const maxTokens = replySizeAdvice({
+    chosen: readMaxTokens(),
+    statsAt: page.statsMaxTokens,
     units: page.unitsStarted.size,
     stopped: page.unitsUnusable.size,
   });

@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/reply-size-applied | session 4b71b7c1 (Claude) | frontend/js/pages/page-batch.js, frontend/js/engine/run-advice.js, tests/js/run-advice.test.js | 2026-10-30 |

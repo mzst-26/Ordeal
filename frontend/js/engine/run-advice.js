@@ -87,3 +87,16 @@ export function capToFinish({ cap, stepsLeft, attemptsPerStep }) {
 function roundUpTo(value, step) {
   return Math.ceil(value / step) * step;
 }
+
+/**
+ * Return the reply size suggestion as the panel should show it. The unit statistics are for the reply size the calls were sent
+ * at (statsAt). When the form holds another size, no call has used it yet: the suggestion says the change takes effect at the
+ * next Start, and it is gone once a Start sends calls at that size. Before any call there are no statistics, so the plain rule
+ * applies with nothing to judge.
+ */
+export function replySizeAdvice({ chosen, statsAt, units, stopped }) {
+  if (statsAt !== null && chosen !== statsAt) {
+    return { value: chosen, note: `Reply size set to ${chosen} tokens. It takes effect at the next Start or Resume.` };
+  }
+  return adviseMaxTokens({ maxTokens: chosen, units, stopped });
+}
