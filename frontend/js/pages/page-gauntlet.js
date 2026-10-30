@@ -987,7 +987,7 @@ async function liveClient() {
   return page.client;
 }
 
-/** Send one chat request from the browser, with the key in the vault. Only live mode calls this. */
+/** Send one chat request from the browser, with the key of the chosen provider. Only live mode calls this. */
 async function callModel(run, messages, signal) {
   const { config } = page.data;
   return (await liveClient()).complete({

@@ -1,5 +1,5 @@
 // Keeps one API key per provider in the browser. A key is held in memory by default. It is written to this browser's
-// local storage only when the visitor ticks Remember, the same rule token.js follows for the single key. Each key
+// local storage only when the visitor ticks Remember. This is the one key store every page uses. Each key
 // is kept under its provider id, so a key entered for one provider is never handed to another.
 // Nothing here writes a key to the URL, the DOM or the console.
 import {
@@ -174,9 +174,9 @@ export function slotForPlatform(platform) {
 }
 
 /**
- * Return the key slot for one provider: an object with the same methods as the single-key vault in token.js (get, has,
- * set, clear, platformId, remembered, masked). Each slot is tied to its provider id. Passing the slot where the vault
- * is expected means the chat client and the key dialog need no change: a slot only reads or writes its own provider.
+ * Return the key slot for one provider: an object with the methods the key dialog and the chat client use (get, has,
+ * set, clear, platformId, remembered, masked). Each slot is tied to its provider id. The dialog and the chat client take
+ * a slot as their key store, so a slot only ever reads or writes its own provider.
  */
 export function keySlotFor(keys, providerId) {
   return {

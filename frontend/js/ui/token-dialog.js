@@ -144,7 +144,7 @@ function buildDialog(vault) {
   return parts;
 }
 
-/** Store the key with its platform in the vault, saved in storage only when Remember is ticked. Returns false and shows the vault's message when the vault refuses it. */
+/** Store the key with its platform in the key slot, saved in storage only when Remember is ticked. Returns false and shows the slot's message when it refuses the key. */
 function saveToken(vault, text, parts, platformId) {
   try {
     vault.set(text, { remember: parts.remember.checked, platform: platformId });
