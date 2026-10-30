@@ -7,9 +7,31 @@ export const MAX_SIDE_PROVIDERS = 3;
 // The message shown when a fourth provider is chosen. It is refused, so the existing three stay as they are.
 export const TOO_MANY_PROVIDERS_MESSAGE = 'You can compare up to 3 providers at once. Remove one before adding another.';
 
-// The only hosts this site may send requests to. This must match the connect-src line in netlify.toml, which a test
-// checks. Widening it needs the owner's approval, so a provider on any other host is shown as unavailable instead.
-export const BROWSER_ALLOWED_HOSTS = Object.freeze(['api.tokenfactory.nebius.com']);
+// The only hosts this site may send requests to. It lists the address of every provider the registry marks for the
+// browser that has a fixed address. This must match the connect-src line in netlify.toml exactly, and a test checks
+// both against ordeal/data/providers.json. The custom provider has no fixed address, so it stays unavailable here.
+export const BROWSER_ALLOWED_HOSTS = Object.freeze([
+  'router.huggingface.co',
+  'openrouter.ai',
+  'api.together.xyz',
+  'api.groq.com',
+  'api.fireworks.ai',
+  'api.deepinfra.com',
+  'api.cerebras.ai',
+  'api.hyperbolic.xyz',
+  'api.novita.ai',
+  'api.featherless.ai',
+  'api.tokenfactory.nebius.com',
+  'oai.endpoints.kepler.ai.cloud.ovh.net',
+  'api.mistral.ai',
+  'dashscope-intl.aliyuncs.com',
+  'api.z.ai',
+  'api.moonshot.ai',
+  'api.minimax.io',
+  'api.deepseek.com',
+  'api.scaleway.ai',
+  'api.siliconflow.com',
+]);
 
 // The three states a provider can be in on the side-by-side page.
 export const STATUS_READY = 'ready';

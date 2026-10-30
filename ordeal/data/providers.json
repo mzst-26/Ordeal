@@ -167,7 +167,7 @@
       "key_env": "SCW_SECRET_KEY",
       "signup": "https://console.scaleway.com/",
       "web_host": "scaleway.com",
-      "browser": false,
+      "browser": true,
       "local": false
     },
     {
@@ -191,7 +191,7 @@
       "key_env": "SILICONFLOW_API_KEY",
       "signup": "https://cloud.siliconflow.com/account/ak",
       "web_host": "siliconflow.com",
-      "browser": false,
+      "browser": true,
       "local": false
     },
     {

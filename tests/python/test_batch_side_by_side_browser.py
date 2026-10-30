@@ -31,7 +31,7 @@ LONG_MS = 10000
 FAKE_KEY = "fake-nebius-key-" + "5" * 24
 KEY_STORAGE_NAME = "ordeal.provider-keys"
 TOO_MANY_TEXT = "You can compare up to 3 providers at once"
-CLI_POINTER_TEXT = "ordeal test groq"
+CLI_POINTER_TEXT = "ordeal test sambanova"
 
 _SERVER = None
 _PLAYWRIGHT = None
@@ -162,12 +162,12 @@ class BatchSideBySideBrowserTests(unittest.TestCase):
     def test_fourth_provider_is_refused_and_blocked_providers_point_to_the_command_line(self):
         with open_batch_page() as (page, _console, blocked):
             expect(panel(page).get_by_role("heading", name="Compare providers")).to_be_visible(timeout=LONG_MS)
-            for provider_id in ("groq", "together", "nebius"):
+            for provider_id in ("sambanova", "together", "nebius"):
                 add_provider(page, provider_id)
             add_provider(page, "openrouter")
             expect(panel(page).locator("[role=status]").first).to_contain_text(TOO_MANY_TEXT, timeout=SHORT_MS)
-            expect(row_for(page, "Groq")).to_contain_text("Not available here")
-            expect(row_for(page, "Groq")).to_contain_text(CLI_POINTER_TEXT)
+            expect(row_for(page, "SambaNova")).to_contain_text("Not available here")
+            expect(row_for(page, "SambaNova")).to_contain_text(CLI_POINTER_TEXT)
             expect(row_for(page, "Nebius")).to_contain_text("Needs a key")
             self.assertEqual(blocked, [])
 
@@ -199,12 +199,12 @@ class BatchSideBySideBrowserTests(unittest.TestCase):
     def test_one_provider_only_is_ready_when_its_key_is_set_and_the_others_stay_blocked(self):
         with open_batch_page() as (page, _console, _blocked):
             expect(panel(page).get_by_role("heading", name="Compare providers")).to_be_visible(timeout=LONG_MS)
-            for provider_id in ("groq", "together", "nebius"):
+            for provider_id in ("sambanova", "together", "nebius"):
                 add_provider(page, provider_id)
             expect(panel(page).locator("[role=status]").first).to_contain_text("0 of 3", timeout=SHORT_MS)
             save_fake_key(page, "Nebius", remember=False)
             expect(panel(page).locator("[role=status]").first).to_contain_text("1 of 3", timeout=SHORT_MS)
-            expect(row_for(page, "Groq")).to_contain_text("Not available here")
+            expect(row_for(page, "SambaNova")).to_contain_text("Not available here")
 
 
 if __name__ == "__main__":
