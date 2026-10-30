@@ -7,7 +7,7 @@ import * as vega from "vega";
 import * as vegaLite from "vega-lite";
 import { expressionInterpreter } from "vega-interpreter";
 import { conditionRows, questionRows } from "./vega-rows.js";
-import { smallMultiplesSpec, dotPlotSpec, heatmapSpec, colourFieldFor } from "./vega-specs.js";
+import { smallMultiplesSpec, dotPlotSpec, heatmapSpec, MAX_SERIES } from "./vega-specs.js";
 import { chooseDifferenceView } from "./differences.js";
 import { showTooltip, hideTooltip } from "./tooltip.js";
 import { pct, rateText } from "./derive.js";
@@ -77,9 +77,13 @@ function el(tag, className, text) {
   return node;
 }
 
-/** The varying dimensions as words for the note, such as "model and condition". */
+/** The varying dimensions as words for the note, such as "model, provider and condition". */
 function varyingText(varying) {
-  return varying.map((dimension) => DIMENSION_NAMES[dimension] || dimension).join(" and ");
+  const names = varying.map((dimension) => DIMENSION_NAMES[dimension] || dimension);
+  if (names.length <= 1) {
+    return names.join("");
+  }
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** The small multiples with differences only off: one panel per condition, no colour. */
@@ -94,14 +98,13 @@ function plainSmallMultiples(rows, theme) {
 
 /** The small multiples with differences only on: the rule picks the panels and the colour from the rows in view. */
 function differenceSmallMultiples(rows, theme) {
-  const difference = chooseDifferenceView(rows);
+  // The rule never picks a colour with more than MAX_SERIES values, so the page never needs a fourth hue.
+  const difference = chooseDifferenceView(rows, { maxSeries: MAX_SERIES });
   if (difference.message) {
     return { spec: null, rows, message: difference.message, note: "" };
   }
-  // A colour with more than three values is dropped by the spec builder, so the page never needs a fourth hue.
-  const colour = difference.colour ? colourFieldFor(rows, difference.colour) : null;
   return {
-    spec: smallMultiplesSpec(rows, { facet: difference.facet, colour, theme }),
+    spec: smallMultiplesSpec(rows, { facet: difference.facet, colour: difference.colour, theme }),
     rows,
     message: "",
     note: `Showing the varying dimension: ${varyingText(difference.varying)}.`,

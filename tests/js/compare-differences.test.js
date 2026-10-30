@@ -126,3 +126,35 @@ test("a missing value counts as a distinct value, so it makes a dimension vary",
   const rows = [row({ provider: null }), row({ provider: "nebius" })];
   assert.deepEqual(varyingDimensions(rows), ["provider"]);
 });
+
+test("a colour dimension with more values than the series cap is skipped for the next one that fits", () => {
+  // Models vary (100 values), providers vary (3), and conditions vary (3). Model comes first in the colour order,
+  // but with a cap of three series it cannot be the colour, so the next varying dimension in order is used.
+  const rows = [];
+  for (let index = 0; index < 100; index += 1) {
+    for (const condition of ["none", "mitigation", "control"]) {
+      rows.push(row({ model: `m${index}`, provider: ["a", "b", "c"][index % 3], condition }));
+    }
+  }
+  const view = chooseDifferenceView(rows, { maxSeries: 3 });
+  assert.deepEqual(view.varying, ["model", "provider", "condition"]);
+  assert.equal(view.facet, "provider");
+  assert.equal(view.colour, "condition");
+});
+
+test("with no series cap given, the colour is the first varying dimension that is not the facet", () => {
+  const rows = [row({ model: "A", condition: "none" }), row({ model: "B", condition: "control" })];
+  assert.equal(chooseDifferenceView(rows).colour, "model");
+});
+
+test("when no varying dimension fits the series cap, there is no colour", () => {
+  const rows = [];
+  for (let index = 0; index < 5; index += 1) {
+    rows.push(row({ model: `m${index}`, condition: index % 2 === 0 ? "none" : "control" }));
+  }
+  // Models have five values and conditions have two. Only conditions fit a cap of one, so with a cap of one there is
+  // no colour once condition is the facet.
+  const view = chooseDifferenceView(rows, { maxSeries: 1 });
+  assert.equal(view.facet, "condition");
+  assert.equal(view.colour, null);
+});

@@ -44,16 +44,26 @@ function firstVarying(order, varying, excluded) {
 }
 
 /**
- * The view for the rows in view. Returns:
+ * The first dimension in the order list that varies, is not excluded, and has no more values than the series cap.
+ * A colour with too many values would need hues the page does not validate, so such a dimension is skipped.
+ */
+function firstColourable(order, varying, excluded, rows, maxSeries) {
+  return order.find((dimension) => varying.includes(dimension) && dimension !== excluded
+    && distinctCount(rows, dimension) <= maxSeries) || null;
+}
+
+/**
+ * The view for the rows in view. The options are optional: maxSeries is the most values a colour may have (default:
+ * no limit). Returns:
  *   varying: the dimensions that change, in DIMENSIONS order;
  *   dropped: the constant dimensions, which are not shown as facets or colour;
  *   facet:   the dimension that splits the view into panels, or null;
  *   colour:  the dimension that colours the marks, or null;
  *   message: text to show instead of a chart when nothing varies, or empty when a view can be drawn.
- * With one varying dimension it is the colour and there are no panels. With two or more, the first in
- * FACET_ORDER is the panels and the first other one in COLOUR_ORDER is the colour.
+ * With one varying dimension it is the colour, when it fits the cap, and there are no panels. With two or more, the
+ * first in FACET_ORDER is the panels and the first other one in COLOUR_ORDER that fits the cap is the colour.
  */
-export function chooseDifferenceView(rows) {
+export function chooseDifferenceView(rows, options) {
   const list = rows || [];
   if (list.length === 0) {
     return { varying: [], dropped: [...DIMENSIONS], facet: null, colour: null, message: NO_ROWS_MESSAGE };
@@ -63,10 +73,12 @@ export function chooseDifferenceView(rows) {
   if (varying.length === 0) {
     return { varying, dropped, facet: null, colour: null, message: NOTHING_VARIES_MESSAGE };
   }
+  const maxSeries = (options && options.maxSeries) || Number.POSITIVE_INFINITY;
   if (varying.length === 1) {
-    return { varying, dropped, facet: null, colour: varying[0], message: "" };
+    const colour = firstColourable(COLOUR_ORDER, varying, null, list, maxSeries);
+    return { varying, dropped, facet: null, colour, message: "" };
   }
   const facet = firstVarying(FACET_ORDER, varying, null);
-  const colour = firstVarying(COLOUR_ORDER, varying, facet);
+  const colour = firstColourable(COLOUR_ORDER, varying, facet, list, maxSeries);
   return { varying, dropped, facet, colour, message: "" };
 }
