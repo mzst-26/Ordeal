@@ -9,6 +9,7 @@ import {
   adviseCap,
   adviseConcurrency,
   adviseMaxTokens,
+  capToFinish,
 } from '../../frontend/js/engine/run-advice.js';
 
 test('concurrency above what the models and the platform can use is cut to that number, with a note', () => {
@@ -69,4 +70,12 @@ test('max tokens says so when even the largest setting is not enough', () => {
   const advice = adviseMaxTokens({ maxTokens: largest, units: 20, stopped: 9 });
   assert.equal(advice.value, largest);
   assert.match(advice.note, /largest setting/);
+});
+
+// The cap a Start must have to finish what is left: at least the cap the form holds, and at least what the remaining steps
+// need. A stale small cap is raised, so a Start is not stopped by a cap left over from an earlier run.
+test("the cap is raised to the calls the remaining steps need, and never lowered", () => {
+  assert.equal(capToFinish({ cap: 8, stepsLeft: 100, attemptsPerStep: 1 }), 150);
+  assert.equal(capToFinish({ cap: 400, stepsLeft: 10, attemptsPerStep: 1 }), 400);
+  assert.equal(capToFinish({ cap: 8, stepsLeft: 0, attemptsPerStep: 1 }), 8);
 });

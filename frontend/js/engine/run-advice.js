@@ -5,6 +5,8 @@
 
 // The largest call cap the batch page accepts for one Start. Matches MAX_BATCH_CALLS on the batch page.
 export const MAX_CAP = 400;
+// Calls are counted with this margin when a cap is worked out, so a retry does not end a run early.
+export const CAP_MARGIN = 1.5;
 // The caps are suggested in steps of this size, so the number reads as a round figure.
 const CAP_STEP = 10;
 // The reply sizes the batch page offers, smallest first. Matches the choices in index.html.
@@ -70,6 +72,15 @@ export function adviseMaxTokens({ maxTokens, units, stopped }) {
     value: larger,
     note: `${percent}% of units stopped at an empty or cut-short reply at ${maxTokens} tokens. Reasoning models often need more room.`,
   };
+}
+
+/**
+ * Return the call cap a Start needs to finish the steps left. It is never lower than the cap the form holds, so a cap left
+ * over from an earlier run is raised, not kept. The steps are counted with a margin, because a call can need another try.
+ */
+export function capToFinish({ cap, stepsLeft, attemptsPerStep }) {
+  const needed = adviseCap({ stepsLeft, attemptsPerStep: attemptsPerStep * CAP_MARGIN }).value;
+  return Math.max(cap, needed);
 }
 
 /** Return the number rounded up to the next multiple of step. A count of zero stays zero. */
