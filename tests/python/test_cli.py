@@ -272,7 +272,7 @@ class MultiProviderTests(CliTestCase):
         self.assertEqual(len(run_caches), 1)
 
     def test_three_providers_run_once_each_with_their_own_cache(self) -> None:
-        """Three providers give three runs with the same options, one route each, and a cache named for each provider."""
+        """Three providers give three runs with the same options, one route each, and one cache per provider."""
         code, _, _ = self.run_test("groq,together,fireworks", "org/alpha-7b", "--limit", "2")
         self.assertEqual(code, 0)
         self.assertEqual(self.runner_main.call_count, 3)

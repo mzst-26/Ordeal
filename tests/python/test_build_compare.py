@@ -177,8 +177,9 @@ class BuildCompareTests(unittest.TestCase):
     def test_model_keys_match_the_contract(self):
         """Each model has exactly the keys of section 3, and every rate has exactly the four rate keys."""
         data = self.build()
+        # "provider" is the platform each model's replies came from; it is "unknown" for replies saved before the field.
         expected = {
-            "id", "display_name", "family", "params_b", "active_params_b", "reasoning", "open_weights",
+            "id", "provider", "display_name", "family", "params_b", "active_params_b", "reasoning", "open_weights",
             "release_date", "units", "questions", "baseline_accuracy", "unparsed_share", "unparsed_at_last_level", "flip_curve",
             "flip_rate_last", "mean_spine_score", "flip_count", "recovery_rate", "final_correct_share",
             "capitulated_share", "converted_share", "acceptance_a", "acceptance_b", "acceptance_mean",
@@ -629,6 +630,135 @@ class LoadMetaTests(unittest.TestCase):
 
     def test_empty_when_the_file_is_missing(self):
         self.assertEqual(build_compare.load_meta(self.root / "missing.json"), {})
+
+
+# The provider of the second copy of the fixtures. Its model names are the fixture names with this prefix.
+SECOND_PROVIDER = "together"
+
+
+# Group: results from several providers. The fixture models are copied under a second provider, with their own cache
+# file, and the builder must take both, while still refusing when the results and the caches disagree.
+class MultiProviderBuildTests(unittest.TestCase):
+    """The builder reads every cache file it is given, and names each model's provider in the data file."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Work out the experiment code of the suite, the same way the builder does."""
+        cls.experiment = core.load_suite(ladder="gauntlet_v3", questions="easy").experiment
+
+    def setUp(self):
+        """Build a results folder with the fixture models under two providers, each with its own cache file."""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name)
+        self.results_dir = self.root / "results"
+        self.frontend_dir = self.root / "frontend"
+        self.results_dir.mkdir()
+        (self.frontend_dir / "data").mkdir(parents=True)
+        self.models_path = self.root / "models.json"
+        shutil.copy(FIXTURES_DIR / "models.json", self.models_path)
+        self.config_path = self.root / "config_subset.json"
+        shutil.copy(FIXTURES_DIR / "config_subset.json", self.config_path)
+        self.out_path = self.frontend_dir / "data" / "compare" / "results.json"
+        base_gauntlet = read_fixture_csv("results.csv")
+        base_probes = read_fixture_csv("probes.csv")
+        base_records = fixture_records(self.experiment)
+        # The fixture rows are the first provider's. They have no provider column, so they read as unknown.
+        second_gauntlet = [renamed_for_provider(row, SECOND_PROVIDER) for row in base_gauntlet]
+        second_probes = [renamed_for_provider(row, SECOND_PROVIDER) for row in base_probes]
+        write_csv(self.results_dir / "results.csv", [*base_gauntlet, *second_gauntlet])
+        write_csv(self.results_dir / "probes.csv", [*base_probes, *second_probes])
+        write_jsonl(self.results_dir / "cache.jsonl", base_records)
+        self.second_cache = self.results_dir / "cache_together.jsonl"
+        write_jsonl(
+            self.second_cache, [renamed_record_for_provider(record, SECOND_PROVIDER) for record in base_records]
+        )
+
+    def run_build(self, *extra):
+        """Run main() on the temporary folders. Return the exit code and the error output."""
+        output, errors = io.StringIO(), io.StringIO()
+        args = [
+            "--results-dir", str(self.results_dir),
+            "--frontend-dir", str(self.frontend_dir),
+            "--models", str(self.models_path),
+            "--out", str(self.out_path),
+            "--config", str(self.config_path),
+            *extra,
+        ]
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            code = build_compare.main(args)
+        return code, errors.getvalue()
+
+    def run_both_caches(self):
+        """Run the build with the first provider's cache and the second provider's cache, both named."""
+        return self.run_build("--cache", str(self.results_dir / "cache.jsonl"), "--cache", str(self.second_cache))
+
+    def test_both_providers_build_when_every_cache_is_given(self):
+        """With both cache files named, the build succeeds and every model says which provider served it."""
+        code, errors = self.run_both_caches()
+        self.assertEqual(code, 0, errors)
+        models = {model["id"]: model for model in json.loads(self.out_path.read_text(encoding="utf-8"))["models"]}
+        self.assertEqual(models[ALPHA]["provider"], "unknown")
+        self.assertEqual(models[f"{SECOND_PROVIDER}/{ALPHA}"]["provider"], SECOND_PROVIDER)
+
+    def test_build_stops_when_a_provider_cache_is_left_out(self):
+        """Without the second cache, its models are in results.csv but not in the caches, so the build stops."""
+        code, errors = self.run_build()
+        self.assertEqual(code, 1)
+        self.assertIn("disagree", errors)
+        self.assertIn(SECOND_PROVIDER, errors)
+
+    def test_build_stops_when_a_cache_names_a_different_provider(self):
+        """A cache whose replies name another provider than results.csv does is a real mismatch, so the build stops."""
+        # Same model names as results.csv, but the replies say they came from groq.
+        write_jsonl(
+            self.second_cache,
+            [
+                {**renamed_record_for_provider(record, SECOND_PROVIDER), "provider": "groq"}
+                for record in fixture_records(self.experiment)
+            ],
+        )
+        code, errors = self.run_both_caches()
+        self.assertEqual(code, 1)
+        self.assertIn("disagree", errors)
+
+
+def read_fixture_csv(name):
+    """Return the rows of a fixture CSV file as dicts."""
+    with open(FIXTURES_DIR / name, newline="", encoding="utf-8") as file:
+        return list(csv.DictReader(file))
+
+
+def fixture_records(experiment):
+    """Return the fixture cache records, with the experiment code of the suite filled in."""
+    text = (FIXTURES_DIR / "cache.jsonl").read_text(encoding="utf-8").replace(PLACEHOLDER, experiment)
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def renamed_for_provider(row, provider):
+    """Return a copy of a results row for another provider: its model gets the provider as a prefix."""
+    return {**row, "model": f"{provider}/{row['model']}", "provider": provider}
+
+
+def renamed_record_for_provider(record, provider):
+    """Return a copy of a saved reply for another provider, with the same prefixed model name as its rows."""
+    return {**record, "model": f"{provider}/{record['model']}", "provider": provider}
+
+
+def write_csv(path, rows):
+    """Write rows to a CSV file. The columns are every key seen, in the order first seen."""
+    columns = []
+    for row in rows:
+        columns.extend(name for name in row if name not in columns)
+    with open(path, "w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=columns, restval="")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def write_jsonl(path, records):
+    """Write saved replies to a JSON lines file, one record per line."""
+    path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
 
 
 if __name__ == "__main__":
