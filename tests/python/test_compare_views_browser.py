@@ -165,6 +165,9 @@ class CompareViewsBrowserTest(unittest.TestCase):
                 DIFFERENCES_NOTE_START, timeout=LONG_MS,
             )
             expect(chart).to_have_count(1, timeout=LONG_MS)
+            # Hovering a mark runs Vega's tooltip handler, which must use the page's own tooltip and no injected style.
+            page.locator("#fig-views-root .views-chart .mark-symbol path").first.hover()
+            expect(page.locator("#compare-tooltip")).to_contain_text("Flip rate at last level", timeout=LONG_MS)
             injected_styles = page.evaluate("document.querySelectorAll('style').length")
         finally:
             context.close()
