@@ -2,7 +2,7 @@
 // the work already saved, not zero, and its calls, reused replies and failures must add up across every Start.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { unitsDoneToShow, countsToShow } from "../../frontend/js/runs/batch-progress.js";
+import { idleCountsFor, unitsDoneToShow, countsToShow } from "../../frontend/js/runs/batch-progress.js";
 
 test("units done shows the saved units when a Start has not reached them yet", () => {
   // 88 units were saved for the first condition; its runner has replayed none yet, so the bar keeps 88.
@@ -21,4 +21,12 @@ test("units done adds the conditions of one batch, each with its own saved and f
 test("calls, reused and failed show the earlier Starts' totals plus this Start", () => {
   const shown = countsToShow({ calls: 88, reused: 3, failed: 2 }, { calls: 5, reused: 1, failed: 0 });
   assert.deepEqual(shown, { calls: 93, reused: 4, failed: 2 });
+});
+
+// While the page is idle, a saved set on the form keeps its saved progress. Changing the form to another set shows zero.
+test("while idle, the saved progress of the set on the form is kept; another set shows zero", () => {
+  const shown = { signature: "set-a", done: 88, calls: 88, reused: 3, failed: 2 };
+  assert.deepEqual(idleCountsFor(shown, true, 135), { done: 88, total: 135, calls: 88, reused: 3, failed: 2 });
+  assert.deepEqual(idleCountsFor(shown, false, 135), { done: 0, total: 135, calls: 0, reused: 0, failed: 0 });
+  assert.deepEqual(idleCountsFor(null, true, 135), { done: 0, total: 135, calls: 0, reused: 0, failed: 0 });
 });

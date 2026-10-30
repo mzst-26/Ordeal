@@ -33,7 +33,7 @@ import { CAP_MARGIN, adviseCap, adviseConcurrency, adviseMaxTokens, capToFinish 
 import { createPlatformPacer } from "../engine/platform-pacer.js";
 import { buildStatusView } from "./batch-status-view.js";
 import { addSession, emptyTotals, readTotals, sumTotals } from "../store/run-totals.js";
-import { countsToShow, unitsDoneToShow } from "../runs/batch-progress.js";
+import { countsToShow, idleCountsFor, unitsDoneToShow } from "../runs/batch-progress.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { gradeCondition, gradeProbes } from "../engine/grade.js";
 import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
@@ -304,6 +304,7 @@ const page = {
   tracker: null,              // the pace tracker of this Start, or null before the first Start
   condition: null,            // the counts of the condition now running, made by freshConditionCounts()
   condDone: {},               // the done count each condition's runner last reported, in this Start
+  idleShown: null,            // the saved set last shown while idle: its signature and saved progress, or null
   startSaved: {},             // the units already saved for each condition's run, before this Start
   runBase: emptyTotals(),     // the saved totals of the run now running, before this condition's counts
   startBases: {},            // the saved totals of each condition's run before this Start, keyed by condition
@@ -509,7 +510,9 @@ async function showLatestBatchRun() {
   restoreChoices(run.config);
   page.runCondition = run.config.condition;
   addRecordsToCache(page.cache, records);
-  page.counts = { done: savedKeys.length, total: run.plannedUnits.length, calls: 0, reused: 0, failed: 0 };
+  page.idleShown = shownFromRun(run);
+  resetCounts(run.plannedUnits.length);
+  Object.assign(page.counts, idleCountsFor(page.idleShown, true, run.plannedUnits.length));
   renderProgress();
   onSelectionChanged();
   scheduleResults();
@@ -1579,7 +1582,9 @@ function onSelectionChanged() {
   updateCountLines();
   renderSelectedLists();
   if (page.phase === "idle") {
+    // The saved progress of a set stays on the page while the form still matches it; another set starts at zero.
     resetCounts(unitCount(choices));
+    Object.assign(page.counts, idleCountsFor(page.idleShown, matchesIdleShown(choices), unitCount(choices)));
     renderProgress();
   }
   updateControls();
@@ -2193,6 +2198,7 @@ async function resumeBatchRun(run) {
   dom.cap.value = kept.cap;
   restoreMaxTokens(kept.maxTokens);
   addRecordsToCache(page.cache, resumeState(run).records);
+  page.idleShown = shownFromRun(run);
   onSelectionChanged();
   // Nothing is left to send, so the status is not changed. A stopped run can only move to running, not to done, and
   // leaving it stopped keeps Resume available to open the results again.
@@ -2622,6 +2628,25 @@ function stopRun() {
 /** Start the counters for a new batch with the number of units it will run. */
 function resetCounts(total) {
   page.counts = { done: 0, total, calls: 0, reused: 0, failed: 0, unusable: 0, retries: 0, rateLimits: 0 };
+}
+
+/** Return the saved set a run stands for while idle: its signature, and the progress saved on it. */
+function shownFromRun(run) {
+  const totals = readTotals(run);
+  return {
+    signature: resumeSignature(run.config),
+    done: Object.keys(run.results).length,
+    calls: totals.calls,
+    reused: totals.reused,
+    failed: totals.failed,
+  };
+}
+
+/** Return true when the form's choices are the saved set that was last shown while idle. */
+function matchesIdleShown(choices) {
+  if (page.idleShown === null || choices.conditions.length === 0) return false;
+  const signature = resumeSignature(batchConfig({ ...choices, condition: choices.conditions[0] }));
+  return signature === page.idleShown.signature;
 }
 
 /** Return the counts for one condition's run: the calls, replies, failures and waits, and the failure details. */

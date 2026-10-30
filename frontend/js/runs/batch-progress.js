@@ -22,3 +22,13 @@ export function countsToShow(earlier, thisStart) {
     failed: earlier.failed + thisStart.failed,
   };
 }
+
+/**
+ * Return the counts to show while the page is idle. When the form still matches the saved set that was last shown, its
+ * saved progress is kept; otherwise the counts are zero. The total always follows the form, so a changed set shows its own
+ * size with nothing done yet.
+ */
+export function idleCountsFor(shown, matches, total) {
+  if (shown === null || !matches) return { done: 0, total, calls: 0, reused: 0, failed: 0 };
+  return { done: shown.done, total, calls: shown.calls, reused: shown.reused, failed: shown.failed };
+}
