@@ -1,15 +1,18 @@
-// Tests for frontend/js/results/batch-figures.js: the pure helpers behind the Batch results figures.
+// Tests for frontend/js/results/batch-figures.js: the pure helpers behind the Batch results figure.
 // The helpers take plain numbers and rows and return plain values, so no DOM is needed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  FIGURE_VIEWS, PALETTE, colourFor, dashFor, radarPoints, polygonPoints, scatterPosition,
-  splitScatterRows, wrapLabel, describeValues,
+  FIGURE_VIEWS, DEFAULT_FIGURE_VIEW, PALETTE, colourFor, scatterPosition, splitScatterRows,
 } from "../../frontend/js/results/batch-figures.js";
 
-test("FIGURE_VIEWS lists Radar, Scatter and Profile with Radar first", () => {
-  assert.deepEqual(FIGURE_VIEWS.map((view) => view.key), ["radar", "scatter", "profile"]);
-  assert.deepEqual(FIGURE_VIEWS.map((view) => view.label), ["Radar", "Scatter", "Profile"]);
+// The radar and the profile were removed. Scatter is the only figure left, and it is the default. A removed view must not
+// come back in the switcher, so this test names the views exactly.
+test("FIGURE_VIEWS offers only Scatter, and the default view is one of them", () => {
+  assert.deepEqual(FIGURE_VIEWS.map((view) => view.key), ["scatter"]);
+  assert.deepEqual(FIGURE_VIEWS.map((view) => view.label), ["Scatter"]);
+  assert.equal(DEFAULT_FIGURE_VIEW, "scatter");
+  assert.ok(FIGURE_VIEWS.some((view) => view.key === DEFAULT_FIGURE_VIEW));
 });
 
 test("PALETTE has eight hex colours and colourFor cycles through them", () => {
@@ -19,35 +22,6 @@ test("PALETTE has eight hex colours and colourFor cycles through them", () => {
   assert.equal(colourFor(7), PALETTE[7]);
   assert.equal(colourFor(8), PALETTE[0]);
   assert.equal(colourFor(17), PALETTE[1]);
-});
-
-test("dashFor is solid for the first eight models and changes pattern after that", () => {
-  for (let i = 0; i < 8; i += 1) assert.equal(dashFor(i), "");
-  assert.notEqual(dashFor(8), "");
-  assert.notEqual(dashFor(8), dashFor(16));
-});
-
-test("radarPoints puts axis 0 at the top and skips axes with no value", () => {
-  // Four axes, centre (50, 50), radius 100. Axis 1 is null so it has no point.
-  // Value 0.5 on axis 3 (pointing left) lands halfway along that axis.
-  assert.deepEqual(radarPoints([1, null, 0, 0.5], 4, 100, [50, 50]), [
-    "50.00,-50.00",
-    "50.00,50.00",
-    "0.00,50.00",
-  ]);
-});
-
-test("radarPoints clamps values to 0..1", () => {
-  assert.deepEqual(radarPoints([2, -1], 2, 10, [0, 0]), ["0.00,-10.00", "0.00,0.00"]);
-});
-
-test("radarPoints returns no points when no axis has a value", () => {
-  assert.deepEqual(radarPoints([null, null], 2, 10, [0, 0]), []);
-});
-
-test("polygonPoints joins the point strings with spaces", () => {
-  assert.equal(polygonPoints(["1.00,2.00", "3.00,4.00"]), "1.00,2.00 3.00,4.00");
-  assert.equal(polygonPoints([]), "");
 });
 
 test("scatterPosition maps a value onto 0..size using min and max", () => {
@@ -78,26 +52,4 @@ test("splitScatterRows separates models that have both values from those that do
   const split = splitScatterRows(rows, "x", "y");
   assert.deepEqual(split.plotted.map((row) => row.model), ["a/one"]);
   assert.deepEqual(split.skipped, ["b/two", "c/three"]);
-});
-
-test("wrapLabel breaks a label at word boundaries and keeps long words whole", () => {
-  assert.deepEqual(wrapLabel("Units (questions right at the start)", 14), [
-    "Units",
-    "(questions",
-    "right at the",
-    "start)",
-  ]);
-  assert.deepEqual(wrapLabel("Baseline", 14), ["Baseline"]);
-  assert.deepEqual(wrapLabel("Supercalifragilistic word", 8), ["Supercalifragilistic", "word"]);
-});
-
-test("describeValues gives each measure with its digits, and no data for null", () => {
-  const measures = [
-    { key: "a", label: "Baseline accuracy", digits: 3 },
-    { key: "b", label: "Flip at level 10", digits: 2 },
-  ];
-  assert.equal(
-    describeValues({ a: 0.8125, b: null }, measures),
-    "Baseline accuracy 0.813; Flip at level 10 no data",
-  );
 });
