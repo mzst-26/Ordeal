@@ -843,6 +843,34 @@ class ProviderFieldTests(unittest.TestCase):
         saved = sorted((row["provider"], row["units"]) for row in grade.read_all_rows(path))
         self.assertEqual(saved, [("groq", "9"), ("together", "2")])
 
+    def test_new_row_replaces_the_unknown_row_of_the_same_model(self) -> None:
+        """A model's row saved before providers were recorded is replaced when its replies gain a provider.
+
+        Otherwise a resumed run would leave two rows for one model, one unknown and one named.
+        """
+        path = self.folder / "results.csv"
+        columns = ["suite", "condition", "provider", "model", "units"]
+        old = [{"suite": "s", "condition": CONDITION, "provider": "unknown", "model": GROQ_LABEL, "units": 1}]
+        grade.merge_csv_rows(old, path, columns, grade.SUITE_KEY)
+        new = [{"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 5}]
+        grade.merge_csv_rows(new, path, columns, grade.SUITE_KEY)
+        saved = [(row["provider"], row["units"]) for row in grade.read_all_rows(path)]
+        self.assertEqual(saved, [("groq", "5")])
+
+    def test_unknown_row_of_another_model_is_kept_when_a_model_gains_a_provider(self) -> None:
+        """Only the same model's unknown row is replaced; an unknown row of another model stays."""
+        path = self.folder / "results.csv"
+        columns = ["suite", "condition", "provider", "model", "units"]
+        old = [
+            {"suite": "s", "condition": CONDITION, "provider": "unknown", "model": GROQ_LABEL, "units": 1},
+            {"suite": "s", "condition": CONDITION, "provider": "unknown", "model": TOGETHER_LABEL, "units": 2},
+        ]
+        grade.merge_csv_rows(old, path, columns, grade.SUITE_KEY)
+        new = [{"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 5}]
+        grade.merge_csv_rows(new, path, columns, grade.SUITE_KEY)
+        saved = sorted((row["model"], row["provider"]) for row in grade.read_all_rows(path))
+        self.assertEqual(saved, [(GROQ_LABEL, "groq"), (TOGETHER_LABEL, "unknown")])
+
     def test_old_results_file_without_a_provider_column_reads_as_unknown(self) -> None:
         """A results file from before the provider column is read with every row's provider set to unknown."""
         path = self.folder / "results.csv"

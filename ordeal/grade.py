@@ -747,12 +747,33 @@ def write_csv_atomically(path: Path, columns: list[str], rows: list[dict]) -> No
         raise
 
 
+def row_key(row: dict, key_fields: tuple[str, ...]) -> tuple:
+    """Return the values of a row's key fields, in order."""
+    return tuple(row[field] for field in key_fields)
+
+
 def merge_csv_rows(new_rows: list[dict], path: Path, columns: list[str], key_fields: tuple[str, ...]) -> None:
-    """Write new_rows. Saved rows whose key fields match a new row are replaced, and every other row is kept."""
+    """Write new_rows. Saved rows whose key fields match a new row are replaced, and every other row is kept.
+
+    A saved row with the unknown provider is also replaced by a new row for the same model under any provider.
+    A row saved before providers were recorded has no provider, so once the model's replies name one, the old row
+    must go, or a resumed run would leave two rows for one model.
+    """
     # Re-grading one suite and condition replaces only its own rows, leaving other suites and conditions as they were.
-    new_keys = {tuple(row[field] for field in key_fields) for row in new_rows}
-    kept_rows = [row for row in read_all_rows(path) if tuple(row[field] for field in key_fields) not in new_keys]
+    new_keys = {row_key(row, key_fields) for row in new_rows}
+    kept_rows = [row for row in read_all_rows(path) if not replaces_saved_row(row, new_rows, new_keys, key_fields)]
     write_csv_atomically(path, columns, [*kept_rows, *new_rows])
+
+
+def replaces_saved_row(saved: dict, new_rows: list[dict], new_keys: set[tuple], key_fields: tuple[str, ...]) -> bool:
+    """True when a new row takes the place of this saved row: the same key, or the unknown row of the same model."""
+    if row_key(saved, key_fields) in new_keys:
+        return True
+    if "provider" not in key_fields or saved["provider"] != UNKNOWN_PROVIDER:
+        return False
+    # Compare every key field except the provider, so the saved row and a new row are the same model and condition.
+    others = tuple(field for field in key_fields if field != "provider")
+    return any(row_key(saved, others) == row_key(new, others) for new in new_rows)
 
 
 def read_rows_or_stop(path: Path, condition: str, suite_name: str) -> list[dict[str, str]]:
