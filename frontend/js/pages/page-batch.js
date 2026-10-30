@@ -5,7 +5,8 @@
 import { loadJson } from "../shared/data-cache.js";
 import { showToast } from "../ui/toast.js";
 import { initTooltips } from "../ui/tooltip.js";
-import { browserStorage, vault } from "../engine/token.js";
+import { browserStorage } from "../engine/token.js";
+import { slotFor, slotForPlatform } from "../engine/provider-keys.js";
 import { createBatchLog } from "../engine/batch-log.js";
 import { latestRunOfKind, runMatchesSuite, runDateText } from "../runs/last-run.js";
 import { VIEW_IDS } from "../shared/view-ids.js";
@@ -1172,7 +1173,7 @@ function afterListChange() {
 /** Ask for the key of the chosen platform, the same prompt a run uses. False when no platform can be chosen. */
 async function keyForChosenPlatform() {
   if (page.platform === null) return false;
-  return keyReadyFor(page.platform);
+  return keyReadyFor(page.platform, slotFor(page.platform.id));
 }
 
 /** Return the line shown while a typed name is checked, such as "Checking org/name on Nebius...". */
@@ -1194,7 +1195,7 @@ async function addTypedModel(text) {
   if (platform === null) {
     return { message: NO_PLATFORM_ADD_TEXT, added: false, addedModels: page.addedModels };
   }
-  const result = await checkTypedName(platform, text);
+  const result = await checkTypedName(platform, text, slotFor(platform.id));
   if (!result.ok) {
     return { message: result.message, added: false, addedModels: page.addedModels };
   }
@@ -1740,7 +1741,7 @@ async function handleStart() {
   // confirming locks the form (see updateControls) while the key dialog and confirmation line are open.
   page.confirming = true;
   updateControls();
-  const ready = await keyReadyFor(page.platform);
+  const ready = await keyReadyFor(page.platform, slotFor(page.platform.id));
   if (!ready) {
     page.confirming = false;
     page.resumeRunId = null;
@@ -1947,7 +1948,8 @@ async function beginRun(confirmedId) {
   page.client = createChatClient({
     platform,
     customModels: page.customModels,
-    vault,
+    // The key for this platform only, so a key saved for another provider is never sent here.
+    vault: slotFor(platform.id),
     budget: createBudget(choices.cap),
     timeoutMs: config.request_timeout_seconds * 1000,
     log: page.log,
@@ -1992,7 +1994,7 @@ async function startConditionRun(condition) {
     condition,
     cap: choices.cap,
     concurrency: choices.concurrency,
-    key_remembered: vault.remembered(),
+    key_remembered: slotForPlatform(page.platform)?.remembered() ?? false,
   });
   updateExportButtons();
   page.runner = createBatchRunner({

@@ -2,7 +2,7 @@
 // local storage only when the visitor ticks Remember, the same rule token.js follows for the single key. Each key
 // is kept under its provider id, so a key entered for one provider is never handed to another.
 // Nothing here writes a key to the URL, the DOM or the console.
-import { isPlausibleToken, maskToken } from './token.js';
+import { browserStorage, isPlausibleToken, maskToken } from './token.js';
 
 // The name the per-provider keys are saved under in this browser's local storage. The value is a JSON object that
 // maps each provider id to its key. Only the keys the visitor asked to remember are kept there.
@@ -113,6 +113,19 @@ export function createProviderKeys({ storage = null } = {}) {
       persist();
     },
   };
+}
+
+// The one store for the batch page's per-provider keys. It saves a key only when the visitor asks it to.
+export const providerKeys = createProviderKeys({ storage: browserStorage() });
+
+/** Return the key slot for one provider from the shared store. The batch page uses this for its platform and key. */
+export function slotFor(providerId) {
+  return keySlotFor(providerKeys, providerId);
+}
+
+/** Return the key slot for a platform object, or null when no platform is chosen. Used by the platform panel. */
+export function slotForPlatform(platform) {
+  return platform === null || platform === undefined ? null : slotFor(platform.id);
 }
 
 /**
