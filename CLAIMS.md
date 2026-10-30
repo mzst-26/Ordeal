@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/provider-field | session f508f0fc (provider-field worker) | ordeal/model_client.py, ordeal/providers.py, ordeal/core.py, ordeal/runner.py, ordeal/grade.py, ordeal/cli.py, scripts/build_compare.py, README.md, tests/python/test_grade.py, tests/python/test_cli.py, tests/python/test_build_compare.py, tests/python/test_runner.py, tests/python/test_model_client.py, tests/python/test_core.py, tests/python/test_providers.py, ordeal/difficulty.py, tests/python/test_difficulty.py, tests/python/test_e2e.py, tests/python/test_build_compare.py | 2026-10-30 |
