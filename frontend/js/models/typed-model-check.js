@@ -7,14 +7,15 @@
 
 import { askForToken } from "../ui/token-dialog.js";
 import { fetchModelIds } from "../engine/api.js";
-import { vault } from "../engine/token.js";
+import { slotFor } from "../engine/provider-keys.js";
 import { keyFitsPlatform, refusalText, resolveNewModel } from "./model-list.js";
 
 /**
  * Return true when the key saved in this browser was entered for this platform, or once the visitor gives one for it.
- * This is the same prompt a run asks for, so a key is never asked for in a second way.
+ * This is the same prompt a run asks for, so a key is never asked for in a second way. The key store defaults to the
+ * key slot for this platform, the same store every page uses.
  */
-export async function keyReadyFor(platform, keyStore = vault) {
+export async function keyReadyFor(platform, keyStore = slotFor(platform.id)) {
   if (keyStore.has() && keyFitsPlatform(keyStore.platformId(), platform.id)) {
     return true;
   }
@@ -27,7 +28,7 @@ export async function keyReadyFor(platform, keyStore = vault) {
  * A name is refused before any request when it is empty or unsafe. Otherwise the platform's list is read, but only
  * when a key for this platform is saved, and a name the list does not have is refused with close names.
  */
-export async function checkTypedName(platform, text, keyStore = vault) {
+export async function checkTypedName(platform, text, keyStore = slotFor(platform.id)) {
   const early = resolveNewModel(platform, text, null);
   if (!early.ok) {
     return refused(early);
@@ -59,7 +60,7 @@ function refused(found) {
  * saved, when the saved key was entered for another platform (that key is never sent there), or when the request
  * fails. Null means the name is accepted as not checked.
  */
-export async function platformIdsForCheck(platform, keyStore = vault) {
+export async function platformIdsForCheck(platform, keyStore = slotFor(platform.id)) {
   if (!keyStore.has() || !keyFitsPlatform(keyStore.platformId(), platform.id)) {
     return null;
   }
