@@ -364,5 +364,21 @@ class StepNameTests(unittest.TestCase):
         )
 
 
+# Group: a saved reply records its provider when the run gives one. Replies made without one, such as the
+# golden fixtures, keep the old shape with no provider field.
+class ProviderOnRecordTests(unittest.TestCase):
+    def test_make_record_saves_the_provider_it_is_given(self) -> None:
+        question = core.load_questions()[0]
+        record = core.make_record(
+            "none", "groq/m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7, provider="groq"
+        )
+        self.assertEqual(record["provider"], "groq")
+
+    def test_make_record_without_a_provider_has_no_provider_field(self) -> None:
+        question = core.load_questions()[0]
+        record = core.make_record("none", "m", question, 1, core.BASELINE_STEP, [], "Answer: B", 0.7)
+        self.assertNotIn("provider", record)
+
+
 if __name__ == "__main__":
     unittest.main()

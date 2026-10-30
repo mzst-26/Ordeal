@@ -281,6 +281,11 @@ class RouteForTests(unittest.TestCase):
         self.assertEqual(route.base_url, "https://router.huggingface.co/v1")
         self.assertEqual(route.key_env, "HF_TOKEN")
         self.assertTrue(route.custom)
+
+    def test_route_names_its_platform_as_the_provider(self) -> None:
+        """The provider of a platform route is the platform id, so its saved replies name that platform."""
+        route = providers.route_for(self.hosted, "org/name")
+        self.assertEqual(route.provider, "huggingface")
         self.assertEqual(route.api_key, "")
 
     def test_custom_route_uses_the_given_address(self) -> None:

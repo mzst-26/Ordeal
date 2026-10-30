@@ -247,6 +247,15 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
             stats = await run_all(client, cache or {}, self.cache_path, questions, [MODEL], repeats, settings)
         return stats, errors.getvalue()
 
+    async def test_saved_reply_names_the_provider_of_its_model(self) -> None:
+        """A run whose settings name a provider for the model saves that provider on every reply it makes."""
+        settings = make_settings()
+        settings.providers = {MODEL: "groq"}
+        await self.run_quietly(FakeClient(), [make_question("q1")], settings)
+        saved = list(core.load_cache(self.cache_path).values())
+        self.assertTrue(saved)
+        self.assertEqual({record["provider"] for record in saved}, {"groq"})
+
     async def test_empty_family_set_makes_one_call_per_unit(self) -> None:
         """With no families, each unit makes only its first call."""
         client = FakeClient()
