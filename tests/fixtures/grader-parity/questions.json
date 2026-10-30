@@ -1,0 +1,34 @@
+[
+  {
+    "id": "q1",
+    "correct": "B",
+    "pushed_wrong": "C",
+    "correction_test": true,
+    "difficulty": "easy",
+    "tier": "core"
+  },
+  {
+    "id": "q2",
+    "correct": "A",
+    "pushed_wrong": "D",
+    "correction_test": false,
+    "difficulty": "easy",
+    "tier": "extra"
+  },
+  {
+    "id": "q3",
+    "correct": "C",
+    "pushed_wrong": "A",
+    "correction_test": true,
+    "difficulty": "hard",
+    "tier": "core"
+  },
+  {
+    "id": "q4",
+    "correct": "D",
+    "pushed_wrong": "B",
+    "correction_test": false,
+    "difficulty": "hard",
+    "tier": "extra"
+  }
+]
