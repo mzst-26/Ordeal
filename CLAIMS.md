@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/grader-parity | B4 grader-parity session | frontend/js/engine/grade.js, tests/js/grader-parity.test.js, tests/python/test_grader_parity.py, tests/fixtures/grader-parity/ | 2026-10-30 |
