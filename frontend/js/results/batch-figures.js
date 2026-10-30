@@ -6,6 +6,7 @@
 
 import { el, formatNumber } from "../ui/ui.js";
 import { TERMS } from "./glossary.js";
+import { placeDotLabels } from "../charts/labels.js";
 
 // The radar and the profile were removed: a radar's spokes were scaled across the ticked models, so one model's shape
 // moved when another was ticked, and the profile repeated the heatmap's numbers. Scatter is the only figure left, so it
@@ -38,6 +39,19 @@ export function scatterPosition(value, min, max, size) {
   if (min === max) return size / 2;
   const scaled = ((value - min) / (max - min)) * size;
   return Math.min(size, Math.max(0, scaled));
+}
+
+/**
+ * Place the labels of the plotted points so no two of them overlap. Returns one spot { x, y, anchor } per point, in the
+ * same order. Two models with the same score sit on one spot, so without this their names print on top of each other.
+ * The labels module moves a label to the other side, or stacks it, when it would touch another label, and keeps it
+ * inside the plot. The plot is { left, right, top, bottom } in the SVG's own units.
+ */
+export function scatterLabelSpots(points, plot) {
+  const middle = (plot.left + plot.right) / 2;
+  const dots = points.map((point) => ({ x: point.x, y: point.y, label: point.label, labelGoesLeft: point.x > middle }));
+  placeDotLabels(dots, plot, []);
+  return dots.map((dot) => dot.spot);
 }
 
 /** Split rows into those with both the x and the y value (plotted) and the model names of the rest (skipped). */
@@ -199,19 +213,26 @@ function buildScatter(rows, measures, block) {
     setTip(tick, TERMS.axisEnd);
   }
 
-  for (const row of split.plotted) {
+  const plot = { left, right: left + plotW, top, bottom: top + plotH };
+  const placed = split.plotted.map((row) => ({
+    row,
+    px: left + scatterPosition(row.measures[xMeasure.key], 0, xTop, plotW),
+    py: top + plotH - scatterPosition(row.measures[yMeasure.key], 0, yTop, plotH),
+  }));
+  const spots = scatterLabelSpots(placed.map((item) => ({ x: item.px, y: item.py, label: item.row.model })), plot);
+  placed.forEach((item, index) => {
+    const { row, px, py } = item;
     const xValue = row.measures[xMeasure.key];
     const yValue = row.measures[yMeasure.key];
-    const px = left + scatterPosition(xValue, 0, xTop, plotW);
-    const py = top + plotH - scatterPosition(yValue, 0, yTop, plotH);
     const colour = colourFor(row.index);
     const point = svgEl("circle", { class: "figure-point", cx: px, cy: py, r: 6, fill: colour, stroke: colour, "data-model-index": row.index });
     setTip(point, `${row.model}: ${xMeasure.label} ${formatNumber(xValue, xMeasure.digits)}, ${yMeasure.label} ${formatNumber(yValue, yMeasure.digits)}`);
     linkHover(point, row.index, block);
-    const name = textEl(row.model, { class: "figure-point-label", x: px + 9, y: py - 8, "data-model-index": row.index });
+    const spot = spots[index];
+    const name = textEl(row.model, { class: "figure-point-label", x: spot.x, y: spot.y, "text-anchor": spot.anchor, "data-model-index": row.index });
     linkHover(name, row.index, block);
     svg.append(point, name);
-  }
+  });
   const notes = [el("p", { className: "field-hint", text: "Each dot is one ticked model. It sits at its actual score on each of the two measures you pick." })];
   if (split.skipped.length > 0) {
     notes.push(el("p", { className: "field-hint" }, [
