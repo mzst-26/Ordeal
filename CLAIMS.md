@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/reuse-on-changed-settings | session 4b71b7c1 (Claude) | tests/js/runner-reuse-settings.test.js | 2026-10-30 |
