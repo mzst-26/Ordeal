@@ -3,7 +3,6 @@
 
 import { createRoot } from "react-dom/client";
 import { startApp } from "./app.js";
-import { vault } from "./engine/token.js";
 import { SiteHeader } from "./react/SiteHeader.jsx";
 import { mountPlatformSection } from "./models/platform-section.js";
 import { mountSideBySide } from "./models/side-by-side-panel.js";
@@ -14,7 +13,7 @@ keepBannerHeight();
 
 startApp({
   renderHeader(navigate) {
-    createRoot(document.getElementById("site-header")).render(<SiteHeader vault={vault} navigate={navigate} />);
+    createRoot(document.getElementById("site-header")).render(<SiteHeader navigate={navigate} />);
   },
 });
 

@@ -43,7 +43,7 @@ function explainProblem(text) {
 /**
  * Open the key dialog. Resolves true when a plausible key was saved, and false when the user
  * cancels or forgets the key. Focus goes back to the element that was focused before.
- * The vault is the object from token.js and needs has(), set(text) and clear().
+ * The vault is a key slot from provider-keys.js for the chosen provider, and needs has(), set(text, options) and clear().
  * The key is tagged with the platform the batch will really use, so the platform is read before the dialog opens.
  */
 export async function askForToken({ vault, platformId = null }) {
