@@ -6,4 +6,3 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
-| batch/provider-csp | session f508f0fc (owner-approved CSP batch) | netlify.toml, ordeal/data/providers.json, frontend/js/models/side-by-side.js, frontend/js/models/side-by-side-panel.js, tests/js/side-by-side.test.js, tests/python/test_batch_side_by_side_browser.py | 2026-10-30 |
