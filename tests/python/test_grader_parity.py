@@ -113,6 +113,7 @@ class GraderParityFixtureTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Read the expected numbers once, and grade the fixture once, instead of once per test.
         cls.expected = read_fixture_json("expected.json")["conditions"]
         cls.actual = grade_all_conditions()
 
@@ -133,6 +134,7 @@ class GraderParityScenarioTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Grade the fixture once for both conditions; each scenario test then reads the rows it needs.
         cls.none = grade_all_conditions()["none"]
         cls.mitigation = grade_all_conditions()["mitigation"]
 
