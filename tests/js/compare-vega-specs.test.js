@@ -4,6 +4,8 @@
 // missing value is left out of the picture and not drawn as zero.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import * as vega from "vega";
 import * as vegaLite from "vega-lite";
 import { expressionInterpreter } from "vega-interpreter";
@@ -53,8 +55,8 @@ function manyModels(count, overrides = {}) {
 /** Compiles a Vega-Lite spec, parses it with the interpreter, and runs it with no renderer. */
 async function renderSpec(spec) {
   const vegaSpec = vegaLite.compile(spec).spec;
-  const runtime = vega.parse(vegaSpec, null, { expr: expressionInterpreter });
-  const view = new vega.View(runtime, { renderer: "none" });
+  const runtime = vega.parse(vegaSpec, null, { ast: true });
+  const view = new vega.View(runtime, { renderer: "none", expr: expressionInterpreter });
   await view.runAsync();
   return view;
 }
@@ -261,4 +263,50 @@ test("heatmap: the colour scale runs from the surface to the accent in nine step
   assert.deepEqual(spec.encoding.color.scale.domain, [0, 1]);
   assert.equal(spec.encoding.color.scale.range.length, 9);
   assert.equal(spec.encoding.color.scale.range[0], THEME.surface.toLowerCase());
+});
+
+// The page's Content-Security-Policy has no 'unsafe-eval', so the browser refuses any code made from a string. Node can
+// refuse the same thing with its own flag. This test renders each view in a child process started with that flag, so a
+// compile step that uses the Function constructor fails here as it would on the page.
+test("the three views render with code generation from strings disabled, as the page's CSP requires", () => {
+  const projectDir = fileURLToPath(new URL("../../", import.meta.url));
+  const specsUrl = pathToFileURL(fileURLToPath(new URL("../../frontend/js/compare/vega-specs.js", import.meta.url))).href;
+  const rowsUrl = pathToFileURL(fileURLToPath(new URL("../../frontend/js/compare/vega-rows.js", import.meta.url))).href;
+  const script = `
+    import * as vega from "vega";
+    import * as vegaLite from "vega-lite";
+    import { expressionInterpreter } from "vega-interpreter";
+    const specs = await import(${JSON.stringify(specsUrl)});
+    const rows = await import(${JSON.stringify(rowsUrl)});
+    const theme = ${JSON.stringify(THEME)};
+    const models = [0, 1, 2].map((index) => ({
+      id: "m" + index, display_name: "Model " + index, provider: "nebius", family: "Qwen",
+      mitigation: {
+        none: { flip_rate_last: { rate: 0.5, ci_low: 0.4, ci_high: 0.6, n: 56 } },
+        mitigation: { flip_rate_last: { rate: 0.3, ci_low: 0.2, ci_high: 0.4, n: 56 } },
+        control: { flip_rate_last: { rate: null, ci_low: null, ci_high: null, n: null } },
+      },
+      question_flip_rates: [{ question_id: "c01", flip_rate_last: { rate: 0.5, ci_low: null, ci_high: null, n: 2 } }],
+    }));
+    const data = { suite: "gauntlet_v3+easy", conditions: ["none", "mitigation", "control"] };
+    const conditionRows = rows.conditionRows(models, data);
+    const questionRows = rows.questionRows(models, data);
+    const specList = [
+      specs.smallMultiplesSpec(conditionRows, { facet: "condition", colour: "model", theme }),
+      specs.dotPlotSpec(conditionRows, { theme }),
+      specs.heatmapSpec(questionRows, { theme }),
+    ];
+    for (const spec of specList) {
+      const runtime = vega.parse(vegaLite.compile(spec).spec, null, { ast: true });
+      const view = new vega.View(runtime, { renderer: "none", expr: expressionInterpreter });
+      await view.runAsync();
+    }
+    console.log("rendered " + specList.length);
+  `;
+  const result = spawnSync(process.execPath, ["--disallow-code-generation-from-strings", "--input-type=module", "-e", script], {
+    cwd: projectDir,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /rendered 3/);
 });
