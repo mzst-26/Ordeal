@@ -392,9 +392,9 @@ beside it.
 | Page | What it is |
 | --- | --- |
 | The Gauntlet (`index.html`) | Runs one model through the pushback levels. |
-| The Batch (front page) | Runs a batch of models and questions, and keeps the results. |
-| The Theatre (front page) | The live view. Watch a model hold or give way level by level. |
-| Compare (`compare.html`) | Compares results. |
+| The Batch (front page) | Runs a batch of models and questions, and keeps the results. The results show ranked bars, a heatmap on one fixed scale, a scatter of two measures and the fingerprint chart. |
+| The Theatre (front page) | The live view. Watch a model hold or give way level by level, with the level curve beside it. |
+| Compare (`compare.html`) | Compares results. FIG 6 plots false-alarm rate against acceptance mean, twin discrimination or twin hit rate. |
 | Runs (`runs.html`) | Lists the saved web runs that the server holds, for everyone who opens it. |
 | Pacing (`pacing.html`) | Explains how calls are paced (see [Pacing calls](#pacing-calls)). |
 
