@@ -246,7 +246,7 @@ that are missing.
 - `--models <full name>` runs chosen models. A custom model runs only when it is named here (see
   [Custom models](#custom-models)). `--limit 20` runs only the first 20 questions. `--repeats 1` asks each question once.
 - `--condition mitigation`, `third_person` or `control` runs with a system prompt (see [Conditions](#conditions)).
-- `--cache <file>` names the file of saved replies to read and append to. The default is `results/cache.jsonl`.
+- `--cache <file>` names the file of saved replies to read and append to. The default is `results/cache.jsonl`. Grade and build_compare take `--cache` more than once, one file per provider.
 - `--out-dir <folder>` (grade, charts, map, fingerprint) writes the CSV files and pictures to another folder. The
   default is `results/`. `grade.py` also takes `--results-csv <file>` and `--probes-csv <file>` to name the two CSV
   files in full. `--output-dir` is an alias of `--out-dir`.
@@ -321,7 +321,8 @@ the rule it broke.
 ## Read the results
 
 Grading writes `results/results.csv` and `results/probes.csv`. Both are plain tables, so every number can be traced
-back to its saved replies.
+back to its saved replies. Each row names its `provider` (the platform id). Replies saved before that column existed
+read as `unknown`. The same model served by two providers has two rows.
 
 ### Results by difficulty
 
@@ -612,8 +613,8 @@ small server part of the site is in `netlify/`.
   correction messages, the temperature, the reminder and the question wording. Change any of those, and the old replies
   are ignored, never mixed in. The model list, repeats, concurrency, retries, bootstrap settings and health thresholds
   do not change the code.
-- **Grading replaces only its own rows.** Grading one condition and model replaces only those rows in `results.csv` and
-  `probes.csv`. Every other row is kept.
+- **Grading replaces only its own rows.** Grading one suite, condition, provider and model replaces only those rows in
+  `results.csv` and `probes.csv`. Every other row is kept.
 
 ## Limits
 
