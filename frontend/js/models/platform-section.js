@@ -59,7 +59,7 @@ function idsFor(rootId) {
  * Draw the panel into root. It loads the shared list first and shows a plain message if that fails. A missing root is
  * ignored, so a page without this panel never throws. The saved choice (if any) decides which platform is shown.
  */
-export async function mountPlatformSection(root) {
+export async function mountPlatformSection(root, { keyFor = defaultKeyFor } = {}) {
   if (!root) return;
   let list;
   try {
@@ -71,10 +71,17 @@ export async function mountPlatformSection(root) {
   const storage = browserStorage();
   const saved = readChoice(storage);
   const view = buildSection(root, list);
+  // The key line and the key dialog use the key for the chosen platform. The default is the single key vault.
+  view.keyFor = keyFor;
   root.replaceChildren(view.section);
   wireSection(view, storage);
   showChoice(view, saved);
   renderKeyStatus(view);
+}
+
+/** The key used when a copy of the panel is not given one: the single key vault, shared with the header and Gauntlet. */
+function defaultKeyFor() {
+  return vault;
 }
 
 /**
@@ -115,7 +122,8 @@ function buildSection(root, list) {
 function wireSection(view, storage) {
   view.button.addEventListener("click", () => openChooser(view, storage));
   view.keyButton.addEventListener("click", async () => {
-    await askForToken({ vault });
+    const platformId = view.platform === null ? null : view.platform.id;
+    await askForToken({ vault: view.keyFor(view.platform), platformId });
     keyChanged();
   });
   window.addEventListener(CHOICE_EVENT, (event) => showChoice(view, event.detail));
@@ -147,6 +155,8 @@ function showChoice(view, choice) {
   renderNote(view);
   renderStatus(view);
   renderControls(view);
+  // The key line shows the key of the platform just chosen, so it is redrawn with the choice.
+  renderKeyStatus(view);
 }
 
 /** Show the chosen platform's name and summary on the button. An empty summary leaves its line out. */
@@ -190,10 +200,11 @@ function textOf(value) {
   return typeof value === "string" ? value : "";
 }
 
-/** Say whether a key is saved for this tab, showing only the masked form. */
+/** Say whether a key is saved for the chosen platform in this tab, showing only the masked form. */
 function renderKeyStatus(view) {
-  view.keyStatus.textContent = vault.has()
-    ? `A key is saved for this tab: ${vault.masked()}`
+  const slot = view.keyFor(view.platform);
+  view.keyStatus.textContent = slot !== null && slot.has()
+    ? `A key is saved for this tab: ${slot.masked()}`
     : "No key is saved yet.";
 }
 

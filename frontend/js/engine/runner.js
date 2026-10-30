@@ -52,8 +52,10 @@ function errorMessage(error) {
  * Return { runUnit(unit) }. runUnit gets or sends every reply of one unit, then runs its flows.
  * 'shared' holds the state of the whole batch: the stop flag, the abort signal, the counts and emit.
  * pairFor is optional. A mixed run gives each question its own { ladder, probeSpec } (see planner.js).
+ * provider is the platform id the replies come from. It is saved with each reply, as the command line does, so a
+ * browser reply and a command-line reply name their provider the same way. It is left out when not given.
  */
-export function makeReplyRunner({ client, cache, condition, config, families, ladder, probeSpec, pairFor = null, shared }) {
+export function makeReplyRunner({ client, cache, condition, config, families, ladder, probeSpec, pairFor = null, provider = null, shared }) {
   const systemPrompt = systemPromptFor(condition, config);
 
   /** Return the ladder and probe spec for one unit: its question's own pair in a mixed run, else the batch's pair. */
@@ -72,6 +74,8 @@ export function makeReplyRunner({ client, cache, condition, config, families, la
       reply,
       user_text: lastUserText(messages),
       messages,
+      // The provider is added only when it is given, so a reply made without one looks as it always did.
+      ...(provider === null ? {} : { provider }),
     };
     cache.set(key, record);
     shared.counts.calls += 1;
@@ -192,7 +196,7 @@ export const MAX_UNIT_TRIES = 3;
  */
 export function createBatchRunner({
   client, models, questions, repeats, condition, families, ladder, probeSpec, config, cache,
-  concurrency, onEvent = () => {}, log = NO_LOG, pairFor = null,
+  concurrency, onEvent = () => {}, log = NO_LOG, pairFor = null, provider = null,
 }) {
   const limit = checkConcurrency(concurrency ?? config.concurrency);
   const pending = makeUnits(models, questions, repeats);
@@ -271,7 +275,7 @@ export function createBatchRunner({
   };
 
   const replyRunner = makeReplyRunner({
-    client, cache, condition, config, families, ladder, probeSpec, pairFor, shared,
+    client, cache, condition, config, families, ladder, probeSpec, pairFor, provider, shared,
   });
 
   /** Return the next unit to run. Waits while paused. Returns null when none is left or a stop was requested. */

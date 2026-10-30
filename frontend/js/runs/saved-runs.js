@@ -88,6 +88,8 @@ export function slimRecord(record) {
     step: record.step,
     reply: record.reply,
     user_text: record.user_text,
+    // The provider is kept when the record has one, so a resume or an export still names it.
+    ...(record.provider === undefined ? {} : { provider: record.provider }),
   };
 }
 

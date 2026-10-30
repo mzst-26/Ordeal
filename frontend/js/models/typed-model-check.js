@@ -14,11 +14,11 @@ import { keyFitsPlatform, refusalText, resolveNewModel } from "./model-list.js";
  * Return true when the key saved in this browser was entered for this platform, or once the visitor gives one for it.
  * This is the same prompt a run asks for, so a key is never asked for in a second way.
  */
-export async function keyReadyFor(platform) {
-  if (vault.has() && keyFitsPlatform(vault.platformId(), platform.id)) {
+export async function keyReadyFor(platform, keyStore = vault) {
+  if (keyStore.has() && keyFitsPlatform(keyStore.platformId(), platform.id)) {
     return true;
   }
-  return askForToken({ vault, platformId: platform.id });
+  return askForToken({ vault: keyStore, platformId: platform.id });
 }
 
 /**
@@ -27,12 +27,12 @@ export async function keyReadyFor(platform) {
  * A name is refused before any request when it is empty or unsafe. Otherwise the platform's list is read, but only
  * when a key for this platform is saved, and a name the list does not have is refused with close names.
  */
-export async function checkTypedName(platform, text) {
+export async function checkTypedName(platform, text, keyStore = vault) {
   const early = resolveNewModel(platform, text, null);
   if (!early.ok) {
     return refused(early);
   }
-  const found = resolveNewModel(platform, text, await platformIdsForCheck(platform));
+  const found = resolveNewModel(platform, text, await platformIdsForCheck(platform, keyStore));
   if (!found.ok) {
     return refused(found);
   }
@@ -59,12 +59,12 @@ function refused(found) {
  * saved, when the saved key was entered for another platform (that key is never sent there), or when the request
  * fails. Null means the name is accepted as not checked.
  */
-export async function platformIdsForCheck(platform) {
-  if (!vault.has() || !keyFitsPlatform(vault.platformId(), platform.id)) {
+export async function platformIdsForCheck(platform, keyStore = vault) {
+  if (!keyStore.has() || !keyFitsPlatform(keyStore.platformId(), platform.id)) {
     return null;
   }
   try {
-    return await fetchModelIds({ platform, token: vault.get() });
+    return await fetchModelIds({ platform, token: keyStore.get() });
   } catch {
     return null;
   }
