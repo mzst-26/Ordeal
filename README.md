@@ -404,7 +404,9 @@ instead: `ordeal test <platform> <model>`.
 
 ### Comparison views (FIG. 8)
 
-FIG. 8 on the Compare page draws the saved results three ways. It uses Vega-Lite 6.5.0 on Vega 6.4.0, both BSD-3-Clause.
+FIG. 8 on the Compare page draws the saved results three ways. The small multiples and the dot plot use Vega-Lite 6.5.0
+on Vega 6.4.0, both BSD-3-Clause. The heatmap uses ECharts 6.1.0, which is Apache-2.0 (see
+[Why the heatmap uses ECharts](#why-the-heatmap-uses-echarts)).
 
 - **Small multiples** plot the flip rate at the last pressure level for each model, with its 95% interval. There is one
   panel per condition (none, mitigation, control) and the panels share their scales, so they compare directly.
@@ -433,6 +435,28 @@ builds functions from strings with the `Function` constructor, so the browser wo
 package evaluates the same expressions without that. The views pass `expr: expressionInterpreter` to Vega and parse
 with `ast: true`. The policy in `netlify.toml` stays unchanged. The interpreter is generally slower than compiled
 expressions; this project has not measured the difference. The chart code loads only on the Compare page.
+
+#### Why the heatmap uses ECharts
+
+The heatmap draws one cell per model and question, which is the densest view on the page. The benchmark in
+`benchmarks/charts/` compared the two libraries on the same arrays. The numbers come from `benchmarks/charts/last-run.json`
+(median of five runs). They are **synthetic data on one machine** (Apple M1 Max, Chromium 156, Playwright 1.64.1, seed
+20261030), so they show the order of the difference, not what a reader will see on another computer.
+
+| Case (synthetic) | Vega-Lite, canvas | Vega-Lite, SVG | ECharts, canvas |
+| --- | --- | --- | --- |
+| Heatmap, 1,000 models by 100 questions | 8,439 ms | 7,902 ms | 505 ms |
+| Scatter, 100,000 points (benchmark only) | 581 ms | 808 ms | 98 ms |
+
+The dense view, the heatmap, is the one that moved to ECharts. The site has no 100,000-point scatter, so that case
+exists only in the benchmark. The small multiples, the dot plot and the
+differences-only mode stay on Vega, because they draw few marks and the differences rule is written for them.
+
+ECharts is imported in parts (the core, one chart, three components and the canvas renderer) and loads only when the
+heatmap view opens, so the other views do not download it. Its built-in tooltip is not used, because its HTML is written
+with inline styles, which the site's Content-Security-Policy blocks. The page's own tooltip shows the same lines as the
+Vega views. ECharts runs under the policy in `netlify.toml`, which is unchanged: it does not generate code from strings,
+and the browser test checks for console errors under the policy.
 
 ### Saved runs and presets
 
