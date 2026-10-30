@@ -4,6 +4,7 @@
 
 import { loadJson } from "../shared/data-cache.js";
 import { browserStorage } from "../engine/token.js";
+import { slotFor } from "../engine/provider-keys.js";
 import { currentPlatform, loadPlatforms, readChoice } from "./platforms.js";
 
 // The message a page shows when no platform can be chosen. It is plain text, so it is safe to show as it is.
@@ -18,4 +19,13 @@ export async function activePlatform() {
   const platform = currentPlatform(list, readChoice(browserStorage()));
   if (platform === null) throw new Error(NO_PLATFORM_MESSAGE);
   return platform;
+}
+
+/**
+ * Return the chosen platform together with its key slot. A page asks for the key through this slot, so it reads and
+ * writes the key of the provider it is about to call, the same key every other page uses.
+ */
+export async function activeKeySlot() {
+  const platform = await activePlatform();
+  return { platform, slot: slotFor(platform.id) };
 }
