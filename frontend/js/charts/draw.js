@@ -300,7 +300,7 @@ function paintChart(host, spec, options, numbers, reveal) {
   host.replaceChildren(spec.build(host, options, numbers, reveal));
 }
 
-/** The tween that runs on the first draw: lines draw in, bars and donut slices grow, the rest appear. */
+/** The tween that runs on the first draw: lines draw in, bars grow, the rest appear. */
 function startEnterTween(state, spec, target, enterMs) {
   // "dash": the numbers are final from the start and a 0 to 1 reveal value is tweened instead.
   // Any other value of spec.enter (the scatter uses "none") just shows the target at once.

@@ -441,6 +441,30 @@ class CompareBrowserTests(unittest.TestCase):
                         mitigation_prompts[condition], timeout=SHORT_MS
                     )
 
+    def test_fig6_offers_twin_hit_rate_and_draws_its_points(self):
+        """FIG 6 offers the twin hit rate on its vertical axis, and draws one dot per model that has both twin rates."""
+
+        def has_rate(value):
+            return value is not None and value.get("rate") is not None
+
+        plotted = sum(
+            1
+            for model in _DATA["models"]
+            if model.get("twin") and has_rate(model["twin"].get("false_alarm_rate")) and has_rate(model["twin"].get("hit_rate"))
+        )
+        self.assertGreater(plotted, 0, "the results file has no model with both twin rates")
+        with open_page(DESKTOP) as session:
+            page = session.page
+            load_ready(page)
+            select = page.locator("#fig-map-root-y")
+            expect(select.locator("option", has_text="Twin hit rate")).to_have_count(1, timeout=SHORT_MS)
+            select.select_option("hit")
+            expect(page.locator("#fig-map-root text", has_text="Twin hit rate (higher is better)")).to_have_count(
+                1, timeout=SHORT_MS
+            )
+            expect(page.locator("#fig-map-root g.scatter-point")).to_have_count(plotted, timeout=SHORT_MS)
+            self.assertEqual(session.page_errors, [], "Uncaught page errors")
+
     def test_model_card_opens_and_esc_closes(self):
         """A click on a FIG 1 point opens the Model Card, and Escape closes it."""
         gemma = model_by_family("Gemma")

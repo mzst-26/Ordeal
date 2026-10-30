@@ -1,25 +1,22 @@
-// Interactive figures for the Batch results: a radar, a scatter and a profile of the same ticked models.
+// Interactive figure for the Batch results: a scatter of the ticked models on two chosen measures.
 // The pure helpers at the top take numbers and rows and return plain values; the DOM builders below them
 // draw SVG with createElementNS and never use innerHTML. Input rows are the analytics rows from page-batch.js:
 // { model, index, measures: { <MEASURES key>: number|null } }, and measures are the result measure definitions
 // { key, label, digits, higherIsBetter }.
 
-import { heatmapMatrix, shareOfMax } from "./analytics.js";
 import { el, formatNumber } from "../ui/ui.js";
 import { TERMS } from "./glossary.js";
+import { placeDotLabels } from "../charts/labels.js";
 
-export const FIGURE_VIEWS = [
-  { key: "radar", label: "Radar" },
-  { key: "scatter", label: "Scatter" },
-  { key: "profile", label: "Profile" },
-];
+// The radar and the profile were removed: a radar's spokes were scaled across the ticked models, so one model's shape
+// moved when another was ticked, and the profile repeated the heatmap's numbers. Scatter is the only figure left, so it
+// is the default view. The ranked bars and the heatmap above it carry the comparison on the fixed scale.
+export const FIGURE_VIEWS = [{ key: "scatter", label: "Scatter" }];
+export const DEFAULT_FIGURE_VIEW = "scatter";
 
 // Chart data colours: the Okabe-Ito colour-blind-safe set, with its black swapped for grey so the
 // line stays visible on the dark theme. These are data colours, so they are hex; chrome uses tokens.
 export const PALETTE = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#999999"];
-
-// Dash patterns that change every eight models, so a model stays distinguishable once the palette repeats.
-const DASH_PATTERNS = ["", "6 3", "2 2", "8 3 2 3"];
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -28,51 +25,9 @@ export function colourFor(index) {
   return PALETTE[index % PALETTE.length];
 }
 
-/** Return the stroke dash for this model. The first eight are solid; later groups of eight get a pattern. */
-export function dashFor(index) {
-  return DASH_PATTERNS[Math.floor(index / PALETTE.length) % DASH_PATTERNS.length];
-}
-
-/** Return the angle, in radians, of axis i out of count. Axis 0 points straight up. */
-function axisAngle(i, count) {
-  return -Math.PI / 2 + (2 * Math.PI * i) / count;
-}
-
 /** True when a value is a finite number. */
 function isUsable(value) {
   return typeof value === "number" && Number.isFinite(value);
-}
-
-/**
- * Return "x,y" strings for the radar vertices that have a value, in axis order. Each normalised value (0..1,
- * with 1 at the rim) sets the distance from the centre along its axis. Null values have no vertex.
- */
-export function radarPoints(normalisedValues, axisCount, radius, centre) {
-  const points = [];
-  for (let i = 0; i < axisCount; i += 1) {
-    const value = normalisedValues[i];
-    if (!isUsable(value)) continue;
-    const distance = radius * Math.min(1, Math.max(0, value));
-    const angle = axisAngle(i, axisCount);
-    const x = centre[0] + distance * Math.cos(angle);
-    const y = centre[1] + distance * Math.sin(angle);
-    points.push(`${x.toFixed(2)},${y.toFixed(2)}`);
-  }
-  return points;
-}
-
-/** Return the end point of axis i at the given radius, as a point string, for the axis lines and labels. */
-export function axisEnd(i, axisCount, radius, centre) {
-  const angle = axisAngle(i, axisCount);
-  return {
-    x: centre[0] + radius * Math.cos(angle),
-    y: centre[1] + radius * Math.sin(angle),
-  };
-}
-
-/** Join point strings into the points attribute of an SVG polygon. */
-export function polygonPoints(points) {
-  return points.join(" ");
 }
 
 /**
@@ -84,6 +39,19 @@ export function scatterPosition(value, min, max, size) {
   if (min === max) return size / 2;
   const scaled = ((value - min) / (max - min)) * size;
   return Math.min(size, Math.max(0, scaled));
+}
+
+/**
+ * Place the labels of the plotted points so no two of them overlap. Returns one spot { x, y, anchor } per point, in the
+ * same order. Two models with the same score sit on one spot, so without this their names print on top of each other.
+ * The labels module moves a label to the other side, or stacks it, when it would touch another label, and keeps it
+ * inside the plot. The plot is { left, right, top, bottom } in the SVG's own units.
+ */
+export function scatterLabelSpots(points, plot) {
+  const middle = (plot.left + plot.right) / 2;
+  const dots = points.map((point) => ({ x: point.x, y: point.y, label: point.label, labelGoesLeft: point.x > middle }));
+  placeDotLabels(dots, plot, []);
+  return dots.map((dot) => dot.spot);
 }
 
 /** Split rows into those with both the x and the y value (plotted) and the model names of the rest (skipped). */
@@ -100,41 +68,13 @@ export function splitScatterRows(rows, xKey, yKey) {
   return { plotted, skipped };
 }
 
-/** Break a label into lines of at most maxChars at word boundaries. A word longer than the limit keeps its own line. */
-export function wrapLabel(text, maxChars) {
-  const lines = [];
-  let current = "";
-  for (const word of String(text).split(/\s+/).filter(Boolean)) {
-    const next = current === "" ? word : `${current} ${word}`;
-    if (next.length <= maxChars || current === "") {
-      current = next;
-    } else {
-      lines.push(current);
-      current = word;
-    }
-  }
-  if (current !== "") lines.push(current);
-  return lines;
-}
-
-/** Describe one model's values for a hover title, as "Label value; Label value", with "no data" for nulls. */
-export function describeValues(values, measures) {
-  return measures
-    .map((measure) => {
-      const value = values[measure.key];
-      return `${measure.label} ${isUsable(value) ? formatNumber(value, measure.digits) : "no data"}`;
-    })
-    .join("; ");
-}
-
 // ---- DOM builders -------------------------------------------------------------------------------------
 
 // The figure state survives redraws, so a regrade keeps the chosen view, the scatter axes and the legend toggles.
 const state = {
-  view: "radar",
+  view: DEFAULT_FIGURE_VIEW,
   xKey: "flip_rate_level_10",
   yKey: "baseline_accuracy",
-  hidden: new Set(),
 };
 let lastContainer = null;
 let lastInput = { rows: [], measures: [] };
@@ -222,95 +162,7 @@ function redrawFigures() {
 
 /** Return the nodes for the chosen view. */
 function buildView(rows, measures, block) {
-  if (state.view === "scatter") return buildScatter(rows, measures, block);
-  if (state.view === "profile") return buildProfile(rows, measures, block);
-  return buildRadar(rows, measures, block);
-}
-
-/** Radar: one polygon per visible model over the measures it has a value for. Legend entries toggle a model. */
-function buildRadar(rows, measures, block) {
-  const keys = measures.map((measure) => measure.key);
-  const cells = heatmapMatrix(rows, keys).cells;
-  const count = keys.length;
-  const size = 560;
-  // Side allowance so the longest axis label (up to 20 characters, anchored at the rim) is not clipped.
-  const labelAllowance = 130;
-  const width = size + labelAllowance * 2;
-  const centre = [width / 2, size / 2];
-  const radius = 170;
-  // The radar keeps its full width so its labels stay at the page's text size; the figure box scrolls sideways instead.
-  const svg = svgEl("svg", {
-    class: "figure-svg figure-svg-wide",
-    viewBox: `0 0 ${width} ${size}`,
-    role: "img",
-    "aria-label": "Radar of the ticked models over the batch measures",
-  });
-  for (const fraction of [0.25, 0.5, 0.75, 1]) {
-    svg.append(svgEl("circle", { class: "figure-grid", cx: centre[0], cy: centre[1], r: radius * fraction }));
-  }
-  measures.forEach((measure, i) => {
-    const end = axisEnd(i, count, radius, centre);
-    svg.append(svgEl("line", { class: "figure-grid", x1: centre[0], y1: centre[1], x2: end.x, y2: end.y }));
-    const labelPoint = axisEnd(i, count, radius + 26, centre);
-    const anchor = Math.abs(labelPoint.x - centre[0]) < 20 ? "middle" : labelPoint.x > centre[0] ? "start" : "end";
-    const lines = wrapLabel(measure.label, 20);
-    const label = svgEl("text", { class: "figure-axis-label", "text-anchor": anchor, x: labelPoint.x, y: labelPoint.y });
-    setTip(label, measure.definition ?? measure.label);
-    lines.forEach((line, lineIndex) => {
-      const tspan = svgEl("tspan", { x: labelPoint.x, dy: lineIndex === 0 ? 0 : 13 });
-      tspan.textContent = line;
-      label.append(tspan);
-    });
-    svg.append(label);
-  });
-  const legend = el("ol", { className: "figure-legend", "aria-label": "Models in the radar" });
-  for (const row of rows) {
-    const colour = colourFor(row.index);
-    const hidden = state.hidden.has(row.model);
-    const points = radarPoints(cells[row.index], count, radius, centre);
-    if (!hidden && points.length > 0) {
-      const polygon = svgEl("polygon", {
-        class: "figure-poly",
-        points: polygonPoints(points),
-        fill: colour,
-        "fill-opacity": 0.12,
-        stroke: colour,
-        "stroke-width": 2,
-        "stroke-dasharray": dashFor(row.index) || null,
-        "data-model-index": row.index,
-      });
-      setTip(polygon, `${row.model}: ${describeValues(row.measures, measures)}`);
-      linkHover(polygon, row.index, block);
-      svg.append(polygon);
-    }
-    const note = points.length === 0 ? " (no values)" : "";
-    const button = el("button", {
-      type: "button",
-      className: "figure-legend-item",
-      "data-tip": TERMS.legend,
-      "aria-pressed": hidden ? "false" : "true",
-      "data-model-index": row.index,
-    }, [
-      el("span", { className: "figure-swatch", "aria-hidden": "true" }),
-      el("span", { className: "figure-legend-name", text: `${row.model}${note}` }),
-    ]);
-    button.querySelector(".figure-swatch").style.background = colour;
-    button.addEventListener("click", () => {
-      if (state.hidden.has(row.model)) state.hidden.delete(row.model);
-      else state.hidden.add(row.model);
-      redrawFigures();
-    });
-    linkHover(button, row.index, block);
-    legend.append(el("li", {}, [button]));
-  }
-  return [
-    el("p", { className: "field-hint" }, [
-      termSpan("Each spoke is scaled", TERMS.scaled),
-      " across the ticked models. The outer edge is the best model on each measure and the centre is the worst. Click a model to hide or show it.",
-    ]),
-    el("div", { className: "figure-scroll" }, [svg]),
-    legend,
-  ];
+  return buildScatter(rows, measures, block);
 }
 
 /** Scatter: one labelled point per model, placed by the raw values of two chosen measures. */
@@ -361,19 +213,26 @@ function buildScatter(rows, measures, block) {
     setTip(tick, TERMS.axisEnd);
   }
 
-  for (const row of split.plotted) {
+  const plot = { left, right: left + plotW, top, bottom: top + plotH };
+  const placed = split.plotted.map((row) => ({
+    row,
+    px: left + scatterPosition(row.measures[xMeasure.key], 0, xTop, plotW),
+    py: top + plotH - scatterPosition(row.measures[yMeasure.key], 0, yTop, plotH),
+  }));
+  const spots = scatterLabelSpots(placed.map((item) => ({ x: item.px, y: item.py, label: item.row.model })), plot);
+  placed.forEach((item, index) => {
+    const { row, px, py } = item;
     const xValue = row.measures[xMeasure.key];
     const yValue = row.measures[yMeasure.key];
-    const px = left + scatterPosition(xValue, 0, xTop, plotW);
-    const py = top + plotH - scatterPosition(yValue, 0, yTop, plotH);
     const colour = colourFor(row.index);
     const point = svgEl("circle", { class: "figure-point", cx: px, cy: py, r: 6, fill: colour, stroke: colour, "data-model-index": row.index });
     setTip(point, `${row.model}: ${xMeasure.label} ${formatNumber(xValue, xMeasure.digits)}, ${yMeasure.label} ${formatNumber(yValue, yMeasure.digits)}`);
     linkHover(point, row.index, block);
-    const name = textEl(row.model, { class: "figure-point-label", x: px + 9, y: py - 8, "data-model-index": row.index });
+    const spot = spots[index];
+    const name = textEl(row.model, { class: "figure-point-label", x: spot.x, y: spot.y, "text-anchor": spot.anchor, "data-model-index": row.index });
     linkHover(name, row.index, block);
     svg.append(point, name);
-  }
+  });
   const notes = [el("p", { className: "field-hint", text: "Each dot is one ticked model. It sits at its actual score on each of the two measures you pick." })];
   if (split.skipped.length > 0) {
     notes.push(el("p", { className: "field-hint" }, [
@@ -383,55 +242,4 @@ function buildScatter(rows, measures, block) {
     ]));
   }
   return [axes, ...notes, el("div", { className: "figure-scroll" }, [svg])];
-}
-
-/** Profile: one row per ticked model, eight bars in measure order, each a share of the most that measure can be. */
-function buildProfile(rows, measures, block) {
-  const cell = 40;
-  const barHeight = 80;
-  const width = cell * measures.length;
-  const profileRows = rows.map((row) => {
-    const colour = colourFor(row.index);
-    const svg = svgEl("svg", {
-      class: "figure-profile-svg",
-      viewBox: `0 0 ${width} ${barHeight + 16}`,
-      role: "img",
-      "aria-label": `Profile of ${row.model}`,
-    });
-    measures.forEach((measure, i) => {
-      const value = row.measures[measure.key];
-      const scaled = shareOfMax(value, measure.max);
-      const x = i * cell + 6;
-      if (!isUsable(scaled)) {
-        svg.append(svgEl("rect", { class: "figure-missing", x, y: barHeight - 2, width: cell - 12, height: 2, "data-tip": `${measure.label}: no data` }));
-        return;
-      }
-      const h = Math.max(2, Math.round(scaled * barHeight));
-      const bar = svgEl("rect", {
-        x, y: barHeight - h, width: cell - 12, height: h, fill: colour,
-        "data-tip": `${measure.label}: ${formatNumber(value, measure.digits)}`,
-      });
-      svg.append(bar);
-      svg.append(textEl(String(i + 1), { class: "figure-tick", x: x + (cell - 12) / 2, y: barHeight + 13, "text-anchor": "middle" }));
-    });
-    const line = el("div", { className: "figure-profile-row", "data-model-index": row.index }, [
-      el("span", { className: "figure-profile-name", text: row.model, "data-tip": row.model }),
-      el("div", { className: "figure-profile-track" }, [svg]),
-    ]);
-    linkHover(line, row.index, block);
-    return line;
-  });
-  const key = el("ol", { className: "figure-key", "aria-label": "Bar order", "data-tip": TERMS.barOrder },
-    measures.map((measure) => el("li", { text: measure.label, "data-tip": measure.definition })));
-  return [
-    el("p", { className: "field-hint" }, [
-      "Each row is one model. The eight bars run ",
-      termSpan("in the order below", TERMS.barOrder),
-      ", and each is ",
-      termSpan("a share of its top", TERMS.shareOfMax),
-      ". Taller is more of the measure, which is better except where lower is better.",
-    ]),
-    key,
-    el("div", { className: "figure-scroll" }, profileRows),
-  ];
 }

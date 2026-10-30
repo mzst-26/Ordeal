@@ -24,7 +24,7 @@ import { latestRunOfKind, runMatchesSuite, runDateText } from "../runs/last-run.
 import {
   choiceOfSuite, choiceValueOfSuite, fixedChoiceMenu, setsOfChoice, isPushbackSet, isQuestionSet, retiredPairText,
 } from "../suites/suites.js";
-import { gradeCondition, gradeProbes } from "../engine/grade.js";
+import { gradeCondition } from "../engine/grade.js";
 import {
   BASELINE_STEP,
   CONFESSION_STEP,
@@ -33,11 +33,11 @@ import {
   makeSuite,
   parseAnswer,
 } from "../engine/rules.js";
-import { barErrorChart, donutChart, lineBandChart, scatterQuadrant } from "../charts/index.js";
+import { lineBandChart } from "../charts/index.js";
 import { openEnlargedChart } from "../results/chart-popup.js";
 import { MEAN_NAME } from "../results/chart-models.js";
 import {
-  barTable, destroyChart, drawPanel, makeChartPanel, seriesColour, seriesSlot, seriesStyle, isRepeatSeries,
+  destroyChart, drawPanel, makeChartPanel, seriesSlot, seriesStyle, isRepeatSeries,
   watchThemeChanges,
 } from "../results/chart-panel.js";
 import { clear, el, formatNumber } from "../ui/ui.js";
@@ -53,16 +53,8 @@ const BASE_EVENT_MS = 900;
 // How many events the ticker keeps, and how many characters a margin note shows before it is cut.
 const TICKER_LIMIT = 30;
 const NOTE_LIMIT = 140;
-// The one fingerprint-family probe that is left off the flip-rate chart.
-const TAMPERED_PROBE = "tampered_history";
 // Quick grading for redraws while a run is going, so each redraw stays fast. The config value is used after.
 const FAST_RESAMPLES = 200;
-const QUADRANT_NAMES = {
-  topLeft: "Ideal: firm and open",
-  topRight: "Spineless",
-  bottomLeft: "Stubborn",
-  bottomRight: "Unreliable",
-};
 // A live run uses the first N questions of the set; N starts at 3 and is limited to 8.
 const DEFAULT_QUESTION_COUNT = 3;
 const MAX_QUESTIONS = 8;
@@ -95,7 +87,7 @@ const suiteCache = new Map();
 const liveCaches = new Map();
 // The lane cards by model id.
 let lanes = new Map();
-// The four chart panels, made by createCharts.
+// The level chart panel, made by createCharts.
 let panels = null;
 // What the theatre has shown so far: the replies seen (these are graded for the charts), the view state of
 // each unit, and which unit each model's lane is showing.
@@ -524,10 +516,7 @@ function gradeNow() {
 function gradeAll(records) {
   const { suite } = activeView();
   const settings = gradeNow();
-  return {
-    rows: gradeCondition(records, suite.questions, settings, CONDITION, suite),
-    probeRows: gradeProbes(records, suite.questions, settings, CONDITION, suite.probeSpec),
-  };
+  return { rows: gradeCondition(records, suite.questions, settings, CONDITION, suite) };
 }
 
 /** Return the grade row of one model, or undefined when it has none yet. */
@@ -535,47 +524,11 @@ function rowFor(rows, model) {
   return rows.find((row) => row.model === model);
 }
 
-/** Return one estimate from the probe rows, or NaN when that probe row is missing. */
-function probeValue(probeRows, model, probe, family, measure, field = "estimate") {
-  const row = probeRows.find((item) => {
-    return item.model === model && item.probe === probe && item.family === family && item.measure === measure;
-  });
-  return row ? row[field] : Number.NaN;
-}
-
 /** The mean of the finite numbers in a list, or NaN when there are none. */
 function meanOf(values) {
   const finite = values.filter((value) => Number.isFinite(value));
   if (finite.length === 0) return Number.NaN;
   return finite.reduce((sum, value) => sum + value, 0) / finite.length;
-}
-
-/** The fingerprint probe ids, in probe-spec order. These are the same axes grade.js puts in the fingerprint family. */
-function fingerprintProbeIds(probeSpec) {
-  return probeSpec.axes.map((axis) => axis.id).filter((id) => id !== TAMPERED_PROBE);
-}
-
-// Short names for the bar labels, so twelve probes fit along the bottom of Fig. 2.
-const SHORT_PROBE_NAMES = {
-  bare: "Bare",
-  doubt_only: "Doubt",
-  quote_mine: "Quote",
-  oracle: "Oracle",
-  trojan: "Trojan",
-  authority: "Authority",
-  consensus: "Consensus",
-  unity: "Unity",
-  affect_stakes: "Stakes",
-  flattery: "Flattery",
-  elite_bait: "Elite",
-  commitment: "Commit",
-};
-
-/** A short label for a probe id, such as "Stakes" for "affect_stakes". */
-function probeLabel(id) {
-  if (SHORT_PROBE_NAMES[id]) return SHORT_PROBE_NAMES[id];
-  const text = id.replace(/_/g, " ");
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** A chart title with the suite name after it, so each chart says which suite it grades. */
@@ -631,105 +584,12 @@ function meanLevelSeries(rows, levels, index) {
   };
 }
 
-/** Options for Fig. 2: the flip rate of each fingerprint probe, one bar per model. */
-function fingerprintOptions(probeRows, suite) {
-  const probeIds = fingerprintProbeIds(suite.probeSpec);
-  const valuesFor = (model, field) => {
-    return probeIds.map((id) => probeValue(probeRows, model, id, "fingerprint", "flip_rate", field));
-  };
-  return {
-    title: chartTitle("Fingerprint probes: flip rate", suite),
-    lowerIsBetter: true,
-    groups: probeIds.map(probeLabel),
-    xAxisTitle: "Probe",
-    yAxisTitle: "Flip rate",
-    yMax: 1,
-    ariaLabel: "Bar chart: the flip rate of each fingerprint probe, for each model, with its interval.",
-    series: activeModels.map((model, index) => ({
-      name: shortName(model),
-      ...seriesStyle(index),
-      valuesByGroup: valuesFor(model, "estimate"),
-      lowsByGroup: valuesFor(model, "low"),
-      highsByGroup: valuesFor(model, "high"),
-    })),
-  };
-}
-
-/** Options for Fig. 3: hit rate against false alarm rate, each model averaged over the twin probes. */
-function twinOptions(probeRows, suite) {
-  const twinIds = suite.probeSpec.axes.filter((axis) => axis.twin).map((axis) => axis.id);
-  const points = [];
-  activeModels.forEach((model, index) => {
-    const x = meanOf(twinIds.map((id) => probeValue(probeRows, model, id, "twin", "false_alarm_rate")));
-    const y = meanOf(twinIds.map((id) => probeValue(probeRows, model, id, "twin", "hit_rate")));
-    if (Number.isFinite(x) && Number.isFinite(y)) {
-      points.push({ label: shortName(model), ...seriesStyle(index), x, y });
-    }
-  });
-  return {
-    title: chartTitle(`Twin probes: mean over ${twinIds.length} pairs per model`, suite),
-    points,
-    quadrantLabels: QUADRANT_NAMES,
-    midLines: 0.5,
-    xTitle: "False alarm rate",
-    yTitle: "Hit rate",
-    ariaLabel: "Scatter chart: hit rate against false alarm rate for each model, averaged over the twin probes.",
-  };
-}
-
-/**
- * Sum of share times confession_units, as whole counts. A model with no confession units has no share, and adds nothing,
- * so one model like that does not make the whole chart "no data". The total is NaN only when no model has any confession
- * units, or a share that should exist is missing.
- */
-export function confessionSum(rows, shareKey) {
-  let total = 0;
-  let units = 0;
-  for (const row of rows) {
-    if (!(row.confession_units > 0)) {
-      continue;
-    }
-    units += row.confession_units;
-    // Shares are fractions of confession_units, so multiplying back and rounding recovers a whole count.
-    const count = Math.round(row[shareKey] * row.confession_units);
-    if (!Number.isFinite(count)) {
-      return Number.NaN;
-    }
-    total += count;
-  }
-  return units > 0 ? total : Number.NaN;
-}
-
-/**
- * True when a probe family was run on at least one saved unit, so its chart has something to draw. A family that was
- * never run still gets rows, with zero units, so the units count is the test. This matches grade.probe_family_present
- * in ordeal/grade.py.
- */
-export function probeFamilyPresent(probeRows, family) {
-  return probeRows.some((row) => row.family === family && row.units > 0);
-}
-
 /**
  * The number of saved units, summed over the models in the gauntlet rows. A partial run shows a smaller count here
  * beside each chart. This matches grade.saved_unit_count in ordeal/grade.py.
  */
 export function savedUnitCount(rows) {
   return rows.reduce((sum, row) => sum + row.units, 0);
-}
-
-/** Options for Fig. 4: the confession answers of the models that flipped, summed over the models. */
-function confessionOptions(rows) {
-  const knew = confessionSum(rows, "capitulated_share");
-  const changed = confessionSum(rows, "converted_share");
-  const total = knew + changed;
-  return {
-    segments: [
-      { label: "Knew the right answer", value: knew, color: seriesColour(0) },
-      { label: "Pressure changed its answer", value: changed, color: seriesColour(1) },
-    ],
-    centreLabel: Number.isFinite(total) ? String(total) : "–",
-    ariaLabel: "Donut chart: confession answers from the models that flipped, summed over the models.",
-  };
 }
 
 /** The table for Fig. 1: one row per pressure level, with the flip rate and its interval for each model. */
@@ -748,58 +608,10 @@ function describeLevelTable(options) {
   return { caption: "Cumulative flip rate by level, with its interval", headers, rows, firstNumber: 1 };
 }
 
-/** The table for Fig. 2: one row per probe and model, with the flip rate and its interval. */
-function describeFingerprintTable(options) {
-  return barTable("Fingerprint probes: flip rate, by probe and model", options);
-}
-
-/** The table for Fig. 3: one row per model, with its mean false alarm rate and hit rate. */
-function describeTwinTable(options) {
-  return {
-    caption: "Twin probes: mean false alarm rate and hit rate for each model",
-    headers: ["Model", "False alarm rate", "Hit rate"],
-    rows: options.points.map((point) => [point.label, formatNumber(point.x), formatNumber(point.y)]),
-    firstNumber: 1,
-  };
-}
-
-/** A whole-number percentage of the total, as text. An en dash when the total is zero. */
-function shareText(value, total) {
-  return total > 0 ? `${Math.round((value / total) * 100)}%` : "–";
-}
-
-/** The table for Fig. 4: one row per answer, with its count and its share of the total. */
-function describeConfessionTable(options) {
-  const total = options.segments.reduce((sum, segment) => sum + segment.value, 0);
-  return {
-    caption: "Confession answers from the models that flipped, summed over the models",
-    headers: ["Answer", "Count", "Share"],
-    rows: options.segments.map((segment) => [
-      segment.label,
-      formatNumber(segment.value, 0),
-      shareText(segment.value, total),
-    ]),
-    firstNumber: 1,
-  };
-}
-
-/** Make the four chart views and draw them from the empty run. Each chart keeps its host for the life of the page. */
+/** Make the level chart and draw it from the empty run. The chart keeps its host for the life of the page. */
 function createCharts() {
   panels = {
     levels: makeChartPanel(dom.levelsHost, dom.levelsTable, lineBandChart, describeLevelTable),
-    fingerprints: makeChartPanel(
-      dom.fingerprintsHost,
-      dom.fingerprintsTable,
-      barErrorChart,
-      describeFingerprintTable,
-    ),
-    twins: makeChartPanel(dom.twinsHost, dom.twinsTable, scatterQuadrant, describeTwinTable),
-    confessions: makeChartPanel(
-      dom.confessionsHost,
-      dom.confessionsTable,
-      donutChart,
-      describeConfessionTable,
-    ),
   };
   addChartExtras();
   refreshCharts();
@@ -808,22 +620,10 @@ function createCharts() {
 // The name of each chart in the enlarged view's title.
 const CHART_TITLES = {
   levels: "Fig. 1 · The level curve",
-  fingerprints: "Fig. 2 · Fingerprint probes",
-  twins: "Fig. 3 · The twin probes",
-  confessions: "Fig. 4 · The confessions",
 };
 /**
- * The note under a probe chart whose family has no saved units. It names the family and the figure, so an empty chart
- * says why it is empty, and says how a probe family gets run.
- */
-function probeNoteText(family, figure) {
-  return `This run has no ${family} replies, so ${figure} has nothing to plot. Probes run when their families are ticked on the Batch page.`;
-}
-
-/**
  * Add an Enlarge button to each chart, which opens it in a large, interactive dialog. Each chart also gets a line for its
- * saved unit count, so a partial run is visible. The probe charts also get a note, shown when no replies of their family
- * were saved.
+ * saved unit count, so a partial run is visible.
  */
 function addChartExtras() {
   for (const [key, title] of Object.entries(CHART_TITLES)) {
@@ -833,40 +633,23 @@ function addChartExtras() {
     panel.toggle.after(enlarge);
     panel.unitNote = el("p", { className: "field-hint" });
     panel.chartHost.after(panel.unitNote);
-    if (key === "fingerprints" || key === "twins") {
-      panel.probeNote = el("p", { className: "field-hint" });
-      panel.probeNote.hidden = true;
-      panel.unitNote.after(panel.probeNote);
-    }
   }
 }
 
-/** Show the note under a probe chart when replies are loaded and this probe family has none saved. */
-function showProbeNote(panel, probeRows, family, figure) {
-  const missing = run.seen.length > 0 && !probeFamilyPresent(probeRows, family);
-  panel.probeNote.textContent = probeNoteText(family, figure);
-  panel.probeNote.hidden = !missing;
-}
-
-/** Grade the records seen so far, then redraw all four charts. Each chart tweens to its new numbers. */
+/** Grade the records seen so far, then redraw the level chart. The chart tweens to its new numbers. */
 function refreshCharts() {
   drawCharts(gradeAll(run.seen));
 }
 
-/** Draw the four charts and their tables from the grades, and keep the grades for a theme redraw. */
+/** Draw the level chart and its table from the grades, and keep the grades for a theme redraw. */
 function drawCharts(graded) {
   shownGrades = graded;
   const { suite } = activeView();
   drawPanel(panels.levels, levelOptions(graded.rows, suite));
-  drawPanel(panels.fingerprints, fingerprintOptions(graded.probeRows, suite));
-  drawPanel(panels.twins, twinOptions(graded.probeRows, suite));
-  drawPanel(panels.confessions, confessionOptions(graded.rows));
   const units = `Saved units: ${savedUnitCount(graded.rows)}`;
   for (const panel of Object.values(panels)) {
     panel.unitNote.textContent = units;
   }
-  showProbeNote(panels.fingerprints, graded.probeRows, "fingerprint", "Fig. 2");
-  showProbeNote(panels.twins, graded.probeRows, "twin", "Fig. 3");
 }
 
 /** Redraw the charts from the stored grades when the theme changes. Nothing is graded again. */
@@ -1692,13 +1475,7 @@ function bindDom(root) {
   dom.runStatus = byId(root, "run-status");
   dom.lanes = byId(root, "lanes");
   dom.levelsHost = byId(root, "chart-levels");
-  dom.fingerprintsHost = byId(root, "chart-fingerprints");
-  dom.twinsHost = byId(root, "chart-twins");
-  dom.confessionsHost = byId(root, "chart-confessions");
   dom.levelsTable = byId(root, "table-levels");
-  dom.fingerprintsTable = byId(root, "table-fingerprints");
-  dom.twinsTable = byId(root, "table-twins");
-  dom.confessionsTable = byId(root, "table-confessions");
   dom.ticker = byId(root, "ticker");
   dom.finale = byId(root, "finale");
   dom.kpiModels = byId(root, "live-kpi-models");

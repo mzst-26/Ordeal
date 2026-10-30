@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import { linearScale, niceTicks, pathFromPoints, bandPath, formatTick } from "../../frontend/js/charts/scale.js";
 import * as chartKit from "../../frontend/js/charts/index.js";
 import { seriesSlot, isRepeatSeries } from "../../frontend/js/results/chart-panel.js";
+import { labelBox, placeDotLabels } from "../../frontend/js/charts/labels.js";
 
-const { lineBandChart, barErrorChart, scatterQuadrant, donutChart, chooseLabelSide, cornerBoxes } = chartKit;
+const { lineBandChart, chooseLabelSide, cornerBoxes } = chartKit;
 
 /** A tiny stand-in for DOM nodes: the chart code only creates, sets, reads and appends them. */
 class FakeNode {
@@ -207,11 +208,28 @@ test("labelGoesLeft true puts the label on the left of its dot first", () => {
   assert.equal(choice.side, "left");
 });
 
-// Public surface of the chart kit.
-test("index.js exports the four charts and the two label helpers, and no sparkline", () => {
-  assert.deepEqual(Object.keys(chartKit).sort(), [
-    "barErrorChart", "chooseLabelSide", "cornerBoxes", "donutChart", "lineBandChart", "scatterQuadrant",
-  ]);
+// Public surface of the chart kit. The bar, scatter and donut charts were removed from the site, so they must not be
+// exported any more. The line chart and the two label helpers remain.
+test("index.js exports the line chart and the two label helpers, and no bar, scatter or donut chart", () => {
+  assert.deepEqual(Object.keys(chartKit).sort(), ["chooseLabelSide", "cornerBoxes", "lineBandChart"]);
+});
+
+// Label collisions: several dots at one spot must get labels whose boxes do not overlap. This is the rule the Batch
+// scatter relies on, so two models with the same score do not print on top of each other.
+test("placeDotLabels gives labels for dots at one spot boxes that do not overlap", () => {
+  const dots = [
+    { x: 300, y: 150, labelGoesLeft: false, label: "Alpha" },
+    { x: 300, y: 150, labelGoesLeft: false, label: "Bravo" },
+    { x: 300, y: 150, labelGoesLeft: false, label: "Charlie" },
+  ];
+  placeDotLabels(dots, PLOT, []);
+  // 7px is the label character width the labels module uses for point labels.
+  const boxes = dots.map((dot) => labelBox(dot.label, dot.spot, 7));
+  for (let i = 0; i < boxes.length; i += 1) {
+    for (let j = i + 1; j < boxes.length; j += 1) {
+      assert.ok(!boxesCross(boxes[i], boxes[j]), `${dots[i].label} and ${dots[j].label} overlap`);
+    }
+  }
 });
 
 // Drawing rules, run against the fake DOM: styling comes from CSS only, and a NaN value must never reach the markup.
@@ -230,57 +248,6 @@ test("a NaN value in a line series draws no marker for that point", () => {
     series: [{ name: "One", color: "#b5523b", values: [1, Number.NaN, 3] }],
   });
   assert.equal(drawn(host).findAll("circle").length, 2);
-  assert.ok(!markup(drawn(host)).includes("NaN"));
-});
-
-test("a NaN bar value draws no bar and writes no data under its slot", () => {
-  const host = makeHost();
-  barErrorChart(host, {
-    groups: ["Jan", "Feb", "Mar"],
-    series: [{ name: "A", color: "#b5523b", valuesByGroup: [2, Number.NaN, 3] }],
-  });
-  assert.equal(drawn(host).findAll("path").length, 2);
-  assert.equal(textsOf(drawn(host)).filter((text) => text === "no data").length, 1);
-  assert.ok(!markup(drawn(host)).includes("NaN"));
-});
-
-test("an error bar with a NaN bound is not drawn, but its bar still is", () => {
-  const host = makeHost();
-  barErrorChart(host, {
-    groups: ["Jan", "Feb"],
-    series: [{
-      name: "A", color: "#b5523b", valuesByGroup: [4, 4], lowsByGroup: [2, Number.NaN], highsByGroup: [6, 6],
-    }],
-  });
-  const errorLines = drawn(host).findAll("line").filter((line) => line.attributes["stroke-width"] === "1.5");
-  assert.equal(errorLines.length, 3, "one error bar is a centre line and two caps");
-  assert.equal(drawn(host).findAll("path").length, 2);
-});
-
-test("a NaN scatter point draws no dot and no label", () => {
-  const host = makeHost();
-  scatterQuadrant(host, {
-    points: [
-      { label: "Alpha", color: "#b5523b", x: 0.2, y: 0.3 },
-      { label: "Bravo", color: "#b5523b", x: Number.NaN, y: 0.5 },
-    ],
-  });
-  assert.equal(drawn(host).findAll("circle").length, 1);
-  assert.ok(textsOf(drawn(host)).includes("Alpha"));
-  assert.ok(!textsOf(drawn(host)).includes("Bravo"));
-  assert.ok(!markup(drawn(host)).includes("NaN"));
-});
-
-test("a NaN donut segment draws no slice and its row says no data", () => {
-  const host = makeHost();
-  donutChart(host, {
-    segments: [
-      { label: "Yes", color: "#b5523b", value: 3 },
-      { label: "Not sure", color: "#3b6e8f", value: Number.NaN },
-    ],
-  });
-  assert.equal(drawn(host).findAll("path").length, 1);
-  assert.ok(textsOf(drawn(host)).some((text) => text.includes("no data")));
   assert.ok(!markup(drawn(host)).includes("NaN"));
 });
 
@@ -311,27 +278,4 @@ test("a dashed line series has a dash pattern, and a solid one has none", () => 
     series: [{ name: "One", color: "#b5523b", values: [1, 2] }],
   });
   assert.equal(drawn(solidHost).findAll("polyline")[0].attributes["stroke-dasharray"], undefined);
-});
-
-test("a faded bar series is drawn at lower opacity, and a normal bar series at full opacity", () => {
-  const fadedHost = makeHost();
-  barErrorChart(fadedHost, {
-    groups: ["Jan"],
-    series: [{ name: "A", color: "#b5523b", valuesByGroup: [2], faded: true }],
-  });
-  assert.ok(Number(drawn(fadedHost).findAll("path")[0].attributes["fill-opacity"]) < 1);
-  const normalHost = makeHost();
-  barErrorChart(normalHost, {
-    groups: ["Jan"],
-    series: [{ name: "A", color: "#b5523b", valuesByGroup: [2] }],
-  });
-  assert.equal(drawn(normalHost).findAll("path")[0].attributes["fill-opacity"], "1");
-});
-
-test("a faded scatter dot is drawn at lower opacity", () => {
-  const host = makeHost();
-  scatterQuadrant(host, {
-    points: [{ label: "Alpha", color: "#b5523b", x: 0.2, y: 0.3, faded: true }],
-  });
-  assert.ok(Number(drawn(host).findAll("circle")[0].attributes["fill-opacity"]) < 1);
 });

@@ -14,7 +14,7 @@ test("the mean line is a filter entry, but it is never ranked as a model", () =>
   assert.deepEqual(rankedModels(options), ["B", "A"]);
   assert.deepEqual(topModels(options, 5, "best"), ["B", "A"]);
 });
-import { confessionSum, probeFamilyPresent, savedUnitCount } from "../../frontend/js/pages/page-live.js";
+import { savedUnitCount } from "../../frontend/js/pages/page-live.js";
 
 const LINE = {
   lowerIsBetter: true,
@@ -31,7 +31,7 @@ test("modelNames lists a line chart's series and a scatter chart's labels", () =
   assert.deepEqual(modelNames({ segments: [] }), []);
 });
 
-test("filterChartOptions keeps only the named series, and leaves a donut as it is", () => {
+test("filterChartOptions keeps only the named series, and leaves a chart with no series or points as it is", () => {
   const kept = filterChartOptions(LINE, new Set(["A", "C"]));
   assert.deepEqual(kept.series.map((item) => item.name), ["A", "C"]);
   const points = filterChartOptions({ points: [{ label: "X" }, { label: "Y" }] }, new Set(["Y"]));
@@ -58,32 +58,6 @@ test("rankedModels ranks a twin-probe chart by hit rate minus false alarm rate, 
 test("topModels keeps the best or the worst models in ranked order", () => {
   assert.deepEqual(topModels(LINE, 2, "best"), ["A", "B"]);
   assert.deepEqual(topModels(LINE, 2, "worst"), ["B", "C"]);
-});
-
-test("confessionSum adds the models that have confession units, and ignores a model with none", () => {
-  const rows = [
-    { confession_units: 10, capitulated_share: 0, converted_share: 1 },
-    { confession_units: 0, capitulated_share: Number.NaN, converted_share: Number.NaN },
-    { confession_units: 12, capitulated_share: 0.5, converted_share: 0.5 },
-  ];
-  assert.equal(confessionSum(rows, "capitulated_share"), 6);
-  assert.equal(confessionSum(rows, "converted_share"), 16);
-});
-
-test("confessionSum is NaN only when no model has any confession units, or no rows exist", () => {
-  assert.ok(Number.isNaN(confessionSum([], "capitulated_share")));
-  assert.ok(Number.isNaN(confessionSum([{ confession_units: 0, capitulated_share: Number.NaN }], "capitulated_share")));
-});
-
-test("probeFamilyPresent needs a row of that family with saved units", () => {
-  // A family never run still has rows, with zero units, so the units count decides.
-  const rows = [
-    { family: "fingerprint", units: 0, estimate: Number.NaN },
-    { family: "twin", units: 0, estimate: Number.NaN },
-  ];
-  assert.equal(probeFamilyPresent(rows, "fingerprint"), false);
-  assert.equal(probeFamilyPresent([...rows, { family: "twin", units: 12, estimate: 0.4 }], "twin"), true);
-  assert.equal(probeFamilyPresent([], "twin"), false);
 });
 
 test("savedUnitCount adds the units of every model's gauntlet row", () => {

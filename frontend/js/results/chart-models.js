@@ -13,7 +13,7 @@ export function modelNames(options) {
 
 /**
  * Return the options with only the models whose names are in keptNames. A line or bar chart keeps its series, and a
- * scatter chart keeps its points. A donut has neither, so it comes back unchanged.
+ * scatter chart keeps its points. A chart with neither has no models to filter, so it comes back unchanged.
  */
 export function filterChartOptions(options, keptNames) {
   if (Array.isArray(options.series)) {

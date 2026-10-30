@@ -1287,12 +1287,6 @@ fieldset:disabled .check-box {
   margin: 0 auto;
 }
 
-/* The radar is drawn at its full width (820px in its viewBox), so labels keep their size and the figure scrolls */
-.figure-svg-wide {
-  width: 51.25rem;
-  max-width: none;
-}
-
 /* The hover note: one bubble, placed by tooltip.js next to the element it describes */
 .tip {
   position: fixed;
@@ -1315,12 +1309,6 @@ fieldset:disabled .check-box {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
   cursor: help;
-}
-
-.figure-grid {
-  stroke: var(--rule);
-  stroke-width: 1;
-  fill: none;
 }
 
 .figure-axis {
@@ -1351,123 +1339,12 @@ fieldset:disabled .check-box {
   fill: var(--ink);
 }
 
-.figure-poly,
 .figure-point {
   transition: stroke-width 120ms ease;
 }
 
-.figure-poly.is-highlight,
 .figure-point.is-highlight {
   stroke-width: 3.5;
-}
-
-.figure-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.figure-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  font-family: var(--font-sans);
-  font-size: var(--size-sm);
-  color: var(--ink);
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.figure-legend-item[aria-pressed="false"] {
-  color: var(--ink-mute);
-  opacity: 0.6;
-}
-
-.figure-legend-item.is-highlight {
-  border-color: var(--ink-soft);
-}
-
-.figure-swatch {
-  display: inline-block;
-  width: 0.9em;
-  height: 0.9em;
-  border-radius: 2px;
-}
-
-.figure-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: var(--font-sans);
-  font-size: var(--size-sm);
-  color: var(--ink-soft);
-}
-
-.figure-key {
-  counter-reset: figure-key;
-}
-
-.figure-key li {
-  counter-increment: figure-key;
-}
-
-.figure-key li::before {
-  content: counter(figure-key) ". ";
-  color: var(--ink-mute);
-}
-
-.figure-profile-row {
-  display: grid;
-  grid-template-columns: minmax(8rem, 14rem) minmax(320px, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--rule);
-}
-
-.figure-profile-row.is-highlight {
-  background: var(--paper-raised);
-}
-
-.figure-profile-name {
-  font-family: var(--font-sans);
-  font-size: var(--size-sm);
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.figure-profile-track {
-  min-width: 0;
-}
-
-.figure-profile-svg {
-  display: block;
-  width: 100%;
-  max-width: 36rem;
-  min-width: 320px;
-  height: auto;
-}
-
-.figure-missing {
-  fill: var(--ink-mute);
-}
-
-@media (max-width: 640px) {
-  .figure-profile-row {
-    grid-template-columns: 1fr;
-    gap: var(--space-1);
-  }
 }
 
 /* The "Platform and key" panel sits above the batch setup. Each setting is one row: its label on the left and

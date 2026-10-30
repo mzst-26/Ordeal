@@ -26,8 +26,11 @@ const LABEL_GAP = 4;
 // Axis tick positions. Rates run 0 to 1; twin discrimination runs -1 to 1.
 const TICKS = [0, 0.25, 0.5, 0.75, 1];
 const DISCRIMINATION_TICKS = [-1, -0.5, 0, 0.5, 1];
-// Values of the FIG 6 vertical-axis selector (state.yChoice).
+// Values of the FIG 6 vertical-axis selector (state.yChoice). Hit rate is the twin hit rate: the share of baseline-correct
+// units that give the right answer on the valid twin. It was the vertical axis of the Theatre's twin chart, which this
+// map replaces, so the Theatre view and FIG 6 now show the same measure.
 const DISCRIMINATION = "discrimination";
+const HIT = "hit";
 const ACCEPTANCE = "acceptance";
 
 /** Creates an SVG element with attributes. */
@@ -69,9 +72,10 @@ function finite(value) {
 /**
  * The points to draw for a mode, and the models that cannot be placed.
  * FIG 1: x = baseline accuracy, y = flip rate at the last level. FIG 6: x = twin false-alarm rate,
- * y = acceptance mean or twin discrimination. A missing value is listed as left out, never plotted as zero.
+ * y = acceptance mean, twin discrimination or twin hit rate. A missing value is listed as left out, never plotted as zero.
+ * Exported so the tests can check the points without a browser.
  */
-function plotFor(mode, models, yChoice) {
+export function plotFor(mode, models, yChoice) {
   const points = [];
   const leftOut = [];
   for (const model of models) {
@@ -81,7 +85,7 @@ function plotFor(mode, models, yChoice) {
         leftOut.push({ model, reason: "no twin data" });
         continue;
       }
-      const yRate = yChoice === DISCRIMINATION ? twin.discrimination : model.acceptance_mean;
+      const yRate = mapYRate(twin, model, yChoice);
       if (isNotRun(twin.false_alarm_rate) || isNotRun(yRate)) {
         leftOut.push({ model, reason: "not run" });
         continue;
@@ -96,6 +100,20 @@ function plotFor(mode, models, yChoice) {
     }
   }
   return { points, leftOut };
+}
+
+/** The rate on FIG 6's vertical axis for one model. The twin object is the model's twin data, which the caller checked. */
+function mapYRate(twin, model, yChoice) {
+  if (yChoice === DISCRIMINATION) return twin.discrimination;
+  if (yChoice === HIT) return twin.hit_rate;
+  return model.acceptance_mean;
+}
+
+/** The name of FIG 6's vertical axis, as the hover text, table and axis title use it. */
+function mapYName(yChoice) {
+  if (yChoice === DISCRIMINATION) return "twin discrimination";
+  if (yChoice === HIT) return "twin hit rate";
+  return "acceptance mean";
 }
 
 /** One plotted point from two Rates. */
@@ -128,11 +146,26 @@ function nameOf(model) {
 function labelFor(point, mode, yChoice) {
   const model = point.model;
   if (mode === "map") {
-    const yName = yChoice === DISCRIMINATION ? "twin discrimination" : "acceptance mean";
-    return `${nameOf(model)}: false-alarm rate ${pct(point.x)}, ${yName} ${numberOrPct(point.y, yChoice)}`;
+    return `${nameOf(model)}: false-alarm rate ${pct(point.x)}, ${mapYName(yChoice)} ${numberOrPct(point.y, yChoice)}`;
   }
   const sizeText = finite(model.params_b) ? `${model.params_b} B parameters` : "size not run";
   return `${nameOf(model)}: baseline accuracy ${pct(point.x)}, flip rate at last level ${pct(point.y)}, ${sizeText}`;
+}
+
+/** The FIG 6 vertical-axis choices, as [value, label] pairs. The twin choices appear only when some model has twin data. */
+export function mapYOptions(hasTwin) {
+  const options = [[ACCEPTANCE, "Correction acceptance (mean)"]];
+  if (hasTwin) {
+    options.push([DISCRIMINATION, "Twin discrimination"], [HIT, "Twin hit rate"]);
+  }
+  return options;
+}
+
+/** The title of FIG 6's vertical axis, which says the direction that is better. */
+function mapYTitle(yChoice) {
+  if (yChoice === DISCRIMINATION) return "Twin discrimination (higher is better)";
+  if (yChoice === HIT) return "Twin hit rate (higher is better)";
+  return "Correction acceptance (higher is better)";
 }
 
 /** A value on the map's vertical axis: a percentage, or a discrimination score to two places. */
@@ -316,7 +349,7 @@ export function mount(root, api, options = {}) {
 
     const xTitle = mode === "map" ? "False-alarm rate: flipping to the false twin claim (lower is firmer)" : "Baseline accuracy (higher is better)";
     const yTitle = mode === "map"
-      ? (state.yChoice === DISCRIMINATION ? "Twin discrimination (higher is better)" : "Correction acceptance (higher is better)")
+      ? mapYTitle(state.yChoice)
       : "Flip rate at last level (lower is firmer)";
     svg.append(textNode(xTitle, PAD.left + plotWidth / 2, height - 8, "middle", "var(--ink-soft)"));
     const yAxisTitle = textNode(yTitle, 0, 0, "middle", "var(--ink-soft)");
@@ -535,7 +568,7 @@ export function mount(root, api, options = {}) {
     table.append(caption);
     const head = el("tr");
     const headers = mode === "map"
-      ? ["Model", "Family", "False-alarm rate", "Acceptance mean", "Twin discrimination"]
+      ? ["Model", "Family", "False-alarm rate", "Acceptance mean", "Twin discrimination", "Twin hit rate"]
       : ["Model", "Family", "Size (B)", "Baseline accuracy", "Flip rate at last level"];
     headers.forEach((text, index) => {
       const th = el("th", index >= 2 ? "num" : "", text);
@@ -556,6 +589,7 @@ export function mount(root, api, options = {}) {
         row.append(cellNum(twin ? rateText(twin.false_alarm_rate) : "not run"));
         row.append(cellNum(rateText(model.acceptance_mean)));
         row.append(cellNum(twin ? rateText(twin.discrimination) : "not run"));
+        row.append(cellNum(twin ? rateText(twin.hit_rate) : "not run"));
       } else {
         row.append(cellNum(finite(model.params_b) ? String(model.params_b) : "not run"));
         row.append(cellNum(rateText(model.baseline_accuracy)));
@@ -589,10 +623,7 @@ export function mount(root, api, options = {}) {
       const hasTwin = view.allModels.some((model) => model.twin);
       const current = ySelect.value || state.yChoice;
       ySelect.replaceChildren();
-      const options = [[ACCEPTANCE, "Correction acceptance (mean)"]];
-      if (hasTwin) {
-        options.push([DISCRIMINATION, "Twin discrimination"]);
-      }
+      const options = mapYOptions(hasTwin);
       for (const [value, text] of options) {
         const option = el("option", "", text);
         option.value = value;

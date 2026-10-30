@@ -52,7 +52,7 @@ export function openEnlargedChart(panel, title) {
     const full = panel.options;
     if (!full) return;
     const names = modelNames(full);
-    // A chart with no models to filter, such as the donut, has no filter row to show.
+    // A chart with no models to filter has no filter row to show.
     controls.hidden = names.length === 0;
     checks.hidden = names.length === 0;
     const kept = new Set(names.filter((name) => !hidden.has(name)));
