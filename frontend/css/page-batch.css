@@ -1630,3 +1630,30 @@ fieldset:disabled .check-box {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* The side-by-side results table. It scrolls sideways inside its own box on a narrow screen, never the whole page. */
+.side-by-side-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.side-by-side-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.side-by-side-table th,
+.side-by-side-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--rule);
+  min-width: 9rem;
+  overflow-wrap: anywhere;
+}
+
+.side-by-side-warning {
+  color: inherit;
+  font-weight: 600;
+}

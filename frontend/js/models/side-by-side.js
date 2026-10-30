@@ -131,3 +131,99 @@ export function sameComparison(settingsList) {
   const first = comparisonKey(settingsList[0]);
   return settingsList.every((settings) => comparisonKey(settings) === first);
 }
+
+// The number of characters of a reply shown in a side-by-side cell. The full reply stays in the saved run.
+export const CELL_TEXT_LIMIT = 120;
+
+/**
+ * Return the settings a saved batch run was made with, in the shape comparisonKey reads. The question set and the
+ * pushback set are the suite; the seed is only set for a mixed run and is null otherwise.
+ */
+export function comparisonSettingsOf(config) {
+  return {
+    suite: JSON.stringify([config.experiment ?? null, config.questionSet ?? null, config.pushbackSet ?? null]),
+    condition: config.condition ?? null,
+    seed: config.seed ?? null,
+    repeats: config.repeats ?? null,
+    questions: config.questions ?? [],
+  };
+}
+
+/**
+ * Return the newest saved batch run made on this provider, or null when there is none. Runs must be newest first, as
+ * listRuns gives them. A live run is not a batch run, so it never counts here.
+ */
+export function latestRunFor(runs, providerId) {
+  return runs.find((run) => run.config && run.config.kind === 'batch' && run.config.platformId === providerId) ?? null;
+}
+
+/**
+ * Return one column for each chosen provider, in the order chosen: its newest run, its replies and its comparison
+ * settings. recordsOf(run) gives the run's step records. A reply saved before providers were recorded takes the
+ * provider of its run, so an older run still shows in its own column.
+ */
+export function columnsFor(chosenIds, runs, recordsOf) {
+  return chosenIds.map((providerId) => {
+    const run = latestRunFor(runs, providerId);
+    if (run === null) {
+      return { id: providerId, run: null, rows: [], settings: null };
+    }
+    const rows = recordsOf(run).map((row) => ({ ...row, provider: row.provider ?? run.config.platformId }));
+    return { id: providerId, run, rows, settings: comparisonSettingsOf(run.config) };
+  });
+}
+
+/**
+ * Return a map from question id to the first reply saved for it, in the order the rows were saved. The side-by-side view
+ * shows one reply per question for each provider, so the same question lines up across the columns.
+ */
+export function firstReplyPerQuestion(rows) {
+  const firsts = new Map();
+  for (const row of rows) {
+    if (!firsts.has(row.question_id)) {
+      firsts.set(row.question_id, row.reply);
+    }
+  }
+  return firsts;
+}
+
+/** Shorten a reply to the cell limit, adding an ellipsis when it is cut. Replies are shown as plain text only. */
+export function cellText(reply) {
+  const text = typeof reply === 'string' ? reply : '';
+  return text.length <= CELL_TEXT_LIMIT ? text : text.slice(0, CELL_TEXT_LIMIT - 1) + '…';
+}
+
+// The text shown when the chosen runs were not made with the same questions, conditions, seed and repeats.
+export const DIFFERENT_SETTINGS_TEXT = 'These runs were made with different questions, conditions or seeds, so their replies are not compared.';
+// The mark for a question a provider has no reply to, in a run that exists.
+export const NO_REPLY_MARK = '—';
+
+/**
+ * Return what the results table shows: the header of each column (the provider name, or its id when no name is known),
+ * one row per question with each provider's first reply in its cell, a warning when the runs are not comparable, and the
+ * ids of the providers that have no saved run yet. The questions keep the order they first appear in, across all columns.
+ */
+export function resultsTableModel(columns, names) {
+  const replyMaps = columns.map((column) => firstReplyPerQuestion(column.rows));
+  const questionIds = [];
+  for (const column of columns) {
+    for (const row of column.rows) {
+      if (!questionIds.includes(row.question_id)) questionIds.push(row.question_id);
+    }
+  }
+  const rows = questionIds.map((question) => ({
+    question,
+    cells: columns.map((column, index) => {
+      if (column.run === null) return null;
+      const reply = replyMaps[index].get(question);
+      return reply === undefined ? NO_REPLY_MARK : cellText(reply);
+    }),
+  }));
+  const settingsList = columns.filter((column) => column.settings !== null).map((column) => column.settings);
+  return {
+    headers: columns.map((column) => names[column.id] ?? column.id),
+    rows,
+    warning: sameComparison(settingsList) ? null : DIFFERENT_SETTINGS_TEXT,
+    missing: columns.filter((column) => column.run === null).map((column) => column.id),
+  };
+}

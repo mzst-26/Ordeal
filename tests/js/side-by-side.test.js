@@ -16,6 +16,14 @@ import {
   comparisonKey,
   sameComparison,
   rowLabelsFor,
+  latestRunFor,
+  comparisonSettingsOf,
+  columnsFor,
+  firstReplyPerQuestion,
+  cellText,
+  resultsTableModel,
+  DIFFERENT_SETTINGS_TEXT,
+  CELL_TEXT_LIMIT,
   STATUS_READY,
   STATUS_MISSING_KEY,
   STATUS_UNAVAILABLE,
@@ -157,4 +165,107 @@ test('an unavailable provider shows Not available here and may take neither a ke
   assert.equal(labels.badge, 'Not available here');
   assert.equal(labels.canUse, false);
   assert.equal(labels.canAddKey, false);
+});
+
+// Results side by side: each chosen provider's newest saved batch run, with its replies tagged by provider.
+const RUN_CONFIG = { kind: 'batch', questionSet: 'easy', pushbackSet: 'gauntlet_v3', condition: 'none', repeats: 1, questions: ['q1', 'q2'] };
+const RUNS = [
+  { id: 'run-groq-new', config: { ...RUN_CONFIG, platformId: 'groq' }, results: {} },
+  { id: 'run-nebius', config: { ...RUN_CONFIG, platformId: 'nebius' }, results: {} },
+  { id: 'run-groq-old', config: { ...RUN_CONFIG, platformId: 'groq' }, results: {} },
+  { id: 'run-live', config: { ...RUN_CONFIG, kind: 'live', platformId: 'together' }, results: {} },
+];
+/** A fake record reader: each run's results hold a list of step records under steps. */
+const recordsOf = (run) => (run.records ?? []);
+
+test('the newest batch run made on a provider is the one shown for it', () => {
+  assert.equal(latestRunFor(RUNS, 'groq').id, 'run-groq-new');
+  assert.equal(latestRunFor(RUNS, 'together'), null, 'a live run is not a batch run');
+  assert.equal(latestRunFor(RUNS, 'mistral'), null);
+});
+
+test('the comparison settings are the question set, pushback set, condition, repeats, questions and seed', () => {
+  const settings = comparisonSettingsOf({ ...RUN_CONFIG, platformId: 'groq', seed: 4 });
+  assert.deepEqual(settings, {
+    suite: JSON.stringify([null, 'easy', 'gauntlet_v3']),
+    condition: 'none',
+    seed: 4,
+    repeats: 1,
+    questions: ['q1', 'q2'],
+  });
+});
+
+test('columns for three providers keep the chosen order, and an empty column when a provider has no run', () => {
+  const runs = [
+    { id: 'g', config: { ...RUN_CONFIG, platformId: 'groq' }, records: [{ provider: 'groq', question_id: 'q1', reply: 'a' }] },
+    { id: 'n', config: { ...RUN_CONFIG, platformId: 'nebius' }, records: [{ provider: 'nebius', question_id: 'q1', reply: 'b' }] },
+  ];
+  const columns = columnsFor(['nebius', 'groq', 'together'], runs, recordsOf);
+  assert.deepEqual(columns.map((column) => column.id), ['nebius', 'groq', 'together']);
+  assert.equal(columns[2].run, null);
+  assert.deepEqual(columns[2].rows, []);
+  assert.equal(columns[1].rows[0].reply, 'a');
+});
+
+test('a row from an older run, saved before providers were recorded, takes the run provider', () => {
+  const runs = [{ id: 'old', config: { ...RUN_CONFIG, platformId: 'groq' }, records: [{ question_id: 'q1', reply: 'old' }] }];
+  const [column] = columnsFor(['groq'], runs, recordsOf);
+  assert.equal(column.rows[0].provider, 'groq');
+});
+
+test('the first reply for each question is shown side by side in one line per question', () => {
+  const rows = [
+    { provider: 'groq', question_id: 'q1', reply: 'first' },
+    { provider: 'groq', question_id: 'q1', reply: 'second' },
+    { provider: 'groq', question_id: 'q2', reply: 'third' },
+  ];
+  const firsts = firstReplyPerQuestion(rows);
+  assert.equal(firsts.get('q1'), 'first');
+  assert.equal(firsts.get('q2'), 'third');
+});
+
+test('a long reply is cut to the cell limit with an ellipsis, and a short one is kept whole', () => {
+  assert.equal(cellText('short'), 'short');
+  const long = 'x'.repeat(CELL_TEXT_LIMIT + 10);
+  const cut = cellText(long);
+  assert.equal(cut.length, CELL_TEXT_LIMIT);
+  assert.ok(cut.endsWith('…'));
+});
+
+test('the results table has one row per question, and each cell is that provider reply to it', () => {
+  const columns = [
+    { id: 'groq', run: { id: 'g' }, settings: { suite: 's', condition: 'none', seed: null, repeats: 1, questions: ['q1', 'q2'] }, rows: [
+      { provider: 'groq', question_id: 'q1', reply: 'g-one' },
+      { provider: 'groq', question_id: 'q2', reply: 'g-two' },
+    ] },
+    { id: 'nebius', run: { id: 'n' }, settings: { suite: 's', condition: 'none', seed: null, repeats: 1, questions: ['q1', 'q2'] }, rows: [
+      { provider: 'nebius', question_id: 'q1', reply: 'n-one' },
+    ] },
+  ];
+  const model = resultsTableModel(columns, { groq: 'Groq', nebius: 'Nebius' });
+  assert.deepEqual(model.headers, ['Groq', 'Nebius']);
+  assert.deepEqual(model.rows, [
+    { question: 'q1', cells: ['g-one', 'n-one'] },
+    { question: 'q2', cells: ['g-two', '—'] },
+  ]);
+  assert.equal(model.warning, null);
+  assert.deepEqual(model.missing, []);
+});
+
+test('a provider with no saved run is marked missing, and its cells are empty', () => {
+  const columns = [{ id: 'together', run: null, settings: null, rows: [] }];
+  const model = resultsTableModel(columns, { together: 'Together AI' });
+  assert.deepEqual(model.missing, ['together']);
+  assert.deepEqual(model.rows, []);
+});
+
+test('runs made with different questions, conditions or seeds get a warning, not a comparison', () => {
+  const same = { suite: 's', condition: 'none', seed: 1, repeats: 1, questions: ['q1'] };
+  const other = { ...same, seed: 2 };
+  const columns = [
+    { id: 'groq', run: { id: 'g' }, settings: same, rows: [] },
+    { id: 'nebius', run: { id: 'n' }, settings: other, rows: [] },
+  ];
+  const model = resultsTableModel(columns, {});
+  assert.equal(model.warning, DIFFERENT_SETTINGS_TEXT);
 });
