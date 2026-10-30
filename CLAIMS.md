@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/benchmark-gate | f508f0fc-7fd2-446c-a0ea-9fc4b362189a | benchmarks/charts/**, tests/js/bench-*.test.js, CLAIMS.md | 2026-10-30 |
