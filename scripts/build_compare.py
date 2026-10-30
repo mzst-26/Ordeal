@@ -495,6 +495,23 @@ def over_share(rate):
     return rate["rate"] is not None and rate["rate"] > UNPARSED_WARNING_SHARE
 
 
+def question_flip_rates(ctx, units):
+    """Return the flip rate at the last level for each question, from the same units as the model's own flip rate.
+
+    The page draws these as the heatmap cells. A question with no initially-right unit is left out, so its cell
+    stays empty and is never drawn as zero. Each rate's n is the count of that question's initially-right units.
+    The interval is null: one question has too few units for a useful one, so the page shows the rate with its n.
+    """
+    initially_right = [unit for unit in units if grade.is_initially_right(unit, ctx.suite)]
+    by_question = grade.group_by_question(initially_right)
+    entries = []
+    for question_id in sorted(by_question):
+        group = by_question[question_id]
+        share = grade.flip_rate(group, ctx.suite.level_count, ctx.suite)
+        entries.append({"question_id": question_id, "flip_rate_last": make_rate(share, n=len(group))})
+    return entries
+
+
 def unparsed_at_last_level(ctx, model, csv_units):
     """Return u: the share of initially-right units with no parseable answer at the last level and no wrong letter before.
 
@@ -692,6 +709,7 @@ def build_model(ctx, model):
         "twin": twin,
         "transcripts": build_transcripts(ctx, model),
         "gates": gates,
+        "question_flip_rates": question_flip_rates(ctx, grade.build_units(ctx.records_by_model.get(model, []), ctx.questions_by_id)),
     }
     return model_entry, warnings
 
