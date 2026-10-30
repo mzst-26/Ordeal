@@ -11,6 +11,9 @@ import { REMEMBER_STORAGE_NAME, REMEMBER_PLATFORM_NAME } from "../../frontend/js
 import { createChatClient, createBudget } from "../../frontend/js/engine/api.js";
 import { platformList, findPlatform } from "../../frontend/js/models/platforms.js";
 import { readJson } from "./helpers.js";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PLATFORMS = platformList(readJson("ordeal/data/providers.json"));
 const GROQ = findPlatform(PLATFORMS, "groq");
@@ -184,3 +187,23 @@ test("a missing key blocks only the provider that lacks it, and no request goes 
   assert.ok(requested[0].startsWith(GROQ.base_url));
 });
 
+// The guard: no page, the header or a shared module may import the old single vault from token.js. Any such import
+// would be a second key store next to provider-keys.js, so the test reads every source file under frontend/js.
+const SOURCE_ROOT = fileURLToPath(new URL("../../frontend/js/", import.meta.url));
+
+/** Return the path of every .js and .jsx file under a folder, found by walking its sub-folders. */
+function sourceFiles(folder) {
+  return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(folder, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.jsx?$/.test(entry.name) ? [path] : [];
+  });
+}
+
+test("no source file imports the old single vault from token.js", () => {
+  const offenders = sourceFiles(SOURCE_ROOT).filter((path) => {
+    const text = readFileSync(path, "utf8");
+    return /import\s*\{[^}]*\bvault\b[^}]*\}\s*from\s*["'][^"']*token\.js["']/.test(text);
+  });
+  assert.deepEqual(offenders.map((path) => path.slice(SOURCE_ROOT.length - 1)), []);
+});

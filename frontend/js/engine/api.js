@@ -1,5 +1,5 @@
 // Chat client for the platform the visitor chose, and the model-list check for the same platform. It runs in the
-// browser and reads the key from the token vault. The key is sent only to the chosen platform's own address.
+// browser and reads the key from the key slot of the chosen platform. The key is sent only to that platform's own address.
 
 import { isSafeCustomUrl, validateCustomModel } from './custom-model.js';
 import { createModelLimiter } from './limiter.js';
@@ -375,7 +375,8 @@ function readModelIds(json) {
 /**
  * Create a chat client. complete() sends one chat request to the chosen platform and retries transient failures.
  * A custom model is refused with a fixed message until it has its own key, so no request is made for it.
- * @param {object} options - platform (a browser platform from providers.json), customModels, builtInModels, vault,
+ * @param {object} options - platform (a browser platform from providers.json), customModels, builtInModels, vault (the key
+ *   slot of that platform from provider-keys.js, with get, has and platformId),
  *   budget, and optional maxRetries, timeoutMs, fetchImpl, sleep. builtInModels lists the built-in model names
  *   that no custom model may use. pacer and random are optional: a test passes its own to control the waits.
  */

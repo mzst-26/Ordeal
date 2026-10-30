@@ -237,3 +237,15 @@ test('an old value that is not a plausible key, or has no platform, is left alon
   assert.equal(createProviderKeys({ storage }).has('nebius'), false);
   assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), 'not a key');
 });
+
+// A saved map that cannot be read, or holds a value that is not a key, is ignored, so one bad entry never breaks the page.
+test('a damaged saved map is ignored, and a good entry in it still loads', () => {
+  const storage = fakeStorage();
+  storage.setItem(PROVIDER_KEYS_STORAGE_NAME, JSON.stringify({ groq: KEY_A, together: 'not a key', 'Bad Id': KEY_B }));
+  const keys = createProviderKeys({ storage });
+  assert.equal(keys.get('groq'), KEY_A);
+  assert.equal(keys.has('together'), false);
+  assert.equal(keys.has('Bad Id'), false);
+  storage.setItem(PROVIDER_KEYS_STORAGE_NAME, '{not json');
+  assert.equal(createProviderKeys({ storage }).has('groq'), false);
+});
