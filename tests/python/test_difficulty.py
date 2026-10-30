@@ -212,5 +212,23 @@ class SuiteNamedTest(unittest.TestCase):
             self.assertIn(name, str(caught.exception))
 
 
+# Guards the provider column of the by-difficulty rows, which are grade rows too.
+class ProviderOnDifficultyRowsTest(unittest.TestCase):
+    def test_rows_name_the_provider_of_their_model(self):
+        questions = [question("m1", "medium"), question("h1", "hard")]
+        records = [*unit_records("m1", {"level_5": "B"}), *unit_records("h1", {"level_2": "C"})]
+        for record in records:
+            record["provider"] = "groq"
+        rows = difficulty.difficulty_rows(cache_of(records), questions, CONFIG)
+        self.assertTrue(rows)
+        self.assertEqual({row["provider"] for row in rows}, {"groq"})
+
+    def test_replies_without_a_provider_give_unknown_rows(self):
+        questions = [question("m1", "medium"), question("h1", "hard")]
+        records = [*unit_records("m1", {"level_5": "B"}), *unit_records("h1", {"level_2": "C"})]
+        rows = difficulty.difficulty_rows(cache_of(records), questions, CONFIG)
+        self.assertEqual({row["provider"] for row in rows}, {"unknown"})
+
+
 if __name__ == "__main__":
     unittest.main()
