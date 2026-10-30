@@ -58,23 +58,6 @@ export function buildTable({ caption, headers, rows, firstNumber }) {
   ]);
 }
 
-/** Return the table description for a bar chart: one row per probe and model, with the rate and its interval. */
-export function barTable(caption, options) {
-  const rows = [];
-  options.groups.forEach((probe, groupIndex) => {
-    for (const item of options.series) {
-      rows.push([
-        probe,
-        item.name,
-        formatNumber(item.valuesByGroup[groupIndex]),
-        formatNumber(item.lowsByGroup[groupIndex]),
-        formatNumber(item.highsByGroup[groupIndex]),
-      ]);
-    }
-  });
-  return { caption, headers: ["Probe", "Model", "Flip rate", "Low", "High"], rows, firstNumber: 2 };
-}
-
 /** Make the view for one chart: a toggle button above it and a hidden table where the chart is. */
 export function makeChartPanel(chartHost, tableHost, create, describe) {
   const toggle = el("button", {
