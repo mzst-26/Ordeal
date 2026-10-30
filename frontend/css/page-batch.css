@@ -1607,3 +1607,26 @@ fieldset:disabled .check-box {
 .condition-what .field-hint {
   margin: 4px 0 6px 1.75rem;
 }
+
+/* The compare panel: one row per chosen provider. Each row shows its name, its state, the reason when it cannot run,
+   and its buttons. A list with no bullets keeps the rows in one plain column. */
+.side-by-side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.side-by-side-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.side-by-side-row .field-hint {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

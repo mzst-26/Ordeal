@@ -15,6 +15,10 @@ import {
   groupRowsByProvider,
   comparisonKey,
   sameComparison,
+  rowLabelsFor,
+  STATUS_READY,
+  STATUS_MISSING_KEY,
+  STATUS_UNAVAILABLE,
 } from '../../frontend/js/models/side-by-side.js';
 
 // The shared platform list, as the browser reads it. Nothing here is a real key.
@@ -131,4 +135,26 @@ test('the same-setting check passes for one run or none', () => {
 
 test('a provider on another host is blocked and points to the command line', () => {
   assert.equal(browserReachability(TOGETHER).reachable, false);
+});
+
+// The labels the panel shows for each state, and which buttons each state allows.
+test('a ready provider shows Ready and may be used for the batch', () => {
+  const labels = rowLabelsFor({ status: STATUS_READY });
+  assert.equal(labels.badge, 'Ready');
+  assert.equal(labels.canUse, true);
+  assert.equal(labels.canAddKey, true);
+});
+
+test('a provider with no key shows Needs a key, may not be used yet, and may take a key', () => {
+  const labels = rowLabelsFor({ status: STATUS_MISSING_KEY });
+  assert.equal(labels.badge, 'Needs a key');
+  assert.equal(labels.canUse, false);
+  assert.equal(labels.canAddKey, true);
+});
+
+test('an unavailable provider shows Not available here and may take neither a key nor a run', () => {
+  const labels = rowLabelsFor({ status: STATUS_UNAVAILABLE });
+  assert.equal(labels.badge, 'Not available here');
+  assert.equal(labels.canUse, false);
+  assert.equal(labels.canAddKey, false);
 });

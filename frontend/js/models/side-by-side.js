@@ -106,6 +106,25 @@ export function comparisonKey(settings) {
   return JSON.stringify([settings.suite ?? null, settings.condition ?? null, settings.seed ?? null, settings.repeats ?? null, questions]);
 }
 
+// The short text the panel shows for each state of a provider.
+const BADGE_TEXT = {
+  [STATUS_READY]: 'Ready',
+  [STATUS_MISSING_KEY]: 'Needs a key',
+  [STATUS_UNAVAILABLE]: 'Not available here',
+};
+
+/**
+ * Return the label for one provider's state and which buttons it allows. A provider can be used for the batch only when
+ * it is ready. It can take a key unless the browser cannot call it at all, since a key would be of no use there.
+ */
+export function rowLabelsFor(status) {
+  return {
+    badge: BADGE_TEXT[status.status] ?? BADGE_TEXT[STATUS_UNAVAILABLE],
+    canUse: status.status === STATUS_READY,
+    canAddKey: status.status !== STATUS_UNAVAILABLE,
+  };
+}
+
 /** Return true when every run in the list has the same comparison key. A list of zero or one run is always the same. */
 export function sameComparison(settingsList) {
   if (settingsList.length <= 1) return true;

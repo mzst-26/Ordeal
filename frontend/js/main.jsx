@@ -7,6 +7,7 @@ import { vault } from "./engine/token.js";
 import { SiteHeader } from "./react/SiteHeader.jsx";
 import { mountPlatformSection } from "./models/platform-section.js";
 import { slotForPlatform } from "./engine/provider-keys.js";
+import { mountSideBySide } from "./models/side-by-side-panel.js";
 import { keepBannerHeight } from "./ui/banner-height.js";
 
 // Place the levels-drawer offset under the storage banner before the header and views are drawn.
@@ -23,3 +24,5 @@ startApp({
 // The batch copy keeps one key per provider; the gauntlet copy keeps its single key, as before.
 mountPlatformSection(document.getElementById("platform-section"), { keyFor: slotForPlatform });
 mountPlatformSection(document.getElementById("platform-section-gauntlet"));
+// The compare panel sits under the batch platform panel. It chooses up to three providers and checks each one's key.
+mountSideBySide(document.getElementById("side-by-side"));
