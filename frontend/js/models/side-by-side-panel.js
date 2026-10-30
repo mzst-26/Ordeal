@@ -10,7 +10,7 @@ import { loadJson } from "../shared/data-cache.js";
 import { askForToken } from "../ui/token-dialog.js";
 import { browserStorage } from "../engine/token.js";
 import { slotFor } from "../engine/provider-keys.js";
-import { loadPlatforms, selectablePlatforms } from "./platforms.js";
+import { loadPlatforms } from "./platforms.js";
 import { KEY_EVENT, RUN_LOCKED_MESSAGE, keyChanged, saveChoice } from "./platform-section.js";
 import {
   addSideProvider,
@@ -28,7 +28,7 @@ import { el } from "../ui/ui.js";
 const PANEL_TITLE = "Compare providers";
 const PANEL_HINT =
   "Pick up to 3 providers. Each one has its own key and its own run, with the same questions, conditions and seed. " +
-  "This browser may call only Nebius; for the others, use the command line shown beside them.";
+  "Providers that this browser cannot call, such as SambaNova and the servers on this computer, show the command line to use instead.";
 const LOAD_FAILED_MESSAGE = "The platform list could not be loaded, so providers cannot be compared here.";
 const EMPTY_MESSAGE = "No provider chosen yet. Pick one from the list above.";
 const ADD_LABEL = "Add provider";
@@ -56,7 +56,8 @@ export async function mountSideBySide(root) {
   }
   // The storage is opened once per page, and the draw counter lets a slow read never overwrite a newer result.
   const state = { list, chosen: [], message: "", storage: null, drawCount: 0 };
-  const view = buildPanel(root, selectablePlatforms(list));
+  // Every inference provider is listed, so one the browser cannot call still shows its reason and the command line.
+  const view = buildPanel(root, list.filter((platform) => platform.kind === "inference"));
   root.replaceChildren(view.section);
   view.addButton.addEventListener("click", () => addFromPicker(view, state, root));
   window.addEventListener(KEY_EVENT, () => renderRows(view, state, root));

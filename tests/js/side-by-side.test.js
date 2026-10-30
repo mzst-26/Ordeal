@@ -35,6 +35,10 @@ const NEBIUS = PLATFORMS.find((platform) => platform.id === 'nebius');
 const GROQ = PLATFORMS.find((platform) => platform.id === 'groq');
 const TOGETHER = PLATFORMS.find((platform) => platform.id === 'together');
 const FOURTH = PLATFORMS.find((platform) => platform.id === 'openrouter');
+// A test-only provider on a host that is not in the allow-list, so the blocked cases stay blocked whichever real
+// providers are listed. It is not in providers.json and nothing is sent to it.
+const OFF_LIST = { id: 'off-list', name: 'Off list', kind: 'inference', browser: true, base_url: 'https://api.example.org/v1' };
+const WITH_OFF_LIST = [...PLATFORMS, OFF_LIST];
 
 test('up to three providers may be chosen', () => {
   assert.equal(MAX_SIDE_PROVIDERS, 3);
@@ -55,25 +59,39 @@ test('choosing a provider that is already chosen does not count as a fourth', ()
   assert.deepEqual(addSideProvider(full, 'groq'), full);
 });
 
-test('only Nebius is reachable from the browser, as the content security policy allows', () => {
-  assert.deepEqual(BROWSER_ALLOWED_HOSTS, ['api.tokenfactory.nebius.com']);
+test('a registered browser provider is reachable, and a host off the allow-list is blocked with its reason', () => {
   assert.equal(browserReachability(NEBIUS).reachable, true);
-  const groq = browserReachability(GROQ);
-  assert.equal(groq.reachable, false);
-  assert.match(groq.reason, /cannot be called from this page/);
-  assert.match(groq.reason, /ordeal test groq/);
+  assert.equal(browserReachability(GROQ).reachable, true);
+  const blocked = browserReachability(OFF_LIST);
+  assert.equal(blocked.reachable, false);
+  assert.match(blocked.reason, /cannot be called from this page/);
+  assert.match(blocked.reason, /ordeal test off-list/);
 });
 
-test('the allowed hosts match the connect-src line of the content security policy', () => {
+// The hosts a provider's base address points at, for every provider the registry marks for the browser.
+// The custom provider has no fixed address, so it adds nothing here.
+function registryBrowserHosts() {
+  const registry = JSON.parse(readFileSync(new URL('../../ordeal/data/providers.json', import.meta.url), 'utf8'));
+  return registry.platforms
+    .filter((platform) => platform.browser === true && platform.base_url)
+    .map((platform) => new URL(platform.base_url).host)
+    .sort();
+}
+
+test('the allowed hosts are exactly the browser providers in the registry', () => {
+  assert.deepEqual([...BROWSER_ALLOWED_HOSTS].sort(), registryBrowserHosts());
+});
+
+test('the connect-src line of the content security policy lists exactly the allowed hosts', () => {
   const netlify = readFileSync(new URL('../../netlify.toml', import.meta.url), 'utf8');
-  const connectSrc = netlify.match(/connect-src ([^;]+);/)[1];
-  for (const host of BROWSER_ALLOWED_HOSTS) {
-    assert.ok(connectSrc.includes(`https://${host}`), `connect-src lists ${host}`);
-  }
+  // The policy is one TOML string split over lines with a trailing backslash, so join those pieces back together.
+  const connectSrc = netlify.match(/connect-src ([^;]+);/)[1].replace(/\\\s*\n\s*/g, ' ');
+  const listed = connectSrc.split(/\s+/).filter((token) => token.startsWith('https://')).map((url) => url.slice(8));
+  assert.deepEqual(listed.sort(), [...BROWSER_ALLOWED_HOSTS].sort());
 });
 
 test('a blocked provider is unavailable with its reason, even when a key is saved for it', () => {
-  const [status] = sideProviderStatuses(['groq'], PLATFORMS, () => true);
+  const [status] = sideProviderStatuses(['off-list'], WITH_OFF_LIST, () => true);
   assert.equal(status.status, 'unavailable');
   assert.match(status.reason, /command line/i);
 });
@@ -83,7 +101,7 @@ test('a provider with no key is missing-key and does not block the others', () =
   const statuses = sideProviderStatuses(['nebius', 'groq'], PLATFORMS, haveKey);
   assert.equal(statuses[0].status, 'missing-key');
   assert.match(statuses[0].reason, /No key is saved for Nebius/);
-  assert.equal(statuses[1].status, 'unavailable');
+  assert.equal(statuses[1].status, 'ready');
 });
 
 test('a provider with a key is ready; an id missing from the list is unavailable', () => {
@@ -95,7 +113,7 @@ test('a provider with a key is ready; an id missing from the list is unavailable
 
 test('only the ready providers are runnable, so a missing key blocks just that provider', () => {
   const statuses = sideProviderStatuses(['nebius', 'together', 'groq'], PLATFORMS, (id) => id === 'nebius' || id === 'together');
-  assert.deepEqual(runnableProviderIds(statuses), ['nebius']);
+  assert.deepEqual(runnableProviderIds(statuses), ['nebius', 'together']);
 });
 
 test('no key text appears in a status, even when a key is saved', () => {
@@ -142,7 +160,8 @@ test('the same-setting check passes for one run or none', () => {
 });
 
 test('a provider on another host is blocked and points to the command line', () => {
-  assert.equal(browserReachability(TOGETHER).reachable, false);
+  assert.equal(browserReachability(OFF_LIST).reachable, false);
+  assert.equal(browserReachability(TOGETHER).reachable, true);
 });
 
 // The labels the panel shows for each state, and which buttons each state allows.

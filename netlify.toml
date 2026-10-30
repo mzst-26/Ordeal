@@ -16,12 +16,18 @@
   for = "/*"
   [headers.values]
     # Only load code, styles, fonts and images from this site. Scripts must be our own files, with no inline code.
-    # The browser may call only the Nebius API for model requests. No CDN is allowed; the site ships its own JS.
-    # Custom model endpoints stay blocked until the owner approves widening connect-src.
+    # The browser may call only the fixed API addresses of the registered providers, listed in connect-src. Each one is
+    # in ordeal/data/providers.json, and a test keeps this list and that file in step. No CDN is allowed.
+    # Custom model endpoints stay blocked, since their address is typed in by the user and cannot be listed here.
     # Frames, form targets and <base> are locked down to stop clickjacking and injected links.
     Content-Security-Policy = """\
       default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; \
-      font-src 'self'; connect-src 'self' https://api.tokenfactory.nebius.com; \
+      font-src 'self'; connect-src 'self' https://router.huggingface.co https://openrouter.ai https://api.together.xyz \
+      https://api.groq.com https://api.fireworks.ai https://api.deepinfra.com https://api.cerebras.ai \
+      https://api.hyperbolic.xyz https://api.novita.ai https://api.featherless.ai https://api.tokenfactory.nebius.com \
+      https://oai.endpoints.kepler.ai.cloud.ovh.net https://api.mistral.ai https://dashscope-intl.aliyuncs.com \
+      https://api.z.ai https://api.moonshot.ai https://api.minimax.io https://api.deepseek.com \
+      https://api.scaleway.ai https://api.siliconflow.com; \
       frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"""
     # Stop browsers from guessing a file type, so a data file cannot run as a script.
     X-Content-Type-Options = "nosniff"
