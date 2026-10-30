@@ -398,7 +398,9 @@ beside it.
 | Runs (`runs.html`) | Lists the saved web runs that the server holds, for everyone who opens it. |
 | Pacing (`pacing.html`) | Explains how calls are paced (see [Pacing calls](#pacing-calls)). |
 
-The browser can call only the Nebius Token Factory, so the website runs Token Factory models only.
+The browser can call only the Nebius Token Factory, so the website runs Token Factory models only. The Compare providers
+panel on the batch page marks every other provider as not available in the browser, and shows the command to run it
+instead: `ordeal test <platform> <model>`.
 
 ### Saved runs and presets
 
@@ -451,9 +453,13 @@ Blobs, and the runs page lists them.
 
 ### Keys on the website
 
-The website asks the visitor to type in their own key. The key is kept in memory only, for that tab. It is not saved to
-browser storage, cookies or the address, and closing the tab removes it. The project's `.env` key is never used on the
-site. No key is stored on the server, and keys never reach it.
+The website asks the visitor to type in their own key. A key is kept in memory for that tab, and is saved to this browser's
+local storage only when the visitor ticks "Remember this key". It is not written to cookies or the address. The project's
+`.env` key is never used on the site. No key is stored on the server, and keys never reach it.
+
+The batch page keeps one key for each provider, so a key for one provider is never sent to another. Each key is sent only
+to its own provider's address. The Compare providers panel lets the visitor pick up to three providers and gives each one
+its own key.
 
 ### Building the site
 
