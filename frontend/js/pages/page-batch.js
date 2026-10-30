@@ -2010,6 +2010,8 @@ async function startConditionRun(condition) {
     concurrency: choices.concurrency,
     onEvent: handleEvent,
     log: page.log,
+    // The provider id of the platform this batch runs on, saved with each reply (the same id the command line uses).
+    provider: page.platform === null ? null : page.platform.id,
   });
   updateControls();
   page.runner.start().catch(handleRunError);

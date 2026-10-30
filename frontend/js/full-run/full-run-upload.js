@@ -28,6 +28,8 @@ export function parseReplyLine(line) {
     step: row.step,
     reply: row.reply,
     user_text: lastUser,
+    // A command-line reply names its provider; a line without one (an older file) gets no provider field.
+    ...(row.provider === undefined ? {} : { provider: row.provider }),
   };
 }
 
