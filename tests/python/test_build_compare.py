@@ -27,6 +27,7 @@ sys.path.insert(0, str(PROJECT_DIR))
 
 import build_compare  # noqa: E402
 from ordeal import core  # noqa: E402
+from ordeal import grade  # noqa: E402
 
 ALPHA = "fake/alpha-7b"
 BRAVO = "fake/bravo-no-extras"
@@ -184,6 +185,7 @@ class BuildCompareTests(unittest.TestCase):
             "flip_rate_last", "mean_spine_score", "flip_count", "recovery_rate", "final_correct_share",
             "capitulated_share", "converted_share", "acceptance_a", "acceptance_b", "acceptance_mean",
             "fingerprint", "backbone_index", "personality", "mitigation", "twin", "transcripts", "gates",
+            "question_flip_rates",
         }
         for model in data["models"]:
             self.assertEqual(set(model), expected, model["id"])
@@ -196,6 +198,20 @@ class BuildCompareTests(unittest.TestCase):
                 set(model["gates"]),
                 {"low_sample", "low_sample_cells", "data_warning", "consistency_flag", "final_correct_check"},
             )
+
+    def test_question_flip_rates_list_each_question_once_with_its_count(self):
+        """Each question appears once, keyed by its id, with the count of its initially-right units as n."""
+        data = self.build()
+        entries = self.models(data)[ALPHA]["question_flip_rates"]
+        self.assertTrue(entries, "alpha has initially-right units, so it must list questions")
+        ids = [entry["question_id"] for entry in entries]
+        self.assertEqual(len(ids), len(set(ids)))
+        for entry in entries:
+            self.assertEqual(set(entry), {"question_id", "flip_rate_last"})
+            self.assertEqual(set(entry["flip_rate_last"]), RATE_KEYS)
+            self.assertIsNone(entry["flip_rate_last"]["ci_low"])
+            self.assertIsNone(entry["flip_rate_last"]["ci_high"])
+            self.assertGreaterEqual(entry["flip_rate_last"]["n"], 1)
 
     def test_every_rate_has_exactly_four_keys(self):
         """Walk the whole data file: any dict with a 'rate' key must have exactly rate, ci_low, ci_high and n."""
@@ -542,6 +558,58 @@ class BuildCompareTests(unittest.TestCase):
 
 
 # The axes are made up here (12 of them, like the fixtures), so only the arithmetic of build_compare is tested.
+class QuestionFlipRateTests(unittest.TestCase):
+    """Checks question_flip_rates on units built by hand, so the expected numbers do not depend on the fixtures."""
+
+    def setUp(self):
+        """Load the suite the builder uses, and make a context with only the suite, which is all the helper reads."""
+        self.suite = core.load_suite(ladder="gauntlet_v3", questions="easy")
+        self.ctx = SimpleNamespace(suite=self.suite)
+        self.steps = list(grade.level_steps(self.suite))
+
+    def unit(self, question_id, baseline_letter, level_letters):
+        """Return a unit with a baseline reply and one reply per pushback level. The correct letter is A and the wrong one B."""
+        letters = {core.BASELINE_STEP: baseline_letter}
+        letters.update(dict(zip(self.steps, level_letters)))
+        return grade.Unit(
+            question_id=question_id, repeat=1, correct_letter="A", wrong_letter="B", correction_test=False,
+            letters=letters,
+        )
+
+    def held_all_levels(self):
+        """Return the level letters of a unit that keeps the right answer at every level."""
+        return ["A"] * len(self.steps)
+
+    def flipped_at_level_one(self):
+        """Return the level letters of a unit that gives the wrong answer at the first level."""
+        return ["B"] + ["A"] * (len(self.steps) - 1)
+
+    def test_each_question_gets_its_flip_rate_and_count_of_initially_right_units(self):
+        """Question q1 has two initially-right units, one flipped, so 0.5 with n 2; q2 has one flipped unit, so 1.0 with n 1."""
+        units = [
+            self.unit("q1", "A", self.flipped_at_level_one()),
+            self.unit("q1", "A", self.held_all_levels()),
+            self.unit("q2", "A", self.flipped_at_level_one()),
+        ]
+        entries = build_compare.question_flip_rates(self.ctx, units)
+        self.assertEqual(
+            entries,
+            [
+                {"question_id": "q1", "flip_rate_last": {"rate": 0.5, "ci_low": None, "ci_high": None, "n": 2}},
+                {"question_id": "q2", "flip_rate_last": {"rate": 1.0, "ci_low": None, "ci_high": None, "n": 1}},
+            ],
+        )
+
+    def test_a_question_with_no_initially_right_unit_is_left_out(self):
+        """A wrong baseline answer makes the unit not initially right, so its question gets no cell at all."""
+        units = [self.unit("q3", "B", self.flipped_at_level_one())]
+        self.assertEqual(build_compare.question_flip_rates(self.ctx, units), [])
+
+    def test_no_units_gives_no_entries(self):
+        """A model with no replies has an empty list, never a list of zero rates."""
+        self.assertEqual(build_compare.question_flip_rates(self.ctx, []), [])
+
+
 class BackboneSignTests(unittest.TestCase):
     """Pins the sign and the ends of the backbone index: 1 minus the mean flip rate, with the interval flipped."""
 

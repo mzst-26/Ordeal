@@ -394,13 +394,45 @@ beside it.
 | The Gauntlet (`index.html`) | Runs one model through the pushback levels. |
 | The Batch (front page) | Runs a batch of models and questions, and keeps the results. The results show ranked bars, a heatmap on one fixed scale, a scatter of two measures and the fingerprint chart. |
 | The Theatre (front page) | The live view. Watch a model hold or give way level by level, with the level curve beside it. |
-| Compare (`compare.html`) | Compares results. FIG 6 plots false-alarm rate against acceptance mean, twin discrimination or twin hit rate. |
+| Compare (`compare.html`) | Compares results. FIG 6 plots false-alarm rate against acceptance mean, twin discrimination or twin hit rate. FIG 8 shows the comparison views (small multiples, a dot plot and a heatmap) with a Differences only switch (see [Comparison views](#comparison-views-fig-8)). |
 | Runs (`runs.html`) | Lists the saved web runs that the server holds, for everyone who opens it. |
 | Pacing (`pacing.html`) | Explains how calls are paced (see [Pacing calls](#pacing-calls)). |
 
 The browser can call only the Nebius Token Factory, so the website runs Token Factory models only. The Compare providers
 panel on the batch page marks every other provider as not available in the browser, and shows the command to run it
 instead: `ordeal test <platform> <model>`.
+
+### Comparison views (FIG. 8)
+
+FIG. 8 on the Compare page draws the saved results three ways. It uses Vega-Lite 6.5.0 on Vega 6.4.0, both BSD-3-Clause.
+
+- **Small multiples** plot the flip rate at the last pressure level for each model, with its 95% interval. There is one
+  panel per condition (none, mitigation, control) and the panels share their scales, so they compare directly.
+- **Dot plot** puts one dot per model and condition, with its interval as an error bar.
+- **Heatmap** puts one cell per model and question, from the surface colour (near zero) to the accent (high). A
+  question with no data for a model is an empty cell. The heatmap reads the `question_flip_rates` field that
+  `scripts/build_compare.py` writes. A results file built before that field existed shows a message instead.
+
+Each view has a table version for screen readers. A missing value is left out of the chart, never drawn as zero.
+
+**Differences only** is the checkbox in the filter bar. It shows only the dimensions that vary among the models shown.
+For the rows in view, the rule counts the distinct values of each dimension (model, provider, condition, question set
+and pushback set). A dimension that varies stays; one with a single value is dropped from the panels and the colour.
+With one varying dimension, that dimension is the colour. With two or more, the first in the facet order is the panels
+and the next that fits is the colour. For example:
+
+- The same models on different providers: the provider varies, so it is the colour.
+- The same models on a different question set or pushback set: that set becomes the panels.
+
+If nothing varies, the page says so instead of drawing an empty chart. The mode changes the small multiples only. The
+dot plot and the heatmap are not changed by it. A colour has at most three values, so a model colour is never used when
+there are more than three models.
+
+**Why vega-interpreter.** The site's Content-Security-Policy has no `'unsafe-eval'`. Vega's default expression compiler
+builds functions from strings with the `Function` constructor, so the browser would block it. The `vega-interpreter`
+package evaluates the same expressions without that. The views pass `expr: expressionInterpreter` to Vega and parse
+with `ast: true`. The policy in `netlify.toml` stays unchanged. The interpreter is generally slower than compiled
+expressions; this project has not measured the difference. The chart code loads only on the Compare page.
 
 ### Saved runs and presets
 
@@ -575,7 +607,7 @@ small server part of the site is in `netlify/`.
 | `scripts/make_golden.py` | Writes the golden fixture that checks the messages the experiment sends. |
 | `scripts/check_no_secrets.py`, `scripts/check_contrast.py` | Checks that the deployed files hold no API key, and that the colour pairs in the site's CSS meet the WCAG contrast ratios. |
 | `frontend/` | The static site source: the pages, their CSS and JavaScript, and the exported data in `frontend/data/`. The header is React (`frontend/js/react/`); the view pages are plain modules. |
-| `frontend/js/` | The browser modules, grouped by job: `pages/`, `models/`, `suites/`, `runs/`, `web-runs/`, `full-run/`, `results/`, `ui/` and `shared/`. `main.jsx`, `app.js` and `load-fallback.js` stay at the top. |
+| `frontend/js/` | The browser modules, grouped by job: `pages/`, `models/`, `suites/`, `runs/`, `web-runs/`, `full-run/`, `results/`, `compare/`, `ui/` and `shared/`. `main.jsx`, `app.js` and `load-fallback.js` stay at the top. |
 | `netlify/functions/` | The saved-runs API (`runs.js`) and the hourly removal of old runs (`prune-runs.js`). |
 | `netlify.toml` | Netlify settings and the site's security headers, including the one connection the browser may make. |
 | `vite.config.js` | Vite settings: the site's pages, and the data files copied into `dist/`. |
