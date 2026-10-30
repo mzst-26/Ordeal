@@ -8,6 +8,7 @@ import {
   createProviderKeys,
   keySlotFor,
 } from '../../frontend/js/engine/provider-keys.js';
+import { REMEMBER_STORAGE_NAME, REMEMBER_PLATFORM_NAME } from '../../frontend/js/engine/token.js';
 
 // Fake keys of the right shape. They are not real keys.
 const KEY_A = 'key-alpha-' + '1'.repeat(30);
@@ -184,4 +185,55 @@ test('scenario: no key text reaches the console during set, read, mask and clear
     Object.assign(console, original);
   }
   assert.deepEqual(seen, []);
+});
+
+// Migration: the old single vault saved its key under two names. A key saved there must still work after the change,
+// under the provider id it was saved for, and nothing may be deleted until it has been moved.
+test('a key saved by the old single vault moves to the per-provider store under its platform id', () => {
+  const storage = fakeStorage();
+  storage.setItem(REMEMBER_STORAGE_NAME, KEY_A);
+  storage.setItem(REMEMBER_PLATFORM_NAME, 'nebius');
+  const keys = createProviderKeys({ storage });
+  assert.equal(keys.get('nebius'), KEY_A);
+  assert.equal(keys.remembered('nebius'), true);
+  assert.equal(keys.has('groq'), false);
+  assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), null);
+  assert.equal(storage.getItem(REMEMBER_PLATFORM_NAME), null);
+});
+
+test('the migrated key is still there after a reload, with no old copy left behind', () => {
+  const storage = fakeStorage();
+  storage.setItem(REMEMBER_STORAGE_NAME, KEY_A);
+  storage.setItem(REMEMBER_PLATFORM_NAME, 'nebius');
+  createProviderKeys({ storage }).get('nebius');
+  assert.equal(createProviderKeys({ storage }).get('nebius'), KEY_A);
+  assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), null);
+});
+
+test('an old key never replaces a key already saved for that provider, and is not deleted', () => {
+  const storage = fakeStorage();
+  storage.setItem(PROVIDER_KEYS_STORAGE_NAME, JSON.stringify({ nebius: KEY_B }));
+  storage.setItem(REMEMBER_STORAGE_NAME, KEY_A);
+  storage.setItem(REMEMBER_PLATFORM_NAME, 'nebius');
+  const keys = createProviderKeys({ storage });
+  assert.equal(keys.get('nebius'), KEY_B);
+  assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), KEY_A);
+});
+
+test('an old key is kept in storage when the move cannot be saved, and still works for this page', () => {
+  const storage = fakeStorage();
+  storage.setItem(REMEMBER_STORAGE_NAME, KEY_A);
+  storage.setItem(REMEMBER_PLATFORM_NAME, 'nebius');
+  storage.setItem = () => { throw new Error('blocked'); };
+  const keys = createProviderKeys({ storage });
+  assert.equal(keys.get('nebius'), KEY_A);
+  assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), KEY_A);
+});
+
+test('an old value that is not a plausible key, or has no platform, is left alone', () => {
+  const storage = fakeStorage();
+  storage.setItem(REMEMBER_STORAGE_NAME, 'not a key');
+  storage.setItem(REMEMBER_PLATFORM_NAME, 'nebius');
+  assert.equal(createProviderKeys({ storage }).has('nebius'), false);
+  assert.equal(storage.getItem(REMEMBER_STORAGE_NAME), 'not a key');
 });
