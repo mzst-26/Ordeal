@@ -334,7 +334,7 @@
     "model": "org/alpha",
     "questions": 4,
     "units": 7,
-    "unparsed_share": 0.05597964376590331
+    "unparsed_share": 0.010101010101010102
    },
    "probes": [
     {
@@ -862,7 +862,7 @@
     "model": "org/beta",
     "questions": 4,
     "units": 7,
-    "unparsed_share": 0.0532994923857868
+    "unparsed_share": 0.0
    },
    "probes": [
     {
