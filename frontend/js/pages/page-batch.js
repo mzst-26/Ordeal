@@ -29,10 +29,11 @@ import { hostOfCustomUrl, validateCustomModel } from "../engine/custom-model.js"
 import { createBatchRunner } from "../engine/runner.js";
 import { createPaceTracker, estimateRemaining, formatDuration } from "../engine/run-pace.js";
 import { describeStop, stopSentence } from "../engine/stop-reason.js";
-import { adviseCap, adviseConcurrency, adviseMaxTokens } from "../engine/run-advice.js";
+import { CAP_MARGIN, adviseCap, adviseConcurrency, adviseMaxTokens, capToFinish } from "../engine/run-advice.js";
 import { createPlatformPacer } from "../engine/platform-pacer.js";
 import { buildStatusView } from "./batch-status-view.js";
 import { addSession, emptyTotals, readTotals, sumTotals } from "../store/run-totals.js";
+import { countsToShow, unitsDoneToShow } from "../runs/batch-progress.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { gradeCondition, gradeProbes } from "../engine/grade.js";
 import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
@@ -302,12 +303,12 @@ const page = {
   pacer: createPlatformPacer(), // one pacer for the page, so a park from one Start still holds in the next
   tracker: null,              // the pace tracker of this Start, or null before the first Start
   condition: null,            // the counts of the condition now running, made by freshConditionCounts()
-  runnerDone: 0,              // the done count the runner of this condition last reported
+  condDone: {},               // the done count each condition's runner last reported, in this Start
+  startSaved: {},             // the units already saved for each condition's run, before this Start
   runBase: emptyTotals(),     // the saved totals of the run now running, before this condition's counts
   startBases: {},            // the saved totals of each condition's run before this Start, keyed by condition
   conditionStartSeconds: 0,   // the active seconds when this condition began
   freshByUnit: new Map(),     // the fresh calls each unit still running has made, by unit key
-  finishedUnitCalls: [],      // the fresh calls each finished unit made, for the time estimate
   unitsStarted: new Set(),    // the units this Start has started, by unit key, each counted once
   unitsUnusable: new Set(),   // the units that stopped at an empty or cut-short reply, by unit key, each counted once
   wait: null,                 // a wait in progress: { reason, seconds, untilMs }, or null
@@ -1904,6 +1905,9 @@ async function beginRun(confirmedId) {
     updateControls();
     return;
   }
+  // The saved sets of this Start are read before the counts are reset, so the bar starts from the units already saved.
+  page.startBases = await loadStartBases(choices, fromScratch);
+  raiseCapToFinish(choices);
   const { config } = page.data;
   page.phase = "running";
   page.budgetHit = false;
@@ -1912,9 +1916,10 @@ async function beginRun(confirmedId) {
   // Once a run has started, the cap the user sees is kept, even if the plan changes later.
   page.capTouched = true;
   resetCounts(unitCount(choices));
+  page.condDone = {};
+  recountDone(choices.conditions);
   page.tracker = createPaceTracker();
   page.tracker.start();
-  page.finishedUnitCalls = [];
   page.freshByUnit = new Map();
   page.unitSteps.clear();
   page.unitsStarted = new Set();
@@ -1946,7 +1951,6 @@ async function beginRun(confirmedId) {
     onWait: handleWait,
   });
   // Read before the first condition starts, so the failures of earlier Starts are the same for every condition.
-  page.startBases = await loadStartBases(choices, fromScratch);
   const [first, ...rest] = choices.conditions;
   page.conditionsLeft = rest;
   await startConditionRun(first);
@@ -1973,7 +1977,6 @@ async function startConditionRun(condition) {
   page.resumeRunId = null;
   page.condition = freshConditionCounts();
   page.conditionStartSeconds = page.tracker.activeSeconds();
-  page.runnerDone = 0;
   page.runBase = await loadRunBase(page.runId);
   page.log.record("run-started", {
     run_id: page.runId,
@@ -2401,10 +2404,7 @@ function saveFinishedUnit(event) {
   const key = eventUnitKey(event);
   const records = page.unitSteps.get(key) ?? [];
   page.unitSteps.delete(key);
-  // A unit that only reused replies took no time, so it does not count towards the time estimate.
-  const fresh = page.freshByUnit.get(key) ?? 0;
   page.freshByUnit.delete(key);
-  if (fresh > 0) page.finishedUnitCalls.push(fresh);
   const runId = page.runId;
   if (runId === null) {
     return;
@@ -2470,8 +2470,8 @@ function onUnitFailed(event) {
  * only the new finished units are added. The calls, replies and failures are counted as each one happens.
  */
 function onProgress(event) {
-  page.counts.done += event.done - page.runnerDone;
-  page.runnerDone = event.done;
+  page.condDone[page.runCondition] = event.done;
+  recountDone(page.batchChoices.conditions);
   renderProgress();
   scheduleResults();
   updateStatusPanel();
@@ -2661,8 +2661,12 @@ function conditionTotals() {
  */
 async function loadStartBases(choices, fromScratch) {
   const bases = {};
+  page.startSaved = {};
   if (page.storage === null || fromScratch) {
-    for (const condition of choices.conditions) bases[condition] = emptyTotals();
+    for (const condition of choices.conditions) {
+      bases[condition] = emptyTotals();
+      page.startSaved[condition] = 0;
+    }
     return bases;
   }
   let runs = [];
@@ -2676,6 +2680,7 @@ async function loadStartBases(choices, fromScratch) {
     const resumed = condition === first && page.resumeRunId !== null ? runs.find((run) => run.id === page.resumeRunId) : undefined;
     const carried = resumed ?? findResumableRun(runs, resumeSignature(batchConfig({ ...choices, condition })));
     bases[condition] = readTotals(carried);
+    page.startSaved[condition] = carried ? Object.keys(carried.results ?? {}).length : 0;
   }
   return bases;
 }
@@ -2745,8 +2750,7 @@ function adviceRows() {
     platformLimit: page.pacer.status().limit,
   });
   const rows = [{ label: "Concurrency", control: "concurrency-input", value: concurrency.value, note: concurrency.note }];
-  const unitsLeft = page.counts.total - page.counts.done;
-  const cap = capAdvice(unitsLeft);
+  const cap = capAdvice();
   if (cap !== null) rows.push(cap);
   // The reply size is judged by units, because one bad reply stops the unit it is in.
   const maxTokens = adviseMaxTokens({
@@ -2758,24 +2762,45 @@ function adviceRows() {
   return rows;
 }
 
+/** Return how many steps this Start still has to send: those with no saved reply, across every condition. */
+function remainingSteps(choices) {
+  const plan = planFor(choices);
+  return plan === null ? 0 : plan.totals.atMostNew;
+}
+
+/**
+ * Raise the cap of this Start to the calls the steps still to send need. The steps with a saved reply are not counted, so a
+ * cap left over from an earlier run cannot stop a run that has only its missing steps left. A raise is written in the log.
+ */
+function raiseCapToFinish(choices) {
+  const stepsLeft = remainingSteps(choices);
+  const raised = capToFinish({ cap: choices.cap, stepsLeft, attemptsPerStep: 1 });
+  if (raised === choices.cap) return;
+  addLogEntry("Note", `The call cap was raised from ${choices.cap} to ${raised} for the ${formatCount(stepsLeft)} steps still to send.`);
+  choices.cap = raised;
+  page.dom.cap.value = String(raised);
+  page.capTouched = true;
+}
+
+/** Set the units done on the page's counts from each condition's saved and finished units, then show them. */
+function recountDone(conditions) {
+  page.counts.done = unitsDoneToShow(conditions, page.startSaved, page.condDone);
+}
+
 /**
  * Return the call-cap suggestion, or null until the run has finished a unit to measure from. Each step may take more
  * than one attempt, so the attempts seen so far are used.
  */
-function capAdvice(unitsLeft) {
-  const perUnit = averageOf(page.finishedUnitCalls);
-  if (perUnit === null || unitsLeft <= 0) return null;
+function capAdvice() {
+  const choices = page.batchChoices;
+  if (choices === null) return null;
+  const stepsLeft = remainingSteps(choices);
+  if (stepsLeft <= 0) return null;
   const calls = Math.max(1, page.counts.calls);
   const attemptsPerStep = (calls + page.counts.retries) / calls;
-  const cap = adviseCap({ stepsLeft: unitsLeft * perUnit, attemptsPerStep });
+  const cap = adviseCap({ stepsLeft, attemptsPerStep: attemptsPerStep * CAP_MARGIN });
   const note = cap.note ?? `About ${cap.value} calls are needed for the rest of this run.`;
   return { label: "Call cap", control: "batch-cap-input", value: cap.value, note };
-}
-
-/** Return the average of a list of numbers, or null when the list is empty. */
-function averageOf(numbers) {
-  if (numbers.length === 0) return null;
-  return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
 }
 
 /**
@@ -2867,7 +2892,8 @@ function progressFillClass(percent) {
 
 /** Draw the progress bar, its aria value and the counts line. The width comes from a CSS class, not a style. */
 function renderProgress() {
-  const { done, total, calls, reused, failed } = page.counts;
+  const { done, total } = page.counts;
+  const { calls, reused, failed } = countsToShow(sumTotals(Object.values(page.startBases)), page.counts);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   page.dom.progressFill.className = progressFillClass(percent);
   page.dom.progressTrack.setAttribute("aria-valuenow", String(percent));
