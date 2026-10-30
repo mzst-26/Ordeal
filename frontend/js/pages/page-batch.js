@@ -37,7 +37,7 @@ import { addSession, emptyTotals, readTotals, sumTotals } from "../store/run-tot
 import { countsToShow, idleCountsFor, unitsDoneToShow } from "../runs/batch-progress.js";
 import { buildCacheIndex, cacheKey, planAllModels } from "../engine/planner.js";
 import { gradeCondition, gradeProbes } from "../engine/grade.js";
-import { MEASURES, heatmapMatrix, rankModels, shareOfMax, theoreticalMax } from "../results/analytics.js";
+import { MEASURES, rankModels, shareGrid, shareOfMax, theoreticalMax } from "../results/analytics.js";
 import { renderResultsFigures } from "../results/batch-figures.js";
 import { mountFingerprintFigure } from "../results/fingerprint-figure.js";
 import { clear, el, formatNumber } from "../ui/ui.js";
@@ -3188,15 +3188,18 @@ function buildRankBlock(ranked, measure) {
   ]);
 }
 
-/** Build the heatmap: models in ranked order as rows, measures as columns, each column scaled by normalise. */
+/**
+ * Build the heatmap: models in ranked order as rows, measures as columns. Each cell's tint is its share of the measure's
+ * top, the same scale as the ranked bars, so a colour means the same thing whatever else is ticked.
+ */
 function buildHeatBlock(ranked, measures) {
-  const matrix = heatmapMatrix(ranked, measures.map((measure) => measure.key));
+  const shares = shareGrid(ranked, measures);
   const header = el("tr", {}, [
     el("th", { scope: "col", text: "Model" }),
     ...measures.map((measure) => el("th", { scope: "col", text: measure.label })),
   ]);
   const bodyRows = ranked.map((row, rowIndex) => {
-    const cells = measures.map((measure, columnIndex) => heatCell(row, measure, matrix.cells[rowIndex][columnIndex]));
+    const cells = measures.map((measure, columnIndex) => heatCell(row, measure, shares[rowIndex][columnIndex]));
     const tr = el("tr", { "data-model-index": row.index }, [
       el("th", { scope: "row", text: shortName(row.model), title: row.model }),
       ...cells,
@@ -3206,7 +3209,7 @@ function buildHeatBlock(ranked, measures) {
   });
   return el("section", { className: "results-section" }, [
     el("h3", { className: "results-subhead", text: "Heatmap" }),
-    el("p", { className: "field-hint", text: "Each column is scaled across the ticked models: the strongest tint is the best model, the faintest the worst." }),
+    el("p", { className: "field-hint", text: "Each tint is the value's share of the most the measure can be, on the same scale as the ranked bars above." }),
     el("div", { className: "results-scroll" }, [
       el("table", { className: "heat-table" }, [
         el("caption", { className: "visually-hidden", text: "Heatmap of the gauntlet measures for each ticked model" }),

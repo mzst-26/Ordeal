@@ -54,20 +54,6 @@ function measureFor(key) {
   return measure;
 }
 
-/** Scale the usable values to 0..1 across the list. With higherIsBetter false the scale is inverted, so 1 is best. */
-export function normalise(values, higherIsBetter) {
-  const usable = values.filter(isUsable);
-  if (usable.length === 0) return values.map(() => null);
-  const low = Math.min(...usable);
-  const high = Math.max(...usable);
-  return values.map((value) => {
-    if (!isUsable(value)) return null;
-    if (low === high) return 0.5;
-    const scaled = (value - low) / (high - low);
-    return higherIsBetter ? scaled : 1 - scaled;
-  });
-}
-
 /** Return the rows sorted best first by one measure. Nulls go last, and ties keep the input order. */
 export function rankModels(rows, measureKey) {
   const { higherIsBetter } = measureFor(measureKey);
@@ -102,14 +88,14 @@ export function shareOfMax(value, max) {
   return Math.min(1, Math.max(0, value / max));
 }
 
-/** Build a model-by-measure grid where each measure column is normalised with normalise(). */
-export function heatmapMatrix(rows, measures) {
-  const columns = measures.map((key) => {
-    const { higherIsBetter } = measureFor(key);
-    return normalise(rows.map((row) => row.measures[key]), higherIsBetter);
-  });
-  const cells = rows.map((_, i) => columns.map((column) => column[i]));
-  return { models: rows.map((row) => row.model), measures: [...measures], cells };
+/**
+ * Build a model-by-measure grid where each cell is the value's share of the most its measure can be (shareOfMax). A cell
+ * depends only on its own model and measure, so its colour does not change when other models are ticked or unticked.
+ * The old column scaling did change, because it stretched each column across the ticked models. Each measure carries its
+ * top in `max`, the same top the ranked bars use. Missing values stay null.
+ */
+export function shareGrid(rows, measures) {
+  return rows.map((row) => measures.map((measure) => shareOfMax(row.measures[measure.key], measure.max)));
 }
 
 /** Return min, max, mean and the count of usable numbers. The statistics are null when the count is 0. */

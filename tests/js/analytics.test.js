@@ -2,7 +2,7 @@
 // shaped like { model, measures: { <key>: number|null } }, and never touches the DOM or the network.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MEASURES, normalise, rankModels, heatmapMatrix, summaryStats, shareOfMax, theoreticalMax } from "../../frontend/js/results/analytics.js";
+import { MEASURES, rankModels, shareGrid, summaryStats, shareOfMax, theoreticalMax } from "../../frontend/js/results/analytics.js";
 
 test("MEASURES lists the eight batch table measures with their labels and directions", () => {
   assert.deepEqual(MEASURES.map((m) => m.label), [
@@ -26,36 +26,6 @@ test("MEASURES lists the eight batch table measures with their labels and direct
     converted_share: false,
     acceptance_mean: true,
   });
-});
-
-test("normalise returns an empty array for an empty input", () => {
-  assert.deepEqual(normalise([], true), []);
-});
-
-test("normalise keeps null and NaN as null and does not count them", () => {
-  assert.deepEqual(normalise([null, 2, NaN, 4], true), [null, 0, null, 1]);
-});
-
-test("normalise returns all nulls when no value is usable", () => {
-  assert.deepEqual(normalise([null, NaN, null], true), [null, null, null]);
-});
-
-test("normalise gives a single value the middle score", () => {
-  assert.deepEqual(normalise([7], true), [0.5]);
-  assert.deepEqual(normalise([7], false), [0.5]);
-});
-
-test("normalise gives 0.5 to every non-null value when all values are equal", () => {
-  assert.deepEqual(normalise([3, 3, null, 3], true), [0.5, 0.5, null, 0.5]);
-  assert.deepEqual(normalise([3, 3], false), [0.5, 0.5]);
-});
-
-test("normalise scales a higher-is-better list so the largest value is 1", () => {
-  assert.deepEqual(normalise([10, 20, 30], true), [0, 0.5, 1]);
-});
-
-test("normalise inverts a lower-is-better list so the smallest value is 1", () => {
-  assert.deepEqual(normalise([10, 20, 30], false), [1, 0.5, 0]);
 });
 
 test("rankModels sorts best first and puts nulls last", () => {
@@ -96,26 +66,6 @@ test("rankModels does not change the input array", () => {
   assert.deepEqual(rows.map((r) => r.model), ["a", "b"]);
 });
 
-test("heatmapMatrix normalises each measure column and keeps nulls as null", () => {
-  const rows = [
-    { model: "alpha", measures: { baseline_accuracy: 0.2, capitulated_share: 0.5, units: null } },
-    { model: "beta", measures: { baseline_accuracy: 0.6, capitulated_share: 0.1, units: 40 } },
-  ];
-  const matrix = heatmapMatrix(rows, ["baseline_accuracy", "capitulated_share", "units"]);
-  assert.deepEqual(matrix, {
-    models: ["alpha", "beta"],
-    measures: ["baseline_accuracy", "capitulated_share", "units"],
-    cells: [
-      [0, 0, null],
-      [1, 1, 0.5],
-    ],
-  });
-});
-
-test("heatmapMatrix returns empty lists for no models", () => {
-  assert.deepEqual(heatmapMatrix([], ["units"]), { models: [], measures: ["units"], cells: [] });
-});
-
 test("summaryStats ignores null, NaN and non-number values", () => {
   assert.deepEqual(summaryStats([1, null, NaN, 3, "4", undefined, 5]), { min: 1, max: 5, mean: 3, count: 3 });
 });
@@ -153,4 +103,31 @@ test("a value is drawn as its share of the top, not of the best model", () => {
 test("shareOfMax gives null for a missing value or a top of 0", () => {
   assert.equal(shareOfMax(null, 13), null);
   assert.equal(shareOfMax(3, 0), null);
+});
+
+// The heatmap tints each cell by its share of the measure's top. The test that matters is the fixed scale: adding or
+// removing another ticked model must not change a model's tints, which the old column scaling did.
+test("shareGrid gives each cell its share of the measure's top and keeps missing values null", () => {
+  const rows = [
+    { model: "alpha", measures: { units: 5, capitulated_share: null } },
+    { model: "beta", measures: { units: 10, capitulated_share: 0.5 } },
+  ];
+  const measures = [{ key: "units", max: 20 }, { key: "capitulated_share", max: 1 }];
+  assert.deepEqual(shareGrid(rows, measures), [
+    [0.25, null],
+    [0.5, 0.5],
+  ]);
+});
+
+test("shareGrid does not change a model's cells when another model is ticked", () => {
+  const alpha = { model: "alpha", measures: { units: 5, capitulated_share: 0.2 } };
+  const beta = { model: "beta", measures: { units: 10, capitulated_share: 0.9 } };
+  const measures = [{ key: "units", max: 20 }, { key: "capitulated_share", max: 1 }];
+  const alone = shareGrid([alpha], measures)[0];
+  const withBeta = shareGrid([beta, alpha], measures)[1];
+  assert.deepEqual(withBeta, alone);
+});
+
+test("shareGrid returns no rows for no models", () => {
+  assert.deepEqual(shareGrid([], [{ key: "units", max: 20 }]), []);
 });
