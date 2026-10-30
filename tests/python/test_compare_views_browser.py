@@ -3,13 +3,16 @@
 The test builds the site, serves dist/ on 127.0.0.1, and loads compare.html with the Content-Security-Policy from
 netlify.toml added to each response. The site's real CSP is not applied by the local server, so this test adds it.
 A CSP violation is then a console error, and the test fails on any. It turns on "Differences only", checks that Vega
-draws a chart, and checks that the page injected no style element. Requests to any other host are aborted.
-Nothing in the project is changed; the built site is the only output, as in test_compare_browser.py.
+draws a chart, and checks that the page injected no style element. It also opens the heatmap, which ECharts draws, and
+checks a cell's tooltip. Requests to any other host are aborted.
+Nothing in the project is changed; the built site is the only output, as in test_compare_browser.py. The shipped
+results have no per-question rates, which the heatmap needs, so the heatmap test adds them to the page in memory.
 
 Run from the project folder:
     .venv-spine/bin/python -m unittest tests.python.test_compare_views_browser -v
 """
 
+import json
 import re
 import socket
 import subprocess
@@ -137,8 +140,54 @@ def serve_with_policy(route):
     route.fulfill(response=response, headers=headers)
 
 
+# The embedded results block in compare.html. The page reads its data from this script element, not from a request.
+EMBEDDED_DATA_RE = re.compile(r'(<script id="compare-data" type="application/json">)(.*?)(</script>)', re.DOTALL)
+# The number of questions the heatmap test adds to each model.
+QUESTION_COUNT = 12
+# The heatmap's tooltip title for a cell's flip rate. It is the same title the Vega views use.
+HEATMAP_RATE_TITLE = "Flip rate at last level"
+
+
+def question_rate(model_index, question_index):
+    """A flip rate from a fixed pattern, so the test knows the value it hovers over. The first model's first question
+    has no rate (null), which the heatmap must leave as an empty cell, not a zero."""
+    if model_index == 0 and question_index == 0:
+        return None
+    return ((model_index * 5 + question_index * 3) % 10) / 10
+
+
+def with_question_rates(html):
+    """The compare page with a per-question flip rate for each model, added to the embedded results in memory only."""
+    match = EMBEDDED_DATA_RE.search(html)
+    if match is None:
+        raise RuntimeError("compare.html has no embedded results block to add question rates to.")
+    data = json.loads(match.group(2))
+    for model_index, model in enumerate(data["models"]):
+        model["question_flip_rates"] = [
+            {
+                "question_id": f"q{question:02d}",
+                "flip_rate_last": {"rate": question_rate(model_index, question), "ci_low": None, "ci_high": None, "n": 4},
+            }
+            for question in range(QUESTION_COUNT)
+        ]
+    return html[:match.start(2)] + json.dumps(data) + html[match.end(2):]
+
+
+def serve_compare_request(route):
+    """Routes one request. The compare page gets the per-question rates; every other request is served as usual."""
+    if urlparse(route.request.url).path != "/compare.html":
+        serve_with_policy(route)
+        return
+    response = route.fetch()
+    headers = dict(response.headers)
+    # The body changes, so the length the server sent no longer matches; the browser works it out instead.
+    headers.pop("content-length", None)
+    headers["content-security-policy"] = _POLICY
+    route.fulfill(response=response, body=with_question_rates(response.text()), headers=headers)
+
+
 class CompareViewsBrowserTest(unittest.TestCase):
-    """One scenario: open the compare page under the real CSP, turn on differences only, and check the chart."""
+    """Two scenarios: open the compare page under the real CSP, then check Vega's differences-only chart and the ECharts heatmap."""
 
     def test_differences_only_draws_a_vega_chart_with_no_csp_errors(self):
         """Vega draws the small multiples, the differences-only note appears, and the console has no errors."""
@@ -168,6 +217,46 @@ class CompareViewsBrowserTest(unittest.TestCase):
             # Hovering a mark runs Vega's tooltip handler, which must use the page's own tooltip and no injected style.
             page.locator("#fig-views-root .views-chart .mark-symbol path").first.hover()
             expect(page.locator("#compare-tooltip")).to_contain_text("Flip rate at last level", timeout=LONG_MS)
+            injected_styles = page.evaluate("document.querySelectorAll('style').length")
+        finally:
+            context.close()
+
+        self.assertEqual(console_errors, [], "the page logged console errors")
+        self.assertEqual(page_errors, [], "the page raised uncaught errors")
+        self.assertEqual(injected_styles, 0, "the page injected a style element, which style-src 'self' would block")
+
+    def test_heatmap_draws_with_echarts_and_a_cell_tooltip_with_no_csp_errors(self):
+        """ECharts draws the heatmap on a canvas, a hovered cell shows its rate, and the console has no errors."""
+        console_errors = []
+        page_errors = []
+        context = _BROWSER.new_context(viewport=DESKTOP)
+        context.route("**/*", serve_compare_request)
+        page = context.new_page()
+        page.on(
+            "console",
+            lambda message: console_errors.append(f"{message.text} @ {message.location}")
+            if message.type == "error"
+            else None,
+        )
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        try:
+            page.goto(_BASE_URL + "/compare.html", wait_until="load")
+            page.locator("#fig-views-root label.segmented-option", has_text="Heatmap").click()
+            # ECharts draws to canvas layers (the canvas renderer keeps a few), not to Vega's SVG, so the heatmap has
+            # canvases and no SVG chart in its place. Every layer has the same size, so the first one gives the box.
+            canvas = page.locator("#fig-views-root .views-chart canvas").first
+            expect(canvas).to_be_visible(timeout=LONG_MS)
+            self.assertEqual(page.locator("#fig-views-root .views-chart svg").count(), 0)
+            # The filter bar sticks to the top of the window and covers its top 400 px, so the chart is scrolled to sit
+            # below it. Otherwise the pointer would land on the bar, not on the chart.
+            canvas.evaluate("element => { element.scrollIntoView({block: 'start'}); window.scrollBy(0, -450); }")
+            box = canvas.bounding_box()
+            # The plot starts 140 px from the left and 40 px from the top (the margins in echarts-heatmap.js). It is 320 px
+            # wide, the minimum, so 12 questions give columns of 320 / 12 px. The pointer goes to the middle of the second
+            # column in the first model row, a cell whose rate is 30 per cent.
+            column_width = 320 / QUESTION_COUNT
+            page.mouse.move(box["x"] + 140 + 1.5 * column_width, box["y"] + 60)
+            expect(page.locator("#compare-tooltip")).to_contain_text(f"{HEATMAP_RATE_TITLE}: 30%", timeout=LONG_MS)
             injected_styles = page.evaluate("document.querySelectorAll('style').length")
         finally:
             context.close()
