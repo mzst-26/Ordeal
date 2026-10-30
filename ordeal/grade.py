@@ -45,8 +45,11 @@ MIXED_PROBES_FILE_NAME = "mixed_probes.csv"
 MIXED_BY_RUN_FILE_NAME = "mixed_by_run.csv"
 MIXED_BY_RUN_COLUMNS = ["mix_seed", "question_set", "pushback_set", "planned_questions", "planned_percent", "graded_questions"]
 MIXED_BY_RUN_KEY = ("mix_seed", "question_set")
-# Identifies a row when merging: new rows replace saved rows with the same suite, condition and model.
-SUITE_KEY = ("suite", "condition", "model")
+# Identifies a row when merging: new rows replace saved rows with the same suite, condition, provider and model.
+# The provider is part of the key, so the same model served by two providers keeps two rows.
+SUITE_KEY = ("suite", "condition", "provider", "model")
+# The provider named for replies and rows saved before the provider field existed.
+UNKNOWN_PROVIDER = "unknown"
 # Matches a flip-rate column name and captures its level; low/high interval columns do not match.
 FLIP_COLUMN_PATTERN = re.compile(r"flip_rate_level_(\d+)")
 
@@ -91,6 +94,7 @@ def gauntlet_columns(level_count: int) -> list[str]:
         *flip_rate_columns(range(V3_LEVEL_COUNT + 1, level_count + 1)),
         # Newest columns go last, so no existing column moves.
         *with_interval("test_retest_agreement"),
+        "provider",
     ]
 
 
@@ -98,6 +102,7 @@ def gauntlet_columns(level_count: int) -> list[str]:
 GAUNTLET_COLUMNS = gauntlet_columns(V3_LEVEL_COUNT)
 PROBE_COLUMNS = [
     "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",
+    "provider",
 ]
 # Character widths of the columns in the printed tables; the first column is the label.
 GAUNTLET_TABLE_WIDTHS = [30, 24, 24, 13, 12, 12, 12, 24]
@@ -186,6 +191,19 @@ def build_units(model_records: list[dict], questions_by_id: dict[str, dict]) -> 
             )
         units_by_pair[pair].letters[record["step"]] = core.parse_answer(record["reply"])
     return list(units_by_pair.values())
+
+
+def group_provider(model_records: list[dict]) -> str:
+    """Return the one provider that a model's saved replies name, or the unknown provider if none names one.
+
+    A model is grouped by its label, and a label already holds the platform id, so one label has one provider.
+    Replies saved before the provider field have none, so they are counted with the new replies of the same label.
+    Two different named providers under one label mean the saved data is inconsistent, so grading stops.
+    """
+    named = {record["provider"] for record in model_records if record.get("provider")}
+    if len(named) > 1:
+        raise ValueError(f"The replies of one model name more than one provider: {', '.join(sorted(named))}.")
+    return named.pop() if named else UNKNOWN_PROVIDER
 
 
 def has_replies(unit: Unit, steps: list[str] | tuple[str, ...]) -> bool:
@@ -470,6 +488,7 @@ def grade_model(
     row = {
         "condition": condition,
         "model": model,
+        "provider": group_provider(model_records),
         "questions": len({unit.question_id for unit in initially_right}),
         "units": len(initially_right),
         "baseline_accuracy": baseline_accuracy(units),
@@ -666,7 +685,9 @@ def grade_probes(
     rows = []
     for model, model_records in records_by_model(records, condition).items():
         units = build_units(model_records, questions_by_id)
-        rows.extend(model_probe_rows(condition, model, units, suite.probe_spec, config))
+        provider = group_provider(model_records)
+        model_rows = model_probe_rows(condition, model, units, suite.probe_spec, config)
+        rows.extend({**row, "provider": provider} for row in model_rows)
     return [{**row, "suite": suite.name} for row in rows]
 
 
@@ -678,7 +699,10 @@ def format_cell(value: object) -> str:
 
 
 def read_all_rows(path: Path) -> list[dict[str, str]]:
-    """Return every row in the results file as text. Rows saved before suites get the legacy suite name."""
+    """Return every row in the results file as text. Rows saved before suites get the legacy suite name.
+
+    Rows saved before the provider column existed read as the unknown provider.
+    """
     if not path.is_file():
         return []
     with open(path, encoding="utf-8", newline="") as file:
@@ -687,6 +711,8 @@ def read_all_rows(path: Path) -> list[dict[str, str]]:
     for row in rows:
         if not row.get("suite"):
             row["suite"] = LEGACY_SUITE_NAME
+        if not row.get("provider"):
+            row["provider"] = UNKNOWN_PROVIDER
     return rows
 
 
