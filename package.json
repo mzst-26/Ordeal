@@ -11,7 +11,10 @@
   "dependencies": {
     "@netlify/blobs": "11.1.4",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "vega": "6.4.0",
+    "vega-interpreter": "2.3.2",
+    "vega-lite": "6.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
