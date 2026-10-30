@@ -38,6 +38,10 @@ LABEL_DIGEST_LENGTH = 8
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
 # A valid environment variable name, matched in full.
 ENV_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# The provider names for models that do not come from the platform list. The built-in models in config.json
+# use one fixed endpoint that is not a platform in providers.json, and a custom model has its own address.
+CONFIG_PROVIDER = "config"
+CUSTOM_PROVIDER = "custom"
 # Every custom_models entry in config.json must have all of these as non-blank text.
 CUSTOM_MODEL_FIELDS = ("name", "base_url", "model", "api_key_env")
 CUSTOM_URL_MESSAGE = (
@@ -55,6 +59,8 @@ class ModelRoute:
     base_url: str
     key_env: str  # the environment variable that holds the key
     custom: bool = False  # True for a config.json custom model; its saved replies get a digest label
+    # The provider the saved replies name: a platform id, or CONFIG_PROVIDER or CUSTOM_PROVIDER below.
+    provider: str = ""
     # Empty until attach_keys fills it in. repr=False keeps the key out of printed routes and logs.
     api_key: str = field(default="", repr=False)
 
@@ -311,7 +317,8 @@ def custom_route(entry: Any) -> ModelRoute:
             f"Custom model '{name}' needs api_key_env to name a variable that no platform uses, such as MY_MODEL_KEY."
         )
     return ModelRoute(
-        name=name, api_model=entry["model"], base_url=entry["base_url"], key_env=key_env, custom=True
+        name=name, api_model=entry["model"], base_url=entry["base_url"], key_env=key_env, custom=True,
+        provider=CUSTOM_PROVIDER,
     )
 
 
@@ -340,7 +347,10 @@ def build_routes(
     for name in models:
         route = custom_by_name.get(name)
         if route is None:
-            route = ModelRoute(name=name, api_model=name, base_url=config["base_url"], key_env=core.TOKEN_ENV_VAR)
+            route = ModelRoute(
+                name=name, api_model=name, base_url=config["base_url"], key_env=core.TOKEN_ENV_VAR,
+                provider=CONFIG_PROVIDER,
+            )
         if base_url_override is not None:
             route = replace(route, base_url=base_url_override)
         routes[name] = route
@@ -356,6 +366,17 @@ def record_label(route: ModelRoute) -> str:
     text = f"{route.base_url}\n{route.api_model}"
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:LABEL_DIGEST_LENGTH]
     return f"{route.name}@{digest}"
+
+
+def record_providers(
+    models: list[str], config: dict[str, Any], custom_routes: list[ModelRoute], base_url_override: str | None
+) -> dict[str, str]:
+    """Return {model name: provider} for the models of one run, the same way record_labels gives labels.
+
+    The provider is written into each saved reply, so grading can tell which platform a model was served by.
+    """
+    routes = build_routes(models, config, custom_routes, base_url_override)
+    return {name: route.provider for name, route in routes.items()}
 
 
 def record_labels(

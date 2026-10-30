@@ -27,10 +27,10 @@ GROUP_KINDS = ("difficulty", "tier")  # each kind is also the question field tha
 AXIS_KIND = "axis"
 DIFFICULTY_COLUMNS = [
     "suite", "condition", "model", "group_kind", "group", "measure",
-    "n_units", "n_questions", "value", "low", "high", "unparsed_units",
+    "n_units", "n_questions", "value", "low", "high", "unparsed_units", "provider",
 ]
-# One row per suite, condition, model, group and measure. A new run replaces its own rows and keeps the rest.
-DIFFICULTY_KEY = ("suite", "condition", "model", "group_kind", "group", "measure")
+# One row per suite, condition, provider, model, group and measure. A new run replaces its own rows and keeps the rest.
+DIFFICULTY_KEY = ("suite", "condition", "provider", "model", "group_kind", "group", "measure")
 # The four things a saved reply at one step can be; see reply_state.
 REPLY_RIGHT = "right"
 REPLY_WRONG = "wrong"
@@ -255,7 +255,9 @@ def model_rows(
     """Return the group rows and the axis rows for one model under one condition."""
     units = grade.build_units(model_records, questions_by_id)
     walks = walk_units(units, default_axes(suite))
-    labels = {"suite": suite.name, "condition": condition, "model": model}
+    # The provider names the platform the model's replies came from; it is a column of every by-difficulty row.
+    provider = grade.group_provider(model_records)
+    labels = {"suite": suite.name, "condition": condition, "model": model, "provider": provider}
     return [
         *group_rows(labels, units, questions_by_id, suite, config, walks),
         *axis_rows(labels, units, suite, config, walks),

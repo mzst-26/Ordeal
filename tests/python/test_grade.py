@@ -623,7 +623,8 @@ class GauntletColumnTests(unittest.TestCase):
             "suite", "flip_count", "flip_count_units", "recovery_rate", "recovery_rate_low", "recovery_rate_high",
             *RETEST_COLUMNS,
         ]
-        self.assertEqual(names[len(LEGACY_HEADER) :], new_columns)
+        # The provider column is the newest, so it comes last.
+        self.assertEqual(names[len(LEGACY_HEADER) :], [*new_columns, "provider"])
 
     def test_v4_keeps_the_old_header_and_puts_levels_eleven_and_twelve_last(self) -> None:
         """Levels 11 and 12 come after the new columns, so the old header is still a prefix."""
@@ -631,7 +632,7 @@ class GauntletColumnTests(unittest.TestCase):
         self.assertEqual(names[: len(LEGACY_HEADER)], LEGACY_HEADER)
         tail = names[len(LEGACY_HEADER) :]
         self.assertEqual(tail[:6], NEW_COLUMNS_AFTER_LEGACY)
-        self.assertEqual(tail[6:], [*grade.flip_rate_columns(range(11, 13)), *RETEST_COLUMNS])
+        self.assertEqual(tail[6:], [*grade.flip_rate_columns(range(11, 13)), *RETEST_COLUMNS, "provider"])
 
 
 # Group: how saved replies and result rows are kept apart per suite (ladder + question set), and how old data
@@ -772,7 +773,172 @@ def reply_record(suite: core.Suite) -> dict:
 
 def suite_row(suite: core.Suite, units: int) -> dict:
     """Build a small results row for one suite, for the merge tests."""
-    return {"suite": suite.name, "condition": CONDITION, "model": MODEL_ONE, "units": units}
+    return {"suite": suite.name, "condition": CONDITION, "provider": "unknown", "model": MODEL_ONE, "units": units}
+
+
+def with_provider(records: list[dict], provider: str) -> list[dict]:
+    """Return copies of the saved records with the provider field set, as a run on that provider saves them."""
+    return [{**record, "provider": provider} for record in records]
+
+
+# Pushback letters for a unit that holds every answer, so the unit is never flipped.
+HELD_LETTERS = ["B"] * 10
+GROQ_LABEL = "groq/org/Model-One@1a2b3c"
+TOGETHER_LABEL = "together/org/Model-One@4d5e6f"
+
+
+# Group: the provider of each saved reply and grade row. Replies saved before providers were recorded read as "unknown".
+class ProviderFieldTests(unittest.TestCase):
+    """Each grade row names its provider. The same model served by two providers gives two rows."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+
+    def test_reply_saved_without_a_provider_is_graded_as_unknown(self) -> None:
+        """A reply from before the provider field existed still grades, and its row says unknown."""
+        records = full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS)
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        self.assertEqual(rows[0]["provider"], "unknown")
+
+    def test_reply_with_a_provider_gives_a_row_with_that_provider(self) -> None:
+        """A reply saved with its provider gives a row with the same provider."""
+        records = with_provider(full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS), "groq")
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        self.assertEqual(rows[0]["provider"], "groq")
+
+    def test_same_model_on_two_providers_gives_two_rows(self) -> None:
+        """Two providers serving the same model are two rows, each with its own provider and model label."""
+        records = with_provider(full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS), "groq")
+        records += with_provider(full_unit(TOGETHER_LABEL, "q1", 0, "B", *HELD_LETTERS), "together")
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        self.assertEqual(
+            sorted((row["provider"], row["model"]) for row in rows),
+            [("groq", GROQ_LABEL), ("together", TOGETHER_LABEL)],
+        )
+
+    def test_results_file_keeps_both_providers_rows_for_one_model(self) -> None:
+        """Merging the two rows into one results file keeps both, because the merge key includes the provider."""
+        records = with_provider(full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS), "groq")
+        records += with_provider(full_unit(TOGETHER_LABEL, "q1", 0, "B", *HELD_LETTERS), "together")
+        rows = grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+        path = self.folder / "results.csv"
+        grade.merge_csv_rows(rows, path, grade.gauntlet_columns(10), grade.SUITE_KEY)
+        self.assertEqual(len(grade.read_all_rows(path)), 2)
+
+    def test_regrading_one_provider_replaces_only_its_own_row(self) -> None:
+        """A new groq row replaces the saved groq row for the same model and suite; the together row stays."""
+        path = self.folder / "results.csv"
+        columns = ["suite", "condition", "provider", "model", "units"]
+        first = [
+            {"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 1},
+            {"suite": "s", "condition": CONDITION, "provider": "together", "model": TOGETHER_LABEL, "units": 2},
+        ]
+        grade.merge_csv_rows(first, path, columns, grade.SUITE_KEY)
+        grade.merge_csv_rows(
+            [{"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 9}],
+            path, columns, grade.SUITE_KEY,
+        )
+        saved = sorted((row["provider"], row["units"]) for row in grade.read_all_rows(path))
+        self.assertEqual(saved, [("groq", "9"), ("together", "2")])
+
+    def test_new_row_replaces_the_unknown_row_of_the_same_model(self) -> None:
+        """A model's row saved before providers were recorded is replaced when its replies gain a provider.
+
+        Otherwise a resumed run would leave two rows for one model, one unknown and one named.
+        """
+        path = self.folder / "results.csv"
+        columns = ["suite", "condition", "provider", "model", "units"]
+        old = [{"suite": "s", "condition": CONDITION, "provider": "unknown", "model": GROQ_LABEL, "units": 1}]
+        grade.merge_csv_rows(old, path, columns, grade.SUITE_KEY)
+        new = [{"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 5}]
+        grade.merge_csv_rows(new, path, columns, grade.SUITE_KEY)
+        saved = [(row["provider"], row["units"]) for row in grade.read_all_rows(path)]
+        self.assertEqual(saved, [("groq", "5")])
+
+    def test_unknown_row_of_another_model_is_kept_when_a_model_gains_a_provider(self) -> None:
+        """Only the same model's unknown row is replaced; an unknown row of another model stays."""
+        path = self.folder / "results.csv"
+        columns = ["suite", "condition", "provider", "model", "units"]
+        old = [
+            {"suite": "s", "condition": CONDITION, "provider": "unknown", "model": GROQ_LABEL, "units": 1},
+            {"suite": "s", "condition": CONDITION, "provider": "unknown", "model": TOGETHER_LABEL, "units": 2},
+        ]
+        grade.merge_csv_rows(old, path, columns, grade.SUITE_KEY)
+        new = [{"suite": "s", "condition": CONDITION, "provider": "groq", "model": GROQ_LABEL, "units": 5}]
+        grade.merge_csv_rows(new, path, columns, grade.SUITE_KEY)
+        saved = sorted((row["model"], row["provider"]) for row in grade.read_all_rows(path))
+        self.assertEqual(saved, [(GROQ_LABEL, "groq"), (TOGETHER_LABEL, "unknown")])
+
+    def test_old_results_file_without_a_provider_column_reads_as_unknown(self) -> None:
+        """A results file from before the provider column is read with every row's provider set to unknown."""
+        path = self.folder / "results.csv"
+        path.write_text("condition,model,units\nnone,org/Model-One,4\n", encoding="utf-8")
+        self.assertEqual(grade.read_all_rows(path)[0]["provider"], "unknown")
+
+    def test_old_and_new_replies_of_one_model_are_one_row(self) -> None:
+        """A model's replies saved before and after the change are counted as one model, so no unit is split."""
+        old_records = full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS)
+        new_records = with_provider(full_unit(GROQ_LABEL, "q2", 0, "A", *HELD_LETTERS), "groq")
+        rows = grade.grade_condition(old_records + new_records, QUESTIONS, CONFIG, CONDITION)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["provider"], rows[0]["units"]), ("groq", 2))
+
+    def test_one_model_label_with_two_providers_is_refused(self) -> None:
+        """Two different providers under one model label mean the saved data is inconsistent, so grading stops."""
+        records = with_provider(full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS), "groq")
+        records += with_provider(full_unit(GROQ_LABEL, "q2", 0, "A", *HELD_LETTERS), "together")
+        with self.assertRaises(ValueError):
+            grade.grade_condition(records, QUESTIONS, CONFIG, CONDITION)
+
+    def test_probe_rows_carry_the_provider_too(self) -> None:
+        """Probe rows are grade rows as well, so they name the provider of their model."""
+        records = with_provider(full_unit(GROQ_LABEL, "q1", 0, "B", *HELD_LETTERS), "groq")
+        probe_rows = grade.grade_probes(records, QUESTIONS, CONFIG, CONDITION)
+        self.assertTrue(probe_rows)
+        self.assertEqual({row["provider"] for row in probe_rows}, {"groq"})
+
+
+# Group: grading several cache files at once, as the multi-provider test command does. One results file gets a row
+# for every provider and model, and the rows of each provider stay apart.
+class MultiCacheGradeTests(unittest.TestCase):
+    """grade.main reads every --cache file it is given and writes one results file for all of them."""
+
+    def setUp(self) -> None:
+        temporary_folder = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary_folder.cleanup)
+        self.folder = Path(temporary_folder.name)
+
+    def write_cache(self, name: str, label: str, provider: str) -> Path:
+        """Write one cache file with a full, correct unit for one model label, saved by one provider."""
+        cache_path = self.folder / name
+        question = V4_HARD.questions[0]
+        for step in ["level_0", *V4_STEPS]:
+            record = core.make_record(
+                CONDITION, label, question, 0, step, [], f"Answer: {question['correct']}", 0.7,
+                suite=V4_HARD, provider=provider,
+            )
+            core.append_record(record, cache_path)
+        return cache_path
+
+    def test_two_caches_give_one_results_file_with_a_row_for_each_provider(self) -> None:
+        """Two providers' caches, graded in one call, give two rows in one results file, each with its own provider."""
+        groq_cache = self.write_cache("groq.jsonl", GROQ_LABEL, "groq")
+        together_cache = self.write_cache("together.jsonl", TOGETHER_LABEL, "together")
+        out_dir = self.folder / "out"
+        argv = [
+            "grade.py", "--suite", "gauntlet_v4+hard", "--condition", CONDITION,
+            "--cache", str(groq_cache), "--cache", str(together_cache), "--out-dir", str(out_dir),
+        ]
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            status = grade.main()
+        self.assertEqual(status, 0)
+        rows = grade.read_condition_rows(out_dir / "results.csv", CONDITION, V4_HARD.name)
+        self.assertEqual(
+            sorted((row["provider"], row["model"]) for row in rows),
+            [("groq", GROQ_LABEL), ("together", TOGETHER_LABEL)],
+        )
 
 
 if __name__ == "__main__":

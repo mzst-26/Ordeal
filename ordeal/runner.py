@@ -106,6 +106,8 @@ class RunSettings:
     wait: Callable[[float], Awaitable[None]] = asyncio.sleep
     suite: core.Suite | core.MixedSuite | None = None  # names the saved records; None means the default suite
     labels: dict[str, str] = field(default_factory=dict)  # saved name per model; see model_client.record_labels
+    # The provider each model is served by, saved with its replies; see model_client.record_providers.
+    providers: dict[str, str] = field(default_factory=dict)
     # For a mixed run only: one plan per pushback set, keyed by the set name. None for a fixed run.
     pushback_plans: dict[str, PushbackPlan] | None = None
 
@@ -379,6 +381,8 @@ async def get_reply(ctx: RunContext, unit: Unit, messages: list[dict[str, str]],
         ctx.settings.config["temperature"],
         suite=ctx.settings.suite,
         extra=saved_extra_fields(unit, reply),
+        # unit.model is the model name, the key of the providers map. A name missing from it saves no provider.
+        provider=ctx.settings.providers.get(unit.model),
     )
     # Write to disk first and update the in-memory cache second, so a crash keeps every reply already paid for.
     # The store commits the row before add returns. The same line is then appended to the JSONL file, which
@@ -1014,6 +1018,11 @@ def main(
         models = choose_models(args, config)
     plan = plan_fixed_run(args) if args.shuffle_mix is None else plan_mixed_run(args.shuffle_mix, args.limit)
     labels = model_client.record_labels(models, config, custom_routes, args.base_url)
+    # A stub run never reaches a platform, so its replies name the stub as their provider, not the built-in endpoint.
+    providers = (
+        {name: "stub" for name in models} if args.stub
+        else model_client.record_providers(models, config, custom_routes, args.base_url)
+    )
     # An explicit --cache wins; otherwise stub runs use their own cache file so fake replies never mix with real ones.
     cache_path = args.cache or (core.STUB_CACHE_PATH if args.stub else core.CACHE_PATH)
     cache = core.load_cache(cache_path, experiment=plan.experiment)
@@ -1046,6 +1055,7 @@ def main(
         describe_error=model_client.describe_error,
         suite=plan.suite,
         labels=labels,
+        providers=providers,
         pushback_plans=plan.pushback_plans,
     )
 

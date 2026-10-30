@@ -105,7 +105,12 @@ class CustomModelRuleTests(unittest.TestCase):
         routes = model_client.load_custom_models(self.config())
         self.assertEqual(
             routes,
-            [ModelRoute("my-model", "org/my-model", "https://models.example.org/v1", CUSTOM_KEY_VAR, custom=True)],
+            [
+                ModelRoute(
+                    "my-model", "org/my-model", "https://models.example.org/v1", CUSTOM_KEY_VAR, custom=True,
+                    provider=model_client.CUSTOM_PROVIDER,
+                )
+            ],
         )
 
     def test_http_user_name_password_and_query_string_are_refused(self):
@@ -426,6 +431,29 @@ class RetryAfterTests(unittest.TestCase):
         server_error = openai.InternalServerError("broke", response=fake_response(500), body=None)
         self.assertTrue(model_client.is_rate_limit(rate_limit))
         self.assertFalse(model_client.is_rate_limit(server_error))
+
+
+# Group: every route names its provider, and the run hands those names to the saved replies (see record_providers).
+class RouteProviderTests(unittest.TestCase):
+    """Each route names its provider: built-in models, custom models and platform routes each name their own."""
+
+    CONFIG = {"base_url": "https://api.example.org/v1", "models": ["built-in/model"], "custom_models": []}
+
+    def test_built_in_model_names_the_config_provider(self):
+        providers = model_client.record_providers(["built-in/model"], self.CONFIG, [], None)
+        self.assertEqual(providers, {"built-in/model": model_client.CONFIG_PROVIDER})
+
+    def test_custom_route_names_the_custom_provider(self):
+        route = ModelRoute("my-model", "org/my-model", "https://models.example.org/v1", CUSTOM_KEY_VAR, custom=True,
+                           provider=model_client.CUSTOM_PROVIDER)
+        providers = model_client.record_providers(["my-model"], self.CONFIG, [route], None)
+        self.assertEqual(providers, {"my-model": model_client.CUSTOM_PROVIDER})
+
+    def test_platform_route_names_its_platform_id(self):
+        route = ModelRoute("groq/org/m", "org/m", "https://api.groq.com/openai/v1", "GROQ_API_KEY", custom=True,
+                           provider="groq")
+        providers = model_client.record_providers(["groq/org/m"], self.CONFIG, [route], None)
+        self.assertEqual(providers, {"groq/org/m": "groq"})
 
 
 if __name__ == "__main__":

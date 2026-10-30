@@ -499,13 +499,17 @@ def make_key(condition, model, question_id, repeat, step):
     return (condition, model, question_id, repeat, step)
 
 
-def make_record(condition, model, question, repeat, step, messages, reply, temperature, suite=None, extra=None):
+def make_record(
+    condition, model, question, repeat, step, messages, reply, temperature, suite=None, extra=None, provider=None
+):
     """Build one saved line for the cache. 'messages' is the full list sent to the model.
 
     'suite' is optional. When given, the record carries the suite name and that suite's experiment code.
     When it is not given, the record gets the default suite's experiment code (default_suite(): config.json,
     which is gauntlet_v3 + easy here) and no 'suite' field. Callers that run a ladder must pass its suite.
     'extra' adds more fields, such as the mixed run's seed and position. Fixed runs pass none, so their keys do not change.
+    'provider' is the platform id the reply came from. It is added only when given, so a record built without one
+    (such as the golden fixtures) keeps its old shape. Replies saved before this field existed have none.
     """
     record = {
         "experiment": current_experiment(suite),
@@ -521,6 +525,8 @@ def make_record(condition, model, question, repeat, step, messages, reply, tempe
     }
     if suite is not None:
         record["suite"] = suite.name
+    if provider is not None:
+        record["provider"] = provider
     if extra:
         record.update(extra)
     return record

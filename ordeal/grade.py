@@ -45,8 +45,11 @@ MIXED_PROBES_FILE_NAME = "mixed_probes.csv"
 MIXED_BY_RUN_FILE_NAME = "mixed_by_run.csv"
 MIXED_BY_RUN_COLUMNS = ["mix_seed", "question_set", "pushback_set", "planned_questions", "planned_percent", "graded_questions"]
 MIXED_BY_RUN_KEY = ("mix_seed", "question_set")
-# Identifies a row when merging: new rows replace saved rows with the same suite, condition and model.
-SUITE_KEY = ("suite", "condition", "model")
+# Identifies a row when merging: new rows replace saved rows with the same suite, condition, provider and model.
+# The provider is part of the key, so the same model served by two providers keeps two rows.
+SUITE_KEY = ("suite", "condition", "provider", "model")
+# The provider named for replies and rows saved before the provider field existed.
+UNKNOWN_PROVIDER = "unknown"
 # Matches a flip-rate column name and captures its level; low/high interval columns do not match.
 FLIP_COLUMN_PATTERN = re.compile(r"flip_rate_level_(\d+)")
 
@@ -91,6 +94,7 @@ def gauntlet_columns(level_count: int) -> list[str]:
         *flip_rate_columns(range(V3_LEVEL_COUNT + 1, level_count + 1)),
         # Newest columns go last, so no existing column moves.
         *with_interval("test_retest_agreement"),
+        "provider",
     ]
 
 
@@ -98,6 +102,7 @@ def gauntlet_columns(level_count: int) -> list[str]:
 GAUNTLET_COLUMNS = gauntlet_columns(V3_LEVEL_COUNT)
 PROBE_COLUMNS = [
     "condition", "model", "family", "probe", "dose", "measure", "units", "estimate", "low", "high", "suite",
+    "provider",
 ]
 # Character widths of the columns in the printed tables; the first column is the label.
 GAUNTLET_TABLE_WIDTHS = [30, 24, 24, 13, 12, 12, 12, 24]
@@ -186,6 +191,19 @@ def build_units(model_records: list[dict], questions_by_id: dict[str, dict]) -> 
             )
         units_by_pair[pair].letters[record["step"]] = core.parse_answer(record["reply"])
     return list(units_by_pair.values())
+
+
+def group_provider(model_records: list[dict]) -> str:
+    """Return the one provider that a model's saved replies name, or the unknown provider if none names one.
+
+    A model is grouped by its label, and a label already holds the platform id, so one label has one provider.
+    Replies saved before the provider field have none, so they are counted with the new replies of the same label.
+    Two different named providers under one label mean the saved data is inconsistent, so grading stops.
+    """
+    named = {record["provider"] for record in model_records if record.get("provider")}
+    if len(named) > 1:
+        raise ValueError(f"The replies of one model name more than one provider: {', '.join(sorted(named))}.")
+    return named.pop() if named else UNKNOWN_PROVIDER
 
 
 def has_replies(unit: Unit, steps: list[str] | tuple[str, ...]) -> bool:
@@ -470,6 +488,7 @@ def grade_model(
     row = {
         "condition": condition,
         "model": model,
+        "provider": group_provider(model_records),
         "questions": len({unit.question_id for unit in initially_right}),
         "units": len(initially_right),
         "baseline_accuracy": baseline_accuracy(units),
@@ -666,7 +685,9 @@ def grade_probes(
     rows = []
     for model, model_records in records_by_model(records, condition).items():
         units = build_units(model_records, questions_by_id)
-        rows.extend(model_probe_rows(condition, model, units, suite.probe_spec, config))
+        provider = group_provider(model_records)
+        model_rows = model_probe_rows(condition, model, units, suite.probe_spec, config)
+        rows.extend({**row, "provider": provider} for row in model_rows)
     return [{**row, "suite": suite.name} for row in rows]
 
 
@@ -678,7 +699,10 @@ def format_cell(value: object) -> str:
 
 
 def read_all_rows(path: Path) -> list[dict[str, str]]:
-    """Return every row in the results file as text. Rows saved before suites get the legacy suite name."""
+    """Return every row in the results file as text. Rows saved before suites get the legacy suite name.
+
+    Rows saved before the provider column existed read as the unknown provider.
+    """
     if not path.is_file():
         return []
     with open(path, encoding="utf-8", newline="") as file:
@@ -687,6 +711,8 @@ def read_all_rows(path: Path) -> list[dict[str, str]]:
     for row in rows:
         if not row.get("suite"):
             row["suite"] = LEGACY_SUITE_NAME
+        if not row.get("provider"):
+            row["provider"] = UNKNOWN_PROVIDER
     return rows
 
 
@@ -721,12 +747,33 @@ def write_csv_atomically(path: Path, columns: list[str], rows: list[dict]) -> No
         raise
 
 
+def row_key(row: dict, key_fields: tuple[str, ...]) -> tuple:
+    """Return the values of a row's key fields, in order."""
+    return tuple(row[field] for field in key_fields)
+
+
 def merge_csv_rows(new_rows: list[dict], path: Path, columns: list[str], key_fields: tuple[str, ...]) -> None:
-    """Write new_rows. Saved rows whose key fields match a new row are replaced, and every other row is kept."""
+    """Write new_rows. Saved rows whose key fields match a new row are replaced, and every other row is kept.
+
+    A saved row with the unknown provider is also replaced by a new row for the same model under any provider.
+    A row saved before providers were recorded has no provider, so once the model's replies name one, the old row
+    must go, or a resumed run would leave two rows for one model.
+    """
     # Re-grading one suite and condition replaces only its own rows, leaving other suites and conditions as they were.
-    new_keys = {tuple(row[field] for field in key_fields) for row in new_rows}
-    kept_rows = [row for row in read_all_rows(path) if tuple(row[field] for field in key_fields) not in new_keys]
+    new_keys = {row_key(row, key_fields) for row in new_rows}
+    kept_rows = [row for row in read_all_rows(path) if not replaces_saved_row(row, new_rows, new_keys, key_fields)]
     write_csv_atomically(path, columns, [*kept_rows, *new_rows])
+
+
+def replaces_saved_row(saved: dict, new_rows: list[dict], new_keys: set[tuple], key_fields: tuple[str, ...]) -> bool:
+    """True when a new row takes the place of this saved row: the same key, or the unknown row of the same model."""
+    if row_key(saved, key_fields) in new_keys:
+        return True
+    if "provider" not in key_fields or saved["provider"] != UNKNOWN_PROVIDER:
+        return False
+    # Compare every key field except the provider, so the saved row and a new row are the same model and condition.
+    others = tuple(field for field in key_fields if field != "provider")
+    return any(row_key(saved, others) == row_key(new, others) for new in new_rows)
 
 
 def read_rows_or_stop(path: Path, condition: str, suite_name: str) -> list[dict[str, str]]:
@@ -789,6 +836,23 @@ def read_cache_by_experiment(path: Path, experiments: set[str]) -> tuple[dict[st
                 wanted_count += 1
         other_count = db.count_rows() - wanted_count
     return replies, other_count
+
+
+def read_caches_by_experiment(paths: list[Path], experiments: set[str]) -> tuple[dict[str, dict], int]:
+    """Read the saved replies of several cache files together, grouped by experiment code.
+
+    This is how one results file covers several providers: each provider's cache holds its own replies, and
+    their keys do not clash, because each model label names its platform. The count of other-version replies is
+    added up over the files.
+    """
+    merged: dict[str, dict] = {experiment: {} for experiment in experiments}
+    other_total = 0
+    for path in paths:
+        replies, other_count = read_cache_by_experiment(path, experiments)
+        for experiment, by_key in replies.items():
+            merged[experiment].update(by_key)
+        other_total += other_count
+    return merged, other_total
 
 
 def registered_suites() -> list[core.Suite]:
@@ -884,11 +948,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Read the command-line options. --results-csv and --probes-csv are full paths that replace the --out-dir names."""
     parser = argparse.ArgumentParser(description="Grade saved replies, write the CSV files and print the tables.")
     add_results_arguments(parser)
+    # Repeat --cache to grade several files together, one per provider. Each provider keeps its own cache file.
     parser.add_argument(
         "--cache",
         type=Path,
-        default=core.CACHE_PATH,
-        help="file of saved replies to grade (default: %(default)s)",
+        action="append",
+        help=f"file of saved replies to grade; repeat it to grade several files (default: {core.CACHE_PATH})",
     )
     parser.add_argument("--results-csv", type=Path, help="full path of the results file (default: in --out-dir)")
     parser.add_argument("--probes-csv", type=Path, help="full path of the probes file (default: in --out-dir)")
@@ -901,6 +966,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "leaving results.csv alone. Cannot be combined with --suite.",
     )
     args = parser.parse_args(argv)
+    # Without --cache, the default cache file is graded, as before the option could be repeated.
+    if not args.cache:
+        args.cache = [core.CACHE_PATH]
     if args.shuffle_mix is not None and args.suite is not None:
         parser.error("--shuffle-mix cannot be combined with --suite: a mixed run sets both itself.")
     return args
@@ -971,11 +1039,12 @@ def grade_mixed(args: argparse.Namespace, config: dict) -> int:
     Returns 1 if nothing was graded.
     """
     mixed = core.load_mixed_suite()
-    replies, other_count = read_cache_by_experiment(args.cache, {mixed.experiment})
+    replies, other_count = read_caches_by_experiment(args.cache, {mixed.experiment})
     records = list(replies[mixed.experiment].values())
     if other_count:
         print(f"Other versions: {other_count} saved replies match no suite graded here, so they are not graded.")
-    order = mixed_order_for(args.shuffle_mix, mixed, core.mixed_runs_path(args.cache))
+    # The planned order is the same for every provider, so the record beside the first cache file is enough.
+    order = mixed_order_for(args.shuffle_mix, mixed, core.mixed_runs_path(args.cache[0]))
     questions_by_id = index_questions([question for suite in mixed.suites.values() for question in suite.questions])
     gauntlet_rows: list[dict] = []
     probe_rows: list[dict] = []
@@ -1025,7 +1094,7 @@ def main(argv: list[str] | None = None) -> int:
     experiments = {registered.experiment for registered in registered_suites()}
     # The suite's own code is read too, so it is never missed if the registry does not list it.
     experiments.add(suite.experiment)
-    replies_by_experiment, other_count = read_cache_by_experiment(args.cache, experiments)
+    replies_by_experiment, other_count = read_caches_by_experiment(args.cache, experiments)
     records = list(replies_by_experiment[suite.experiment].values())
     if other_count:
         print(f"Other versions: {other_count} saved replies match no suite graded here, so they are not graded.")

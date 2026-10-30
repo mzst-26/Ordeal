@@ -1,8 +1,9 @@
 """Build the data file for the comparison page and embed it in frontend/compare.html.
 
 Every number comes from the grade output: results/results.csv and results/probes.csv.
-results/cache.jsonl is read only for the transcripts and the unparsed-at-last-level share, and only for the experiment code of
-the suite that the CSV files were graded with. If the models in the cache and in the CSV
+The cache files (results/cache.jsonl by default, or each one named with --cache) are read only for the transcripts and
+the unparsed-at-last-level share, and only for the experiment code of the suite that the CSV files were graded with.
+When several providers ran, name each provider's cache file. If the (provider, model) pairs in the cache and in the CSV
 files disagree, the script stops and reports the difference.
 
 The script writes frontend/data/compare/results.json. If frontend/compare.html exists, it also
@@ -337,20 +338,49 @@ def group_records_by_model(cache):
     return grouped
 
 
+def provider_of(entry):
+    """Return the provider named by a grade row or a saved reply. An entry saved before the field existed is unknown."""
+    return entry.get("provider") or grade.UNKNOWN_PROVIDER
+
+
+def describe_pairs(pairs):
+    """Return (provider, model) pairs as text for an error message, such as 'org/a (groq)', or 'none'."""
+    return ", ".join(f"{model} ({provider})" for provider, model in pairs) or "none"
+
+
 def check_cache_matches_csv(cache, source):
-    """Stop if the models with replies under the suite's code differ from the models in results.csv."""
+    """Stop if the (provider, model) pairs with replies under the suite's code differ from the pairs in results.csv.
+
+    The provider is part of the pair, so a model that one cache says came from another provider is a mismatch too.
+    """
     # Both sources must describe the same run, or numbers and transcripts on the page would not belong together
-    cache_models = {record["model"] for record in cache.values() if record["condition"] == BASE_CONDITION}
-    csv_models = set(models_in_csv(source))
-    if cache_models == csv_models:
+    cache_pairs = {
+        (provider_of(record), record["model"]) for record in cache.values() if record["condition"] == BASE_CONDITION
+    }
+    csv_pairs = {
+        (provider_of(row), model) for (condition, model), row in source.gauntlet.items() if condition == BASE_CONDITION
+    }
+    if cache_pairs == csv_pairs:
         return
-    only_csv = sorted(csv_models - cache_models)
-    only_cache = sorted(cache_models - csv_models)
+    only_csv = sorted(csv_pairs - cache_pairs)
+    only_cache = sorted(cache_pairs - csv_pairs)
     raise BuildError(
-        "results.csv and cache.jsonl disagree about the models for this suite. "
-        f"Only in results.csv: {only_csv or 'none'}. Only in cache.jsonl: {only_cache or 'none'}. "
-        "Re-run grade.py with the same suite, then build again."
+        "results.csv and the cache files disagree about the models for this suite. "
+        f"Only in results.csv: {describe_pairs(only_csv)}. Only in the cache files: {describe_pairs(only_cache)}. "
+        "Give every cache file with --cache, re-run grade.py with the same suite if needed, then build again."
     )
+
+
+def read_caches(paths, experiment):
+    """Read the saved replies of several cache files under one experiment code, into one dict.
+
+    The dict is keyed the way core.load_cache keys replies. The key holds the model label, and a label names
+    its platform, so replies from different providers never collide.
+    """
+    merged = {}
+    for path in paths:
+        merged.update(core.load_cache(path, experiment=experiment))
+    return merged
 
 
 # ---------------------------------------------------------------- one model
@@ -628,6 +658,7 @@ def build_model(ctx, model):
     flipped_count = flipped_units(row, level_count, units)
     model_entry = {
         "id": model,
+        "provider": provider_of(row),
         "display_name": meta.get("display_name") or model,
         "family": meta.get("family"),
         "params_b": meta.get("params_b"),
@@ -697,7 +728,9 @@ def build_results(args):
     gauntlet_rows = read_csv_rows(args.results_dir / grade.RESULTS_FILE_NAME)
     probe_rows = read_csv_rows(args.results_dir / grade.PROBES_FILE_NAME)
     source = index_grade_output(gauntlet_rows, probe_rows, suite.name)
-    cache = core.load_cache(args.results_dir / CACHE_NAME, experiment=suite.experiment)
+    # Each provider keeps its own cache file, so every file the run used is read: --cache can be repeated.
+    cache_paths = args.cache or [args.results_dir / CACHE_NAME]
+    cache = read_caches(cache_paths, suite.experiment)
     check_cache_matches_csv(cache, source)
     spec_axes = axis_list(suite.probe_spec)
     axis_ids = [axis["id"] for axis in spec_axes]
@@ -819,6 +852,12 @@ def parse_args(argv):
     parser.add_argument("--frontend-dir", type=Path, default=DEFAULT_FRONTEND_DIR, help="frontend folder with compare.html (default: %(default)s)")
     parser.add_argument("--models", type=Path, default=core.DATA_DIR / MODELS_NAME, help="saved model file; its details block gives each model's family and size (default: %(default)s)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="data file to write (default: %(default)s)")
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        action="append",
+        help="saved replies file to read; repeat it for each provider's cache (default: results/cache.jsonl)",
+    )
     parser.add_argument("--config", type=Path, default=core.CONFIG_PATH, help="settings file; only the mitigation and control prompts are read")
     return parser.parse_args(argv)
 

@@ -284,12 +284,14 @@ def route_for(platform: Platform, model_id: str, base_url_override: str | None =
     if not model_id:
         raise ValueError("A model id is needed to build a route.")
     base_url = choose_base_url(platform, base_url_override)
+    # The provider is the platform id, so each saved reply says which platform served it.
     return ModelRoute(
         name=f"{platform.id}/{model_id}",
         api_model=model_id,
         base_url=base_url,
         key_env=platform.key_env or "",
         custom=True,
+        provider=platform.id,
     )
 
 

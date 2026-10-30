@@ -223,6 +223,128 @@ class TestCommandTests(CliTestCase):
         self.assertEqual(routes["ollama/llama3.1:8b"].api_key, providers.LOCAL_KEY_PLACEHOLDER)
 
 
+# Keys for the providers the multi-provider tests use. Each variable is named in providers.json.
+PROVIDER_KEYS = {
+    "GROQ_API_KEY": FAKE_KEY,
+    "TOGETHER_API_KEY": FAKE_KEY,
+    "FIREWORKS_API_KEY": FAKE_KEY,
+    "DEEPINFRA_API_KEY": FAKE_KEY,
+}
+
+
+class MultiProviderTests(CliTestCase):
+    """The test command runs up to three providers with the same options, each into its own cache, then grades them."""
+
+    def setUp(self) -> None:
+        """Give the providers keys, and stop the real runner and grader from starting."""
+        super().setUp()
+        patcher = mock.patch.dict(os.environ, PROVIDER_KEYS)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        runner_patch = mock.patch.object(runner, "main", return_value=0)
+        self.runner_main = runner_patch.start()
+        self.addCleanup(runner_patch.stop)
+        grade_patch = mock.patch.object(grade, "main", return_value=0)
+        self.grade_main = grade_patch.start()
+        self.addCleanup(grade_patch.stop)
+
+    def run_test(self, *args: str) -> tuple[int, str, str]:
+        """Run the test command with the fake model list, which every provider serves."""
+        with self.fake_models(GROQ_MODELS):
+            return self.run_cli(["test", *args])
+
+    def sent_model_ids(self) -> list[str]:
+        """Return the API model id of the route given to each run, in run order."""
+        return [next(iter(run.kwargs["prebuilt_routes"].values())).api_model for run in self.runner_main.call_args_list]
+
+    def cache_arguments(self, argv: list[str]) -> list[str]:
+        """Return the cache file names given to a command, in order, from its --cache options."""
+        return [argv[index + 1] for index, name in enumerate(argv) if name == "--cache"]
+
+    def test_one_provider_runs_once_and_grades_its_one_cache(self) -> None:
+        """With one provider the command is the same as before: one run, then one grade of that cache."""
+        code, _, _ = self.run_test("groq", "org/alpha-7b", "--limit", "2")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.runner_main.call_count, 1)
+        run_caches = self.cache_arguments(self.runner_main.call_args.args[0])
+        grade_argv = self.grade_main.call_args.args[0]
+        self.assertEqual(self.cache_arguments(grade_argv), run_caches)
+        self.assertEqual(len(run_caches), 1)
+
+    def test_three_providers_run_once_each_with_their_own_cache(self) -> None:
+        """Three providers give three runs with the same options, one route each, and one cache per provider."""
+        code, _, _ = self.run_test("groq,together,fireworks", "org/alpha-7b", "--limit", "2")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.runner_main.call_count, 3)
+        caches, providers_seen = [], []
+        for run in self.runner_main.call_args_list:
+            self.assertIn("--limit", run.args[0])
+            routes = run.kwargs["prebuilt_routes"]
+            self.assertEqual(len(routes), 1)
+            providers_seen.append(next(iter(routes.values())).provider)
+            caches.append(self.cache_arguments(run.args[0])[0])
+        self.assertEqual(providers_seen, ["groq", "together", "fireworks"])
+        self.assertEqual(len(set(caches)), 3)
+        for name, cache in zip(["groq", "together", "fireworks"], caches):
+            self.assertTrue(Path(cache).name.startswith(f"{name}__"), cache)
+
+    def test_three_providers_are_graded_together_in_one_call(self) -> None:
+        """The grader gets every provider's cache in one call, so one results file holds all of them."""
+        self.run_test("groq,together,fireworks", "org/alpha-7b")
+        self.assertEqual(self.grade_main.call_count, 1)
+        grade_argv = self.grade_main.call_args.args[0]
+        run_caches = [self.cache_arguments(run.args[0])[0] for run in self.runner_main.call_args_list]
+        self.assertEqual(self.cache_arguments(grade_argv), run_caches)
+        self.assertEqual(grade_argv[-2], "--out-dir")
+
+    def test_one_model_name_is_used_for_every_provider(self) -> None:
+        """A single model name is looked up on each provider, so the same model is run on all of them."""
+        self.run_test("groq,together", "org/alpha-7b")
+        self.assertEqual(self.sent_model_ids(), ["org/alpha-7b", "org/alpha-7b"])
+
+    def test_one_model_name_per_provider_gives_each_its_own_model(self) -> None:
+        """A comma list of model names pairs with the provider list, so each provider can serve an equivalent model."""
+        self.run_test("groq,together", "org/alpha-7b,org/beta-large")
+        self.assertEqual(self.sent_model_ids(), ["org/alpha-7b", "org/beta-large"])
+
+    def test_four_providers_are_refused_before_any_run(self) -> None:
+        """A fourth provider is refused with a clear message, and no run or key lookup happens."""
+        code, _, err = self.run_test("groq,together,fireworks,deepinfra", "org/alpha-7b")
+        self.assertEqual(code, 1)
+        self.assertIn("at most 3", err)
+        self.runner_main.assert_not_called()
+
+    def test_unknown_provider_is_refused_before_any_run(self) -> None:
+        """An id that is not in providers.json is refused, the valid ids are listed, and no run starts."""
+        code, _, err = self.run_test("groq,nope", "org/alpha-7b")
+        self.assertEqual(code, 1)
+        self.assertIn("Unknown platform 'nope'", err)
+        self.runner_main.assert_not_called()
+
+    def test_repeated_provider_is_refused(self) -> None:
+        """Naming the same provider twice is refused, so one provider never runs twice into one results file."""
+        code, _, err = self.run_test("groq,groq", "org/alpha-7b")
+        self.assertEqual(code, 1)
+        self.assertIn("once", err)
+        self.runner_main.assert_not_called()
+
+    def test_missing_key_is_refused_before_any_run_and_names_the_variable(self) -> None:
+        """A provider with no key stops the command before any run, names the variable, and prints no key value."""
+        with mock.patch.dict(os.environ, {"TOGETHER_API_KEY": ""}):
+            code, out, err = self.run_test("groq,together", "org/alpha-7b")
+        self.assertEqual(code, 1)
+        self.assertIn("TOGETHER_API_KEY", err)
+        self.assertNotIn(FAKE_KEY, out + err)
+        self.runner_main.assert_not_called()
+
+    def test_model_names_must_be_one_or_one_per_provider(self) -> None:
+        """Two providers with three model names is refused, and no run starts."""
+        code, _, err = self.run_test("groq,together", "org/alpha-7b,org/beta-large,other/alpha-small")
+        self.assertEqual(code, 1)
+        self.assertIn("one model per provider", err)
+        self.runner_main.assert_not_called()
+
+
 class RunnerHookTests(CliTestCase):
     """The runner accepts routes from the caller and reads no keys for them."""
 
