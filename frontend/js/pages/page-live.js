@@ -5,11 +5,11 @@
 
 import { askForToken } from "../ui/token-dialog.js";
 import { showToast } from "../ui/toast.js";
-import { vault } from "../engine/token.js";
+import { slotFor } from "../engine/provider-keys.js";
 import { VIEW_IDS } from "../shared/view-ids.js";
 import { loadJson } from "../shared/data-cache.js";
 import { createBudget, createChatClient } from "../engine/api.js";
-import { activePlatform } from "../models/platform-choice.js";
+import { activeKeySlot } from "../models/platform-choice.js";
 import { createBatchRunner } from "../engine/runner.js";
 import { describeStop, stopSentence } from "../engine/stop-reason.js";
 import { ALL_FAMILIES } from "../engine/flows.js";
@@ -1294,7 +1294,7 @@ function beginLiveRun(questions, cap, platform) {
   const budget = createBudget(cap);
   const client = createChatClient({
     platform,
-    vault,
+    vault: slotFor(platform.id),
     budget,
     perModelLimit: data.config.per_model_concurrency,
   });
@@ -1338,8 +1338,9 @@ async function startLive() {
   if (live.running) return;
   const questions = chosenQuestions();
   const cap = readWholeNumber(dom.capInput, MIN_CAP, MAX_CAP, MIN_CAP);
-  if (!vault.has()) {
-    const saved = await askForToken({ vault });
+  const { platform, slot } = await activeKeySlot();
+  if (!slot.has()) {
+    const saved = await askForToken({ vault: slot, platformId: platform.id });
     if (saved !== true) {
       showToast("No key was saved, so the live run has not started.", { tone: "warn" });
       return;
@@ -1352,7 +1353,6 @@ async function startLive() {
     setStatus("The live run has not started.");
     return;
   }
-  const platform = await activePlatform();
   beginLiveRun(questions, cap, platform);
 }
 

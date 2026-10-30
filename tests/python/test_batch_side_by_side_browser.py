@@ -2,7 +2,8 @@
 
 The tests serve the Vite build on 127.0.0.1 and abort every request to any other host, so a page that tries to reach
 the network fails the test. Each test uses a fake key of the right shape, and checks that the key never reaches the page
-text or the console, and that it is written to local storage only when Remember is ticked.
+text or the console, and that it is written to local storage only when Remember is ticked. A key saved in the
+header is the one the batch page uses, with no second prompt.
 
 Run from the project folder:
     .venv-spine/bin/python -m unittest tests.python.test_batch_side_by_side_browser -v
@@ -115,15 +116,15 @@ def guard_route(route, blocked):
 
 
 @contextlib.contextmanager
-def open_batch_page(remember_storage=None):
-    """Open the batch view in a fresh browser context. Yields (page, console_lines, blocked_requests)."""
+def open_batch_page(start_hash="#batch"):
+    """Open the site at start_hash (the batch view by default) in a fresh browser context. Yields (page, console_lines, blocked_requests)."""
     context = _BROWSER.new_context(viewport=DESKTOP)
     blocked = []
     context.route("**/*", lambda route: guard_route(route, blocked))
     page = context.new_page()
     console_lines = []
     page.on("console", lambda message: console_lines.append(message.text))
-    page.goto(_BASE_URL + "/index.html#batch")
+    page.goto(_BASE_URL + "/index.html" + start_hash)
     try:
         yield page, console_lines, blocked
     finally:
@@ -205,6 +206,26 @@ class BatchSideBySideBrowserTests(unittest.TestCase):
             save_fake_key(page, "Nebius", remember=False)
             expect(panel(page).locator("[role=status]").first).to_contain_text("1 of 3", timeout=SHORT_MS)
             expect(row_for(page, "SambaNova")).to_contain_text("Not available here")
+
+    def test_key_saved_in_the_header_is_recognised_on_the_batch_page_without_a_second_prompt(self):
+        with open_batch_page(start_hash="#gauntlet") as (page, console_lines, blocked):
+            # Save the key from the header, the way a visitor does on any page.
+            page.locator(".site-tools button", has_text="Key").first.click()
+            dialog = page.locator("dialog.token-dialog")
+            expect(dialog).to_be_visible(timeout=LONG_MS)
+            page.locator("#token-dialog-field").fill(FAKE_KEY)
+            dialog.get_by_role("button", name="Save key").click()
+            expect(dialog).to_be_hidden(timeout=SHORT_MS)
+            expect(page.locator(".key-status")).to_have_text("Key saved", timeout=SHORT_MS)
+            # Move to the batch page in the same visit, then add Nebius to the compare panel.
+            page.locator("a[data-nav-view='batch']").click()
+            expect(panel(page).get_by_role("heading", name="Compare providers")).to_be_visible(timeout=LONG_MS)
+            add_provider(page, "nebius")
+            expect(row_for(page, "Nebius")).to_contain_text("Ready", timeout=SHORT_MS)
+            self.assertEqual(page.locator("dialog.token-dialog").count(), 0)
+            self.assertNotIn(FAKE_KEY, page.content())
+            self.assertFalse(any(FAKE_KEY in line for line in console_lines))
+            self.assertEqual(blocked, [])
 
 
 if __name__ == "__main__":

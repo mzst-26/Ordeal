@@ -4,9 +4,9 @@
 // in this browser, so a reload can resume them without sending the saved steps again.
 
 import { askForToken } from "../ui/token-dialog.js";
-import { activePlatform } from "../models/platform-choice.js";
+import { activeKeySlot, activePlatform } from "../models/platform-choice.js";
 import { showToast } from "../ui/toast.js";
-import { vault } from "../engine/token.js";
+import { slotFor } from "../engine/provider-keys.js";
 import { VIEW_IDS } from "../shared/view-ids.js";
 import { updateConditionDescription } from "../suites/condition-text.js";
 import { loadJson } from "../shared/data-cache.js";
@@ -979,7 +979,7 @@ async function liveClient() {
   if (page.client === null) {
     page.client = activePlatform().then((platform) => createChatClient({
       platform,
-      vault,
+      vault: slotFor(platform.id),
       budget: page.budget,
       onWait: showWait,
     }));
@@ -987,7 +987,7 @@ async function liveClient() {
   return page.client;
 }
 
-/** Send one chat request from the browser, with the key in the vault. Only live mode calls this. */
+/** Send one chat request from the browser, with the key of the chosen provider. Only live mode calls this. */
 async function callModel(run, messages, signal) {
   const { config } = page.data;
   return (await liveClient()).complete({
@@ -1272,7 +1272,8 @@ async function resolveSource(source) {
   if (source !== SOURCE_LIVE) {
     return SOURCE_SAVED;
   }
-  if (vault.has() || (await askForToken({ vault }))) {
+  const { platform, slot } = await activeKeySlot();
+  if (slot.has() || (await askForToken({ vault: slot, platformId: platform.id }))) {
     if (await confirmLiveCalls()) {
       return SOURCE_LIVE;
     }
@@ -1476,7 +1477,8 @@ async function resumeGauntletRun(run) {
 
 /** Ask for the key and the live confirmation before a resume. Returns true when both are given. */
 async function readyForLiveResume() {
-  if (!vault.has() && !(await askForToken({ vault }))) {
+  const { platform, slot } = await activeKeySlot();
+  if (!slot.has() && !(await askForToken({ vault: slot, platformId: platform.id }))) {
     showToast(NO_KEY_RESUME_TOAST, { tone: "warn" });
     return false;
   }

@@ -485,13 +485,16 @@ Blobs, and the runs page lists them.
 
 ### Keys on the website
 
-The website asks the visitor to type in their own key. A key is kept in memory for that tab, and is saved to this browser's
-local storage only when the visitor ticks "Remember this key". It is not written to cookies or the address. The project's
-`.env` key is never used on the site. No key is stored on the server, and keys never reach it.
+The website asks the visitor to type in their own key. Each provider has one key, and that key works on every page: a key
+saved from the header, the Live page, the Gauntlet or the batch page is the one every other page uses for that provider.
+A key is kept in memory for that tab, and is saved to this browser's local storage only when the visitor ticks
+"Remember this key". It is not written to cookies or the address. The project's `.env` key is never used on the site.
+No key is stored on the server, and keys never reach it.
 
-The batch page keeps one key for each provider, so a key for one provider is never sent to another. Each key is sent only
-to its own provider's address. The Compare providers panel lets the visitor pick up to three providers and gives each one
-its own key.
+Each key is sent only to its own provider's address, so a key for one provider is never sent to another. The Live and
+Gauntlet pages run one provider at a time, and the batch page's Compare providers panel lets the visitor pick up to three
+providers, each with its own key. A key saved by an earlier version of the site is moved to its provider the first time
+the site loads, so it still works and nothing is lost.
 
 ### Building the site
 

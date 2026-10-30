@@ -2,9 +2,11 @@
 // sidebar from 1024px and a top bar below. The links use the hash and call the router, so moving between
 // views does not reload the page. The router (app.js) marks the open link with aria-current.
 
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { askForToken } from "../ui/token-dialog.js";
 import { nextSidebarState, readStoredSidebar, writeStoredSidebar } from "../ui/sidebar-state.js";
+import { activeKeySlot } from "../models/platform-choice.js";
+import { CHOICE_EVENT, KEY_EVENT, keyChanged } from "../models/platform-section.js";
 
 // localStorage key that remembers the visitor's theme choice between visits.
 const THEME_STORAGE_KEY = "sycophancy-theme";
@@ -77,22 +79,47 @@ function applySidebar(collapsed) {
 }
 
 /** Show "Key saved" when a key is set, or "No key set" when none is. Never show any part of the key. */
-function keyStatusText(vault) {
-  return vault.has() ? "Key saved" : "No key set";
+function keyStatusText(hasKey) {
+  return hasKey ? "Key saved" : "No key set";
 }
 
 /**
- * The header. `vault` holds the Token Factory key, and `navigate(view)` shows a view through the router.
+ * Read the key status of the chosen provider and pass the text to setKeyStatus. The header shows the key the pages
+ * will use, so a choice of another provider changes the text. If no platform can be chosen, the text says no key is set.
+ */
+async function readKeyStatus(setKeyStatus) {
+  try {
+    const { slot } = await activeKeySlot();
+    setKeyStatus(keyStatusText(slot.has()));
+  } catch {
+    setKeyStatus(keyStatusText(false));
+  }
+}
+
+/**
+ * The header. `navigate(view)` shows a view through the router. The key button works on the chosen provider's key.
  * The theme is applied before the first paint, so the page never flashes the wrong theme.
  */
-export function SiteHeader({ vault, navigate }) {
+export function SiteHeader({ navigate }) {
   const [theme, setTheme] = useState(readStoredTheme);
-  const [keyStatus, setKeyStatus] = useState(() => keyStatusText(vault));
+  const [keyStatus, setKeyStatus] = useState("");
   const [collapsed, setCollapsed] = useState(() => readStoredSidebar(getLocalStorage()));
 
   useLayoutEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  // Show the chosen provider's key status now, and again whenever a choice or a key changes on any page.
+  useEffect(() => {
+    const refresh = () => readKeyStatus(setKeyStatus);
+    refresh();
+    window.addEventListener(CHOICE_EVENT, refresh);
+    window.addEventListener(KEY_EVENT, refresh);
+    return () => {
+      window.removeEventListener(CHOICE_EVENT, refresh);
+      window.removeEventListener(KEY_EVENT, refresh);
+    };
+  }, []);
 
   // Apply the collapsed state, and apply it again when the window crosses the 1024px breakpoint.
   useLayoutEffect(() => {
@@ -123,10 +150,11 @@ export function SiteHeader({ vault, navigate }) {
     setCollapsed(next);
   }
 
-  /** Open the key dialog, then show the new status. */
+  /** Open the key dialog for the chosen provider. The change is announced to every page, so this header updates too. */
   async function changeKey() {
-    await askForToken({ vault });
-    setKeyStatus(keyStatusText(vault));
+    const { platform, slot } = await activeKeySlot();
+    await askForToken({ vault: slot, platformId: platform.id });
+    keyChanged();
   }
 
   return (

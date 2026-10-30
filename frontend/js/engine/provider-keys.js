@@ -1,8 +1,10 @@
 // Keeps one API key per provider in the browser. A key is held in memory by default. It is written to this browser's
-// local storage only when the visitor ticks Remember, the same rule token.js follows for the single key. Each key
+// local storage only when the visitor ticks Remember. This is the one key store every page uses. Each key
 // is kept under its provider id, so a key entered for one provider is never handed to another.
 // Nothing here writes a key to the URL, the DOM or the console.
-import { browserStorage, isPlausibleToken, maskToken } from './token.js';
+import {
+  browserStorage, isPlausibleToken, maskToken, REMEMBER_STORAGE_NAME, REMEMBER_PLATFORM_NAME,
+} from './token.js';
 
 // The name the per-provider keys are saved under in this browser's local storage. The value is a JSON object that
 // maps each provider id to its key. Only the keys the visitor asked to remember are kept there.
@@ -20,6 +22,31 @@ const OTHER_PROVIDER_MESSAGE = 'That key belongs to another provider, so it was 
 /** Return true when the text is a provider id the store accepts. */
 export function isProviderId(text) {
   return typeof text === 'string' && PROVIDER_ID_PATTERN.test(text);
+}
+
+/**
+ * Read the key the old single vault saved, with the provider id it was saved for. Returns null when there is none, or
+ * when the saved values do not look like a key and a provider id, so a damaged value is left alone.
+ */
+function readOldSingleKey(storage) {
+  try {
+    const text = storage ? storage.getItem(REMEMBER_STORAGE_NAME) : null;
+    const providerId = storage ? storage.getItem(REMEMBER_PLATFORM_NAME) : null;
+    if (!isPlausibleToken(text) || !isProviderId(providerId)) return null;
+    return { providerId, text: text.trim() };
+  } catch {
+    return null;
+  }
+}
+
+/** Remove the two values the old single vault saved. A storage error is ignored, because the key was already moved. */
+function removeOldSingleKey(storage) {
+  try {
+    storage.removeItem(REMEMBER_STORAGE_NAME);
+    storage.removeItem(REMEMBER_PLATFORM_NAME);
+  } catch {
+    // Nothing else to do: the moved key is saved under the per-provider name.
+  }
 }
 
 /**
@@ -50,19 +77,35 @@ export function createProviderKeys({ storage = null } = {}) {
   const entries = new Map();
   let loaded = false;
 
-  /** Fill the map from storage once. Keys found there are marked as remembered. */
+  /**
+   * Move a key from the old single vault into this store. The old key is taken only when this store has no key for that
+   * provider yet, so a newer key is never replaced. The old copy is removed only after the move is saved, so a failed
+   * save never loses the key.
+   */
+  function adoptOldSingleKey() {
+    const old = readOldSingleKey(storage);
+    if (old === null || entries.has(old.providerId)) return;
+    entries.set(old.providerId, { text: old.text, remembered: true });
+    if (persist()) removeOldSingleKey(storage);
+  }
+
+  /** Fill the map from storage once. Keys found there are marked as remembered, then an old single-vault key is moved in. */
   function load() {
     if (loaded) return;
     loaded = true;
     for (const [providerId, text] of Object.entries(readSavedMap(storage))) {
       entries.set(providerId, { text, remembered: true });
     }
+    adoptOldSingleKey();
   }
 
-  /** Write only the remembered keys to storage. When none are remembered the saved value is removed. */
+  /**
+   * Write only the remembered keys to storage. When none are remembered the saved value is removed. Returns true when the
+   * write worked, and false when storage refused it, so the caller keeps any old copy until the new one is saved.
+   */
   function persist() {
     try {
-      if (!storage) return;
+      if (!storage) return false;
       const remembered = {};
       for (const [providerId, entry] of entries) {
         if (entry.remembered) remembered[providerId] = entry.text;
@@ -72,8 +115,10 @@ export function createProviderKeys({ storage = null } = {}) {
       } else {
         storage.setItem(PROVIDER_KEYS_STORAGE_NAME, JSON.stringify(remembered));
       }
+      return true;
     } catch {
       // The keys stay in memory for this page only.
+      return false;
     }
   }
 
@@ -129,9 +174,9 @@ export function slotForPlatform(platform) {
 }
 
 /**
- * Return the key slot for one provider: an object with the same methods as the single-key vault in token.js (get, has,
- * set, clear, platformId, remembered, masked). Each slot is tied to its provider id. Passing the slot where the vault
- * is expected means the chat client and the key dialog need no change: a slot only reads or writes its own provider.
+ * Return the key slot for one provider: an object with the methods the key dialog and the chat client use (get, has,
+ * set, clear, platformId, remembered, masked). Each slot is tied to its provider id. The dialog and the chat client take
+ * a slot as their key store, so a slot only ever reads or writes its own provider.
  */
 export function keySlotFor(keys, providerId) {
   return {

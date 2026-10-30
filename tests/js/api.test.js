@@ -18,7 +18,7 @@ import {
   chatBody,
 } from '../../frontend/js/engine/api.js';
 import { CUSTOM_MODEL_REASONS } from '../../frontend/js/engine/custom-model.js';
-import { createTokenVault } from '../../frontend/js/engine/token.js';
+import { createProviderKeys, keySlotFor } from '../../frontend/js/engine/provider-keys.js';
 import { createPlatformPacer } from '../../frontend/js/engine/platform-pacer.js';
 import { platformList, browserPlatforms, findPlatform } from '../../frontend/js/models/platforms.js';
 import { readJson } from './helpers.js';
@@ -29,6 +29,10 @@ const FAKE_KEY = 'test-key-' + '0'.repeat(31);
 const TEST_PLATFORM = findPlatform(browserPlatforms(platformList(readJson('frontend/data/providers.json'))), 'nebius');
 // The shared list has no trailing slash on this address, so the tests add one: the client adds it the same way.
 const BASE_URL = TEST_PLATFORM.base_url.endsWith('/') ? TEST_PLATFORM.base_url : TEST_PLATFORM.base_url + '/';
+// A key slot for one provider, from the per-provider store that every page uses. It is empty until a test sets a key.
+function emptyKeySlot(platformId = 'test') {
+  return keySlotFor(createProviderKeys(), platformId);
+}
 const CHAT_URL = BASE_URL + 'chat/completions';
 
 /** Build a browser platform with the given address, for the tests that try other addresses. */
@@ -94,7 +98,7 @@ function makeClient({
   pacer = undefined,
   onWait = undefined,
 }) {
-  const vault = createTokenVault();
+  const vault = emptyKeySlot();
   if (hasKey) vault.set(FAKE_KEY, { platform: 'test' });
   const fake = makeFakeFetch(script);
   const sleeps = [];
@@ -553,7 +557,7 @@ test('two custom models with the same name are refused before any fetch', () => 
   const error = syncErrorFrom(() => createChatClient({
     platform: TEST_PLATFORM,
     customModels: [CUSTOM_MODEL, twin],
-    vault: createTokenVault(),
+    vault: emptyKeySlot(),
     budget: createBudget(null),
     fetchImpl: fake.fetchImpl,
   }));
@@ -594,7 +598,7 @@ test('plain http and addresses with a user name are refused for any platform, be
     const fake = makeFakeFetch([replyWith('ok')]);
     const error = syncErrorFrom(() => createChatClient({
       platform: platformAt(baseUrl),
-      vault: createTokenVault(),
+      vault: emptyKeySlot(),
       budget: createBudget(null),
       fetchImpl: fake.fetchImpl,
     }));
@@ -615,7 +619,7 @@ test('MAX_ATTEMPTS_PER_STEP is one try plus the retries, and a step that keeps f
   assert.equal(MAX_ATTEMPTS_PER_STEP, MAX_RETRIES + 1);
   assert.equal(MAX_ATTEMPTS_PER_STEP, 6);
   const fake = makeFakeFetch(Array.from({ length: MAX_ATTEMPTS_PER_STEP + 2 }, () => fakeResponse(500, {})));
-  const vault = createTokenVault();
+  const vault = emptyKeySlot(TEST_PLATFORM.id);
   vault.set(FAKE_KEY, { platform: TEST_PLATFORM.id });
   const client = createChatClient({
     platform: TEST_PLATFORM,

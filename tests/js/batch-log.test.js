@@ -1,9 +1,9 @@
-// Tests for the operation log of a batch run (engine/batch-log.js), the remembered key (engine/token.js),
-// and the request and stop events that are written to the log (engine/api.js and engine/runner.js).
+// Tests for the operation log of a batch run (engine/batch-log.js), and the request events that are written to the
+// log (engine/api.js). The key used by the requests is a key slot from the per-provider store.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createBatchLog, LOG_LIMIT } from '../../frontend/js/engine/batch-log.js';
-import { createTokenVault, REMEMBER_STORAGE_NAME } from '../../frontend/js/engine/token.js';
+import { createProviderKeys, keySlotFor } from '../../frontend/js/engine/provider-keys.js';
 import { createChatClient, createBudget } from '../../frontend/js/engine/api.js';
 
 // A fake key of exactly 40 characters. It is not a real key.
@@ -65,66 +65,9 @@ test('an empty log writes no text, and each entry is one JSON line', () => {
   assert.deepEqual(JSON.parse(lines[1]), { time: '2026-10-25T00:00:00.000Z', kind: 'b', n: 2 });
 });
 
-test('a remembered key is written to storage and read back by a new vault', () => {
-  const storage = memoryStorage();
-  createTokenVault({ storage }).set(FAKE_KEY, { remember: true, platform: 'test' });
-  assert.equal(storage.items.get(REMEMBER_STORAGE_NAME), FAKE_KEY);
-
-  const later = createTokenVault({ storage });
-  assert.equal(later.has(), true);
-  assert.equal(later.get(), FAKE_KEY);
-  assert.equal(later.remembered(), true);
-});
-
-test('a key set without Remember is not written to storage, and removes an older copy', () => {
-  const storage = memoryStorage();
-  const vault = createTokenVault({ storage });
-  vault.set(FAKE_KEY, { remember: true, platform: 'test' });
-  vault.set('other-key-' + '1'.repeat(30), { remember: false, platform: 'test' });
-  assert.equal(storage.items.has(REMEMBER_STORAGE_NAME), false);
-  assert.equal(vault.get(), 'other-key-' + '1'.repeat(30));
-});
-
-test('clear forgets the key in memory and in storage', () => {
-  const storage = memoryStorage();
-  const vault = createTokenVault({ storage });
-  vault.set(FAKE_KEY, { remember: true, platform: 'test' });
-  vault.clear();
-  assert.equal(vault.has(), false);
-  assert.equal(createTokenVault({ storage }).has(), false);
-});
-
-test('a stored value that is not a plausible key is ignored', () => {
-  const storage = memoryStorage();
-  storage.setItem(REMEMBER_STORAGE_NAME, 'not a key');
-  const vault = createTokenVault({ storage });
-  assert.equal(vault.has(), false);
-  assert.equal(vault.get(), null);
-});
-
-test('a storage that throws never breaks the vault, and the key still works for this tab', () => {
-  const broken = {
-    getItem() { throw new Error('blocked'); },
-    setItem() { throw new Error('blocked'); },
-    removeItem() { throw new Error('blocked'); },
-  };
-  const vault = createTokenVault({ storage: broken });
-  vault.set(FAKE_KEY, { remember: true, platform: 'test' });
-  assert.equal(vault.get(), FAKE_KEY);
-  vault.clear();
-  assert.equal(vault.has(), false);
-});
-
-test('without storage the vault behaves as before and remembers nothing', () => {
-  const vault = createTokenVault();
-  vault.set(FAKE_KEY, { remember: true, platform: 'test' });
-  assert.equal(vault.get(), FAKE_KEY);
-  assert.equal(vault.remembered(), false);
-});
-
 test('a retried request logs each attempt, the wait and the result, and never the key', async () => {
   const log = fixedLog();
-  const vault = createTokenVault();
+  const vault = keySlotFor(createProviderKeys(), 'test');
   vault.set(FAKE_KEY, { platform: 'test' });
   const replies = [{ status: 429 }, { status: 200, json: async () => ({ choices: [{ message: { content: 'Answer: C' } }] }) }];
   const client = createChatClient({
@@ -152,7 +95,7 @@ test('a retried request logs each attempt, the wait and the result, and never th
 
 test('a refused key is logged as refused, with its status', async () => {
   const log = fixedLog();
-  const vault = createTokenVault();
+  const vault = keySlotFor(createProviderKeys(), 'test');
   vault.set(FAKE_KEY, { platform: 'test' });
   const client = createChatClient({
     platform: { id: 'test', base_url: BASE_URL, browser: true },

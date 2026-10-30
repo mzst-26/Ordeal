@@ -1,14 +1,16 @@
 // The "Platform and key" panel. It holds the platform and the API key only: the visitor picks a platform from a popup
 // of cards, and uses the existing key dialog for the key. Models are picked in section 5 of the batch page instead
 // (see model-check.js and page-batch.js), so there is one place to pick them. Only the platform id is saved for this
-// browser. The key stays in the token vault, which keeps it in memory unless the visitor asks to remember it.
+// browser. The key stays in the per-provider key store (provider-keys.js), which keeps it in memory unless the visitor
+// asks to remember it. The same store serves every page, so a key saved here is the key the other pages use.
 //
 // The panel is drawn once on the batch page and once on the gauntlet page. The two copies share one saved choice:
 // each save is announced on the window, and every copy redraws itself from that announcement.
 
 import { loadJson } from "../shared/data-cache.js";
 import { askForToken } from "../ui/token-dialog.js";
-import { browserStorage, vault } from "../engine/token.js";
+import { browserStorage } from "../engine/token.js";
+import { slotForPlatform } from "../engine/provider-keys.js";
 import { openPicker } from "../ui/picker-dialog.js";
 import {
   currentPlatform,
@@ -59,7 +61,7 @@ function idsFor(rootId) {
  * Draw the panel into root. It loads the shared list first and shows a plain message if that fails. A missing root is
  * ignored, so a page without this panel never throws. The saved choice (if any) decides which platform is shown.
  */
-export async function mountPlatformSection(root, { keyFor = defaultKeyFor } = {}) {
+export async function mountPlatformSection(root) {
   if (!root) return;
   let list;
   try {
@@ -71,17 +73,10 @@ export async function mountPlatformSection(root, { keyFor = defaultKeyFor } = {}
   const storage = browserStorage();
   const saved = readChoice(storage);
   const view = buildSection(root, list);
-  // The key line and the key dialog use the key for the chosen platform. The default is the single key vault.
-  view.keyFor = keyFor;
   root.replaceChildren(view.section);
   wireSection(view, storage);
   showChoice(view, saved);
   renderKeyStatus(view);
-}
-
-/** The key used when a copy of the panel is not given one: the single key vault, shared with the header and Gauntlet. */
-function defaultKeyFor() {
-  return vault;
 }
 
 /**
@@ -123,7 +118,7 @@ function wireSection(view, storage) {
   view.button.addEventListener("click", () => openChooser(view, storage));
   view.keyButton.addEventListener("click", async () => {
     const platformId = view.platform === null ? null : view.platform.id;
-    await askForToken({ vault: view.keyFor(view.platform), platformId });
+    await askForToken({ vault: slotForPlatform(view.platform), platformId });
     keyChanged();
   });
   window.addEventListener(CHOICE_EVENT, (event) => showChoice(view, event.detail));
@@ -202,7 +197,7 @@ function textOf(value) {
 
 /** Say whether a key is saved for the chosen platform in this tab, showing only the masked form. */
 function renderKeyStatus(view) {
-  const slot = view.keyFor(view.platform);
+  const slot = slotForPlatform(view.platform);
   view.keyStatus.textContent = slot !== null && slot.has()
     ? `A key is saved for this tab: ${slot.masked()}`
     : "No key is saved yet.";

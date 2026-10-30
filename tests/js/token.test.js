@@ -1,11 +1,10 @@
-// Tests for the memory-only key vault in frontend/js/engine/token.js.
+// Tests for the key helpers in frontend/js/engine/token.js: the plausibility rules and the masked display. The keys
+// themselves are kept by the per-provider store, which has its own tests in provider-keys.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isPlausibleToken,
   maskToken,
-  createTokenVault,
-  vault,
   MIN_KEY_LENGTH,
   MAX_KEY_LENGTH,
   KEY_CHARACTERS_PATTERN,
@@ -13,7 +12,6 @@ import {
 
 // A fake key of exactly 40 characters. It is not a real key.
 const FAKE_KEY = 'test-key-' + '0'.repeat(31);
-const BAD_KEY_MESSAGE = 'That does not look like an API key. Check it and try again.';
 
 // Plausibility check: a quick format check on what a user pasted, not proof that the key works.
 test('the length limits are 20 to 512 characters', () => {
@@ -88,65 +86,4 @@ test('maskToken uses the mask for a 12-character value', () => {
 test('maskToken shows only dots for a value shorter than 12 characters', () => {
   assert.equal(maskToken('abcdefghijk'), '••••••');
   assert.equal(maskToken('short'), '••••••');
-});
-
-// The vault keeps the key in memory only: set, get, clear, and masked display.
-test('a new vault has no key', () => {
-  const keyVault = createTokenVault();
-  assert.equal(keyVault.has(), false);
-  assert.equal(keyVault.get(), null);
-  assert.equal(keyVault.masked(), '');
-});
-
-test('set then get returns the stored key, and has is true', () => {
-  const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY, { platform: 'nebius' });
-  assert.equal(keyVault.has(), true);
-  assert.equal(keyVault.get(), FAKE_KEY);
-});
-
-test('clear forgets the key', () => {
-  const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY, { platform: 'nebius' });
-  keyVault.clear();
-  assert.equal(keyVault.has(), false);
-  assert.equal(keyVault.get(), null);
-  assert.equal(keyVault.masked(), '');
-});
-
-// Safety: a bad value is refused with a fixed message that never echoes the value, and masked() never reveals the middle.
-test('setting an implausible value throws a plain message and stores nothing', () => {
-  const keyVault = createTokenVault();
-  assert.throws(() => keyVault.set('not a key'), { name: 'Error', message: BAD_KEY_MESSAGE });
-  assert.equal(keyVault.has(), false);
-});
-
-test('the error for a bad value does not repeat the value', () => {
-  const keyVault = createTokenVault();
-  const badValue = 'secret sentence with spaces in it';
-  let thrown = null;
-  try {
-    keyVault.set(badValue);
-  } catch (error) {
-    thrown = error;
-  }
-  assert.ok(thrown instanceof Error);
-  assert.equal(thrown.message.includes(badValue), false);
-});
-
-test('masked never returns the whole key or its middle part', () => {
-  const keyVault = createTokenVault();
-  keyVault.set(FAKE_KEY, { platform: 'nebius' });
-  const shown = keyVault.masked();
-  assert.equal(shown, maskToken(FAKE_KEY));
-  assert.notEqual(shown, FAKE_KEY);
-  assert.equal(shown.includes(FAKE_KEY.slice(3, -4)), false);
-});
-
-test('the shared vault instance has the vault methods', () => {
-  assert.equal(typeof vault.set, 'function');
-  assert.equal(typeof vault.get, 'function');
-  assert.equal(typeof vault.has, 'function');
-  assert.equal(typeof vault.clear, 'function');
-  assert.equal(typeof vault.masked, 'function');
 });
