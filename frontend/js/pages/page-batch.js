@@ -303,9 +303,9 @@ const page = {
   pacer: createPlatformPacer(), // one pacer for the page, so a park from one Start still holds in the next
   tracker: null,              // the pace tracker of this Start, or null before the first Start
   condition: null,            // the counts of the condition now running, made by freshConditionCounts()
-  condDone: {},               // the done count each condition's runner last reported, in this Start
+  finishedUnits: {},          // the unit keys each condition finished in this Start, as a set per condition
   idleShown: null,            // the saved set last shown while idle: its signature and saved progress, or null
-  startSaved: {},             // the units already saved for each condition's run, before this Start
+  savedUnits: {},             // the unit keys already saved for each condition's run, before this Start, as a set per condition
   runBase: emptyTotals(),     // the saved totals of the run now running, before this condition's counts
   startBases: {},            // the saved totals of each condition's run before this Start, keyed by condition
   conditionStartSeconds: 0,   // the active seconds when this condition began
@@ -1921,7 +1921,7 @@ async function beginRun(confirmedId) {
   // Once a run has started, the cap the user sees is kept, even if the plan changes later.
   page.capTouched = true;
   resetCounts(unitCount(choices));
-  page.condDone = {};
+  page.finishedUnits = {};
   recountDone(choices.conditions);
   page.tracker = createPaceTracker();
   page.tracker.start();
@@ -2352,6 +2352,7 @@ function handleEvent(event) {
       break;
     case "unit-done":
       saveFinishedUnit(event);
+      noteFinishedUnit(event);
       page.tracker?.noteUnit();
       break;
     case "progress":
@@ -2476,7 +2477,6 @@ function onUnitFailed(event) {
  * only the new finished units are added. The calls, replies and failures are counted as each one happens.
  */
 function onProgress(event) {
-  page.condDone[page.runCondition] = event.done;
   recountDone(page.batchChoices.conditions);
   renderProgress();
   scheduleResults();
@@ -2686,11 +2686,11 @@ function conditionTotals() {
  */
 async function loadStartBases(choices, fromScratch) {
   const bases = {};
-  page.startSaved = {};
+  page.savedUnits = {};
   if (page.storage === null || fromScratch) {
     for (const condition of choices.conditions) {
       bases[condition] = emptyTotals();
-      page.startSaved[condition] = 0;
+      page.savedUnits[condition] = new Set();
     }
     return bases;
   }
@@ -2705,7 +2705,7 @@ async function loadStartBases(choices, fromScratch) {
     const resumed = condition === first && page.resumeRunId !== null ? runs.find((run) => run.id === page.resumeRunId) : undefined;
     const carried = resumed ?? findResumableRun(runs, resumeSignature(batchConfig({ ...choices, condition })));
     bases[condition] = readTotals(carried);
-    page.startSaved[condition] = carried ? Object.keys(carried.results ?? {}).length : 0;
+    page.savedUnits[condition] = new Set(carried ? Object.keys(carried.results ?? {}) : []);
   }
   return bases;
 }
@@ -2807,9 +2807,18 @@ function raiseCapToFinish(choices) {
   page.capTouched = true;
 }
 
+/** Record a unit that finished in this Start, under the condition now running, and recount the units done. */
+function noteFinishedUnit(event) {
+  const condition = page.runCondition;
+  const finished = page.finishedUnits[condition] ?? new Set();
+  finished.add(eventUnitKey(event));
+  page.finishedUnits[condition] = finished;
+  recountDone(page.batchChoices.conditions);
+}
+
 /** Set the units done on the page's counts from each condition's saved and finished units, then show them. */
 function recountDone(conditions) {
-  page.counts.done = unitsDoneToShow(conditions, page.startSaved, page.condDone);
+  page.counts.done = unitsDoneToShow(conditions, page.savedUnits, page.finishedUnits);
 }
 
 /**

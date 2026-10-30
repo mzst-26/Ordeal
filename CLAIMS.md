@@ -6,3 +6,4 @@ rule 10 in CLAUDE.md.
 
 | Branch | Session | Files | Since |
 | --- | --- | --- | --- |
+| batch/count-distinct-units | session 4b71b7c1 (Claude) | frontend/js/runs/batch-progress.js, frontend/js/pages/page-batch.js, tests/js/batch-progress.test.js | 2026-10-30 |

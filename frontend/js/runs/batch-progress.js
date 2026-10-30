@@ -3,15 +3,16 @@
 // earlier Starts. Showing zero at the start of a Start would make a saved set look lost.
 
 /**
- * Return the units done to show. Each condition counts as the larger of its saved units and the runner's done count. The
- * runner replays the saved units first, so its count already includes them: taking the larger number avoids counting them
- * twice, and keeps the saved units on the bar while the runner catches up.
+ * Return the units done to show: the distinct units that have a reply, across the conditions. A unit counts once, whether it
+ * was saved before this Start or finished in it, and a saved unit the runner replays is not counted twice. Each argument maps
+ * a condition to a set of unit keys.
  */
-export function unitsDoneToShow(conditions, savedUnits, runnerDone) {
-  return conditions.reduce(
-    (sum, condition) => sum + Math.max(savedUnits[condition] ?? 0, runnerDone[condition] ?? 0),
-    0,
-  );
+export function unitsDoneToShow(conditions, savedByCondition, finishedByCondition) {
+  return conditions.reduce((sum, condition) => {
+    const done = new Set(savedByCondition[condition] ?? []);
+    for (const unit of finishedByCondition[condition] ?? []) done.add(unit);
+    return sum + done.size;
+  }, 0);
 }
 
 /** Return the calls, reused replies and failures to show: the totals of the earlier Starts plus this Start's own counts. */

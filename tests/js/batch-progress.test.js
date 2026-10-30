@@ -4,18 +4,27 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { idleCountsFor, unitsDoneToShow, countsToShow } from "../../frontend/js/runs/batch-progress.js";
 
-test("units done shows the saved units when a Start has not reached them yet", () => {
-  // 88 units were saved for the first condition; its runner has replayed none yet, so the bar keeps 88.
-  assert.equal(unitsDoneToShow(["none"], { none: 88 }, {}), 88);
+/** Return n distinct unit keys, numbered from start, in the form the page uses for a unit. */
+function unitKeys(n, start = 0) {
+  return Array.from({ length: n }, (_, index) => JSON.stringify(["m", `q${start + index}`, 1]));
+}
+
+test("units done is the saved units alone when no new unit has finished", () => {
+  // 88 units were saved for the first condition, and none has finished in this Start.
+  assert.equal(unitsDoneToShow(["none"], { none: new Set(unitKeys(88)) }, { none: new Set() }), 88);
 });
 
-test("units done counts the runner's progress once it passes the saved units, without adding them twice", () => {
-  // The runner replays the 88 saved units, then finishes two new ones: 90, not 178.
-  assert.equal(unitsDoneToShow(["none"], { none: 88 }, { none: 90 }), 90);
+test("units done adds the new units that finish, and counts a replayed unit only once", () => {
+  // 88 saved; this Start finishes 10 new units and replays 5 of the saved ones: 98 distinct units, not 103.
+  const saved = new Set(unitKeys(88));
+  const finished = new Set([...unitKeys(5), ...unitKeys(10, 88)]);
+  assert.equal(unitsDoneToShow(["none"], { none: saved }, { none: finished }), 98);
 });
 
-test("units done adds the conditions of one batch, each with its own saved and finished units", () => {
-  assert.equal(unitsDoneToShow(["none", "control"], { none: 10, control: 0 }, { control: 4 }), 14);
+test("units done counts the saved units of each condition separately, with the new ones of each", () => {
+  const none = new Set(unitKeys(10));
+  const control = new Set();
+  assert.equal(unitsDoneToShow(["none", "control"], { none, control }, { control: new Set(unitKeys(4)) }), 14);
 });
 
 test("calls, reused and failed show the earlier Starts' totals plus this Start", () => {
