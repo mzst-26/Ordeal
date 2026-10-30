@@ -417,3 +417,25 @@
     border-left: 0;
   }
 }
+
+/* FIG. 8, the comparison views. A wide view (many models) scrolls inside its own box, so the page never scrolls sideways. */
+.views-chart {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.views-chart svg {
+  display: block;
+  max-width: none;
+  height: auto;
+}
+
+/* The lines of the hover tooltip, using the same small text as the rest of the page's labels. */
+.views-tip {
+  display: grid;
+  gap: 2px;
+}
+
+.views-tip-line {
+  font-size: var(--size-xs);
+}

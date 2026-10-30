@@ -26,6 +26,7 @@ const FIGURES = [
   { id: "fig-replay", load: () => import("./fig-replay.js") },
   { id: "fig-map", load: () => import("./fig-scatter.js"), options: { mode: "map" } },
   { id: "fig-mitigation", load: () => import("./fig-mitigation.js") },
+  { id: "fig-views", load: () => import("./fig-views.js") },
 ];
 
 /** Reads and parses the embedded JSON. Returns {data}, {empty: true} or {error}. */
@@ -84,6 +85,7 @@ function buildFilters(data, state, onChange) {
   const reasoning = document.getElementById("filter-reasoning");
   const open = document.getElementById("filter-open");
   const lowSample = document.getElementById("filter-lowsample");
+  const differences = document.getElementById("filter-differences");
   const search = document.getElementById("filter-search");
   const resetButton = document.getElementById("filter-reset");
 // One toggle chip per family, keyed by family (null stands for models with no family).
@@ -151,6 +153,10 @@ function buildFilters(data, state, onChange) {
     state.filters.lowSampleHidden = lowSample.checked;
     onChange();
   });
+  differences.addEventListener("change", () => {
+    state.differencesOnly = differences.checked;
+    onChange();
+  });
   search.addEventListener("input", () => {
     state.filters.search = search.value.trim();
     onChange();
@@ -170,12 +176,14 @@ function buildFilters(data, state, onChange) {
     reasoning.value = state.filters.reasoning;
     open.value = state.filters.open;
     lowSample.checked = state.filters.lowSampleHidden;
+    differences.checked = state.differencesOnly;
     search.value = state.filters.search;
   }
 
   /** Puts the filters back to where the page starts. */
   function resetFilters() {
     state.filters = defaultFilters(models);
+    state.differencesOnly = false;
     sync();
   }
 
@@ -229,6 +237,8 @@ async function boot() {
 // Page-wide state. selectedId is the pinned model highlighted in figures; openId is the model whose card is open.
   const state = {
     filters: defaultFilters(allModels),
+    // Differences only: the comparison views show only the dimensions that vary among the models shown (FIG 8).
+    differencesOnly: false,
     condition: "none",
     selectedId: null,
     openId: null,
@@ -258,6 +268,7 @@ async function boot() {
       models: visible,
       allModels,
       filters: state.filters,
+      differencesOnly: state.differencesOnly,
       condition: state.condition,
       selectedId: state.selectedId,
       openId: state.openId,

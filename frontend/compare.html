@@ -96,6 +96,15 @@
       </div>
 
       <div class="filter-group">
+        <label class="check" for="filter-differences">
+          <input class="check-input" type="checkbox" id="filter-differences">
+          <span class="check-box" aria-hidden="true"></span>
+          <span>Differences only</span>
+        </label>
+        <p class="field-hint">In the comparison views (FIG. 8), show only the dimension that varies among the models shown.</p>
+      </div>
+
+      <div class="filter-group">
         <label class="label" for="filter-search">Search models</label>
         <input class="text-input" type="search" id="filter-search" placeholder="Name or ID" autocomplete="off">
       </div>
@@ -150,6 +159,13 @@
     <section class="card figure" id="fig-mitigation" aria-labelledby="fig-mitigation-title">
       <p class="card-label" id="fig-mitigation-title">FIG. 7 · MITIGATION AND CONTROL</p>
       <div class="figure-root" id="fig-mitigation-root"><p class="figure-message">Loading the figure.</p></div>
+    </section>
+
+    <!-- FIG. 8: comparison views (small multiples, dot plot, heatmap), drawn with Vega-Lite. -->
+    <section class="card figure" id="fig-views" aria-labelledby="fig-views-title">
+      <p class="card-label" id="fig-views-title">FIG. 8 · COMPARISON VIEWS</p>
+      <div class="figure-root" id="fig-views-root"><p class="figure-message">Loading the figure.</p></div>
+      <p class="field-hint figure-caption">Small multiples put each condition in its own panel on shared scales. The dot plot puts the 95% interval on each dot. The heatmap shows each model on each question.</p>
     </section>
 
     <!-- Collapsible glossary of the terms used on this page. -->
