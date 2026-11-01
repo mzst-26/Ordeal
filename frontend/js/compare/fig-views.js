@@ -1,13 +1,17 @@
-// FIG 8 "Comparison views": small multiples, a dot plot and a heatmap, drawn with Vega-Lite. The spec builders are
-// pure (vega-specs.js); this module reads the page's colour tokens, runs Vega, and handles the view switch.
+// FIG 8 "Comparison views": small multiples and a dot plot, drawn with Vega-Lite, and a heatmap, drawn with ECharts
+// (heat-chart.js, loaded on demand). The spec builders are pure (vega-specs.js, echarts-heatmap.js); this module reads
+// the page's colour tokens, runs the chart, and handles the view switch.
+// Why the heatmap moved: the benchmark drew 1,000 models by 100 questions in about 0.5 s with ECharts and about 8 s
+// with Vega (benchmarks/charts/last-run.json). The small multiples and the dot plot stay on Vega.
 // The Vega view uses vega-interpreter, not Vega's default expression compiler, because the site's Content-Security-
 // Policy has no 'unsafe-eval'. The tooltip is the page's own (tooltip.js), so no style element is injected.
-// mount(root, api) returns {update(view)}. Missing values are never drawn as zero: the spec builders drop them.
+// mount(root, api) returns {update(view)}. Missing values are never drawn as zero: the builders drop them.
 import * as vega from "vega";
 import * as vegaLite from "vega-lite";
 import { expressionInterpreter } from "vega-interpreter";
 import { conditionRows, questionRows } from "./vega-rows.js";
-import { smallMultiplesSpec, dotPlotSpec, heatmapSpec, MAX_SERIES } from "./vega-specs.js";
+import { smallMultiplesSpec, dotPlotSpec, MAX_SERIES } from "./vega-specs.js";
+import { heatmapOption, heatmapSize } from "./echarts-heatmap.js";
 import { chooseDifferenceView } from "./differences.js";
 import { showTooltip, hideTooltip } from "./tooltip.js";
 import { pct, rateText } from "./derive.js";
@@ -111,13 +115,23 @@ function differenceSmallMultiples(rows, theme) {
   };
 }
 
-/** The heatmap: one cell per model and question. Differences only does not apply to it (see DIFFERENCES_NOTE). */
+/**
+ * The heatmap: one cell per model and question, drawn with ECharts. Differences only does not apply to it (see
+ * DIFFERENCES_NOTE). The engine field tells redraw which chart to run.
+ */
 function heatmapView(models, data, theme) {
   const rows = questionRows(models, data);
   if (rows.length === 0) {
-    return { spec: null, rows, message: models.length === 0 ? NO_MODELS : NO_QUESTIONS, note: "" };
+    return { engine: null, spec: null, rows, message: models.length === 0 ? NO_MODELS : NO_QUESTIONS, note: "" };
   }
-  return { spec: heatmapSpec(rows, { theme }), rows, message: "", note: "" };
+  return {
+    engine: "echarts",
+    option: heatmapOption(rows, theme),
+    size: heatmapSize(rows),
+    rows,
+    message: "",
+    note: "",
+  };
 }
 
 /** The dot plot: one dot per model and condition with its interval. Differences only does not apply to it. */
@@ -149,18 +163,26 @@ function buildView(viewId, view, data, theme) {
   return view.differencesOnly ? differenceSmallMultiples(rows, theme) : plainSmallMultiples(rows, theme);
 }
 
-/** Shows the tooltip next to the pointer: one line per field of the hovered mark, using the Vega field titles. */
+/**
+ * Shows the tooltip next to the pointer: one line per field of the hovered mark, using the field titles. Both the Vega
+ * views and the ECharts heatmap use it, so the two read the same.
+ */
+function showTooltipLines(lines, clientX, clientY) {
+  const node = el("div", "views-tip");
+  for (const [title, text] of Object.entries(lines)) {
+    node.append(el("div", "views-tip-line", `${title}: ${text}`));
+  }
+  const rect = { left: clientX, right: clientX, top: clientY, bottom: clientY, width: 0, height: 0 };
+  showTooltip(node, rect);
+}
+
+/** The Vega tooltip handler: hides the tooltip when there is no value, and shows it for the hovered mark otherwise. */
 function tooltipHandler(handler, event, item, value) {
   if (!value) {
     hideTooltip();
     return;
   }
-  const node = el("div", "views-tip");
-  for (const [title, text] of Object.entries(value)) {
-    node.append(el("div", "views-tip-line", `${title}: ${text}`));
-  }
-  const rect = { left: event.clientX, right: event.clientX, top: event.clientY, bottom: event.clientY, width: 0, height: 0 };
-  showTooltip(node, rect);
+  showTooltipLines(value, event.clientX, event.clientY);
 }
 
 /** A header cell of the table, marked as a column header for screen readers. */
@@ -265,10 +287,13 @@ export function mount(root, api) {
     altBox.hidden = !state.tableOpen;
   }
 
-  /** Releases the current Vega view, so its listeners and nodes are freed before another view replaces it. */
+  /**
+   * Releases the current chart, whichever engine drew it, so its listeners and nodes are freed before another view
+   * replaces it. Each chart is kept as {release()}, so this code does not need to know which engine it is.
+   */
   function discardChart() {
     if (state.chart) {
-      state.chart.finalize();
+      state.chart.release();
       state.chart = null;
     }
   }
@@ -311,7 +336,30 @@ export function mount(root, api) {
       return;
     }
     discardChart();
-    state.chart = chart;
+    state.chart = { release: () => chart.finalize() };
+  }
+
+  /**
+   * Runs the ECharts heatmap. The ECharts module is loaded the first time it is needed, so it is downloaded only when
+   * a reader opens this view. A run that finishes after a newer redraw has started is thrown away, as for Vega.
+   */
+  async function drawHeatmapChart(option, size, token) {
+    let heat;
+    try {
+      heat = await import("./heat-chart.js");
+    } catch (error) {
+      console.error("The heatmap module could not be loaded.", error);
+      showMessage(FAILED);
+      return;
+    }
+    if (token !== state.token) {
+      return;
+    }
+    discardChart();
+    const host = el("div");
+    chartBox.replaceChildren(host);
+    const handlers = { onHover: showTooltipLines, onLeave: hideTooltip };
+    state.chart = heat.drawHeatmap(host, option, size, handlers);
   }
 
   /** Redraws the chart, the note and the table from the current view and the chosen view. */
@@ -329,6 +377,8 @@ export function mount(root, api) {
     }
     if (built.message) {
       showMessage(built.message);
+    } else if (built.engine === "echarts") {
+      drawHeatmapChart(built.option, built.size, token);
     } else {
       drawSpec(built.spec, token);
     }

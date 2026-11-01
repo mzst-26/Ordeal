@@ -1,7 +1,9 @@
 // Vega-Lite spec builders for the comparison views. Pure functions, no DOM, so the node tests can compile and
 // render every spec. Each builder takes flat rows (from vega-rows.js) and returns a plain JSON spec.
 // Three views: small multiples (metric by model, one panel per condition or provider), a dot plot with error bars
-// (model by condition), and a heatmap (model by question).
+// (model by condition), and a heatmap (model by question). The page draws only the first two with Vega. The heatmap
+// moved to ECharts (echarts-heatmap.js). Its Vega builder stays here, because the chart benchmark still draws it to
+// reproduce the Vega comparison, and the tests keep it working.
 // Colours are passed in as hex values from the page's theme, because a canvas or SVG mark cannot read a CSS
 // variable. The page reads the tokens and calls these builders again when the colour scheme changes.
 import { distinctCount } from "./differences.js";
